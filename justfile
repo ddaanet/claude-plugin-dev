@@ -6,7 +6,9 @@ _default:
 # Run all syntax + style checks on the toolkit's own scripts.
 precommit: whitespace
     shellcheck install.sh version-guard.sh
+    bash -n tests/hook-test.sh
     just _import-check
+    bash tests/hook-test.sh
     @echo ok
 
 # Apply `git stripspace` to cached text files. Prints each file
