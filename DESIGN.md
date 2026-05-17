@@ -232,10 +232,18 @@ The consumer-defined gate the `release` recipe depends on is called
 ### Default branch detection via `origin/HEAD`
 
 The release recipe doesn't hardcode `main` — it reads the default
-branch from `git rev-parse --abbrev-ref origin/HEAD` and falls back
-to `"main"` if unset. Lets the recipe work on `master`, `trunk`,
-fork-default branches, etc., with no behaviour change in the common
-case.
+branch from `git symbolic-ref --short refs/remotes/origin/HEAD` and
+falls back to `"main"` if unset. Lets the recipe work on `master`,
+`trunk`, fork-default branches, etc., with no behaviour change in the
+common case.
+
+`symbolic-ref` rather than `rev-parse --abbrev-ref` because the latter
+exits non-zero *and* prints `"origin/HEAD"` to stdout when the ref is
+unset. Combined with `pipefail` and a `|| echo "main"` fallback, the
+substitution captured both, producing a two-line `main_branch` and the
+nonsensical error "must be on HEAD (currently main)".
+`symbolic-ref` is silent on stdout when the ref is unset, so the
+fallback fires cleanly.
 
 ## Limitations
 
@@ -280,3 +288,32 @@ case.
   whether to absorb a small standard-hooks set (shellcheck,
   trailing-whitespace) for consumer plugins, or leave each consumer
   to define its own `precommit` shape.
+
+- **2026-04-29 — `v0.2.0`.** Three changes shipped together:
+  - **`VERSION` file + self-release recipe.** The toolkit had no way
+    to self-identify from inside a consumer's subtree (tags don't
+    propagate). Added a plain-text `VERSION` at the repo root and a
+    local `release` recipe in this repo's `justfile` that bumps
+    `VERSION`, tags, and pushes. Same manifest-vs-tag mismatch guard
+    as the consumer recipe, applied to `VERSION`. See "Toolkit
+    version source of truth" above.
+  - **Marketplace bump in `release.just`.** The consumer release
+    recipe now also bumps the corresponding entry in
+    `$MARKETPLACE_DIR/.claude-plugin/marketplace.json` and pushes
+    that repo. Pre-flight checks (env var set, file exists, entry
+    exists, repo clean) run before any destructive op. Rationale: a
+    tag without a marketplace bump is invisible to end users, so
+    treating them as one atomic release matches reality.
+  - **`symbolic-ref` fix for default-branch detection.** See
+    "Default branch detection" above.
+
+  Also added a hook-test for `version-guard.sh` under `tests/`.
+
+  Adoption: `handoff` migrated to the toolkit during this cycle
+  (subtree-add v0.2.0, ran `install.sh`, deleted its local
+  `scripts/version-guard.sh` and inline release recipe). `gitmoji`
+  migration in progress.
+
+  Next: finish `gitmoji` migration. Then revisit the
+  standard-hooks-set question with two real consumers' `precommit`
+  recipes side-by-side.
