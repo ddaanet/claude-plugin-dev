@@ -215,6 +215,43 @@ The release recipe, which bumps from current, would have produced the
 Caught at release time when the recipe's tag mismatch happened to
 trigger a check; would have shipped wrong otherwise.
 
+### Marketplace entry: bump if present, create on first publication
+
+The release recipe's marketplace step handles both a plugin that already
+has a `marketplace.json` entry and one being published for the first time:
+
+- **Entry present** → rewrite its `.version` to the new version (the
+  original behaviour).
+- **Entry absent** → append a new entry synthesised from `plugin.json`
+  (`name`, `description`, `author`, `repository`/`homepage`, `license`)
+  plus a `github` `source` whose `repo` is derived from the plugin's
+  `origin` remote (owner/repo, parsed from either the SSH or HTTPS URL).
+
+Originally the recipe treated a missing entry as a fatal pre-flight error
+(`no entry for '<name>'`). That made the *first* release of any plugin
+impossible through the recipe — the maintainer had to hand-edit
+`marketplace.json` first, then release. Since the recipe's whole premise
+is that "a tag without a marketplace bump is invisible to end users,"
+first publication is exactly when the marketplace touch matters most.
+Creating the entry from the manifest closes that gap: one `just release`
+publishes a brand-new plugin end to end.
+
+`source` is the one field not present in `plugin.json`, so it's derived
+from `origin` rather than the manifest. The recipe only targets
+single-plugin GitHub-hosted repos (the consumer-plugin model), so a
+`github` source with an owner/repo slug is always correct here; the
+monorepo `git-subdir` sources (e.g. the skills bundle) are out of scope
+and hand-maintained. The `origin`-remote requirement for new plugins is
+validated in the pre-flight block, before any destructive op.
+
+The commit is idempotent. When the rewrite produces no change — the entry
+was pre-added at exactly the version being released — `git commit` would
+exit non-zero under `set -e` and abort the recipe *after* the
+irreversible commit/tag/push/`gh release create` had already run, leaving
+the maintainer staring at `exit code 1` on a release that actually
+succeeded. The step now checks `git diff --cached --quiet` and skips the
+commit/push (reporting "marketplace already at X") when nothing changed.
+
 ### Recipe naming: `precommit`, not `validate`
 
 The consumer-defined gate the `release` recipe depends on is called
@@ -273,6 +310,16 @@ fallback fires cleanly.
   recipe. May change if patterns converge across enough consumers.
 
 ## History
+
+- **Unreleased.** Marketplace step in `release.just` made robust to the
+  entry's pre-state. First publication now creates the `marketplace.json`
+  entry from `plugin.json` (deriving the `github` source from `origin`)
+  instead of aborting with "no entry for '<name>'". The marketplace
+  commit is now idempotent — a no-op rewrite (entry already at the target
+  version) is reported and skipped rather than failing the recipe after
+  the release already landed. See "Marketplace entry: bump if present,
+  create on first publication". Closes
+  `BUG-release-marketplace-noop-commit.md`.
 
 - **2026-04-27 — Initial extraction (`v0.1.0`).** Toolkit broken out
   of `handoff/scripts/version-guard.sh` and the inline release recipes
