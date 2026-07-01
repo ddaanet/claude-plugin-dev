@@ -87,6 +87,17 @@ consumer's git log isn't polluted with the toolkit's history. The
 trade-off is harder push-upstream, but the toolkit-to-consumer flow is
 one-directional in practice.
 
+**Never hand-edit the vendored copy in a consumer.** The files under a
+consumer's `plugin-dev/` are subtree-managed content owned by this
+repo. To change what a consumer vendors, edit the source *here*, cut a
+tagged toolkit release, then propagate into each consumer with `just
+update-plugin-dev vX.Y.Z` (which runs `git subtree pull`). Editing
+`<consumer>/plugin-dev/*` directly reintroduces exactly the drift the
+subtree model exists to prevent: the consumer's copy silently diverges
+from every other consumer and from the tagged source, and the next
+`subtree pull` will conflict. The single source of truth is
+`ddaanet/claude-plugin-dev` at a tag — nowhere else.
+
 ### Versioning: tags only, never `HEAD`
 
 `install.sh` and `update-plugin-dev` both expect a ref like `v0.2.0`.
@@ -252,6 +263,28 @@ the maintainer staring at `exit code 1` on a release that actually
 succeeded. The step now checks `git diff --cached --quiet` and skips the
 commit/push (reporting "marketplace already at X") when nothing changed.
 
+### No interactive confirmation in `release`
+
+The `release` recipe runs non-interactively. It does not prompt
+`Release X? [y/N]` before committing/tagging/pushing, and there is no
+`--yes` argument.
+
+An earlier version prompted with `read -rp` and offered `--yes` as a
+skip. Both were removed: `release` always executes behind Claude Code's
+permission layer (or a human's own `just` invocation), which already
+gates the command. The inner prompt re-asked the same question, and
+`--yes` existed only to silence it in the common case where an outer
+gate was present — i.e. almost always. Dropping both collapses a
+double-confirmation into the single gate that matters.
+
+Safety is unchanged: the pre-flight guards (dirty tree, wrong branch,
+manifest/tag desync, marketplace pre-flight) still abort before any
+destructive op. Only the interactive keystroke was removed.
+
+The same applies to this repo's own self-release recipe (the `release`
+in the local `justfile`): it too dropped its `read -rp` prompt and
+`--yes` for the identical reason.
+
 ### Recipe naming: `precommit`, not `validate`
 
 The consumer-defined gate the `release` recipe depends on is called
@@ -311,7 +344,14 @@ fallback fires cleanly.
 
 ## History
 
-- **Unreleased.** Marketplace step in `release.just` made robust to the
+- **Unreleased.** Removed the interactive confirmation prompt and the
+  `--yes` argument from the `release` recipe. `just release [bump]` is
+  now non-interactive — the recipe runs behind Claude Code's permission
+  layer (or a human's own invocation), so the inner `read -rp` prompt
+  and its `--yes` skip were redundant. Pre-flight guards unchanged. See
+  "No interactive confirmation in `release`".
+
+- **v0.2.1.** Marketplace step in `release.just` made robust to the
   entry's pre-state. First publication now creates the `marketplace.json`
   entry from `plugin.json` (deriving the `github` source from `origin`)
   instead of aborting with "no entry for '<name>'". The marketplace

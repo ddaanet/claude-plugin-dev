@@ -22,9 +22,7 @@ toolkit_prefix := "plugin-dev"
 
 # Create release: bump plugin.json version, commit, tag, push main + tag,
 # create GitHub release, then bump the marketplace entry and push.
-# Pass `--yes` as the second arg to skip the interactive confirmation
-# (useful when an outer permission layer already gates the command).
-release bump='patch' yes='': precommit
+release bump='patch': precommit
     #!/usr/bin/env bash
     set -euo pipefail
     manifest=".claude-plugin/plugin.json"
@@ -72,10 +70,6 @@ release bump='patch' yes='': precommit
     ' "$manifest")
     tag="v$new_version"
     git rev-parse "$tag" >/dev/null 2>&1 && { echo "error: tag $tag already exists" >&2; exit 1; }
-    if [ "{{yes}}" != "--yes" ]; then
-        read -rp "Release $new_version? [y/N] " answer
-        case "$answer" in y|Y) ;; *) exit 1 ;; esac
-    fi
     tmp=$(mktemp)
     jq --arg v "$new_version" '.version = $v' "$manifest" > "$tmp"
     mv "$tmp" "$manifest"
