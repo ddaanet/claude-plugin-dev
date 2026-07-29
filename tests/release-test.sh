@@ -303,6 +303,22 @@ assert_eq "$(git -C "$plugin" rev-parse --verify -q refs/tags/v1.2.4 >/dev/null 
     "no" "unknown bump word created no tag"
 assert_eq "$(cat "$GH_LOG")" "" "unknown bump word must not call gh"
 
+echo "=== release: major bump end-to-end ==="
+new_sandbox "1.2.3"
+run_in "$plugin" bash plugin-dev/release.sh major
+assert_eq "$rc" "0" "major bump exit code"
+assert_contains "$out" "Release v2.0.0 complete" "major bump summary"
+assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "2.0.0" "major bump manifest version"
+assert_eq "$(market_version)" "2.0.0" "major bump marketplace bumped"
+
+echo "=== release: zero-argument shape defaults to patch ==="
+new_sandbox "1.2.3"
+run_in "$plugin" bash plugin-dev/release.sh
+assert_eq "$rc" "0" "zero-argument exit code"
+assert_contains "$out" "Release v1.2.4 complete" "zero-argument summary"
+assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "1.2.4" "zero-argument manifest version"
+assert_eq "$(market_version)" "1.2.4" "zero-argument marketplace bumped"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
