@@ -27,8 +27,9 @@ either way.
 
 What landed: the last four steps of a release — push branch, push tag, GitHub
 release, marketplace bump — became one idempotent block that both `release` and
-a new `resume-release` run, each step probing remote state (`git ls-remote`,
-`gh release view`, a staged-diff check) before acting. Resume takes its version
+a new `resume-release` run, each step probing remote state (`git ls-remote` for
+the branch and tag, `gh release view` for the release, `ls-remote` against the
+marketplace repo's own origin for the marketplace push) before acting. Resume takes its version
 from the manifest and requires the local tag to exist, so it completes a release
 and never starts one. A remote tag at a different sha is an error, never a
 force-push. `resume-release` has no `prerelease` dependency: the gate already
@@ -50,6 +51,19 @@ could not discriminate. A third mutation's `grep` pattern never matched `just
 with `die: command not found` instead of the usage message — shellcheck clean,
 and uncovered by any test until one was added. All four were caught by insisting
 that every assertion be observed failing before it is trusted.
+
+The whole-branch review then found the same class of bug in the feature itself.
+The marketplace step was the one tail step whose "already done" probe read the
+working tree instead of the remote, so a marketplace commit whose push was
+rejected — the motivating scenario, one repository over — left the next
+`--resume` with nothing staged, skipping the push and reporting the release
+complete. A silent false success in the recovery tool, on the failure it exists
+to recover from. Committing and pushing became two questions with two probes,
+and the test suite grew a scenario that puts the rejecting hook on the
+marketplace repo rather than the plugin repo. It went from six scenarios to
+twelve; the four added beyond that one cover the never-move-a-published-tag
+refusal, resume from first publication, and the argument shapes the new
+dispatcher introduced.
 
 See "Recovery: `resume-release` and the shared release tail" in
 [design.md](../design.md).

@@ -260,8 +260,18 @@ was pre-added at exactly the version being released — `git commit` would
 exit non-zero under `set -e` and abort the recipe *after* the
 irreversible commit/tag/push/`gh release create` had already run, leaving
 the maintainer staring at `exit code 1` on a release that actually
-succeeded. The step now checks `git diff --cached --quiet` and skips the
-commit/push (reporting "marketplace already at X") when nothing changed.
+succeeded. The step checks `git diff --cached --quiet` and skips the
+commit when nothing changed.
+
+That check answers "should I commit?" and *only* that. Whether to push is
+a separate question with a separate probe: the marketplace repo's own
+`HEAD` against its own `origin`, via `ls-remote` on its own branch. The
+two were once one check, which meant a marketplace commit whose push was
+rejected could never be recovered — the next run found nothing staged,
+skipped the push along with the commit, and reported the release
+complete. Idempotence has to be measured against the remote, not against
+the working tree, or a recovery tool reports success on the state it
+exists to repair.
 
 ### No interactive confirmation in `release`
 
@@ -399,8 +409,9 @@ another repository. `resume-release` is the forward exit.
 The last four steps of a release — push the branch, push the tag, create the
 GitHub release, bump the marketplace — are one idempotent block that both
 `release` and `resume-release` run. Each step probes remote state before acting:
-`git ls-remote` for the branch and tag, `gh release view` for the release, and a
-staged-diff check for the marketplace. Probing the remote directly means the
+`git ls-remote` for the branch and tag, `gh release view` for the release, and
+`ls-remote` again — against the marketplace repo's own origin — for the
+marketplace push. Probing the remote directly means the
 answer is authoritative without a `git fetch`, so recovery never depends on how
 stale the local remote-tracking refs are. A step that finds its work already
 done says so and returns; only steps that act set `acted`.
