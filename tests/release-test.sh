@@ -156,6 +156,43 @@ assert_eq "$(printf '%s' "$entry" | jq -r .description)" "test fixture" "created
 assert_eq "$(printf '%s' "$entry" | jq -r '.source.repo | split("/") | length')" \
     "2" "created entry repo slug shape"
 
+echo "=== resume: completes a release whose push was rejected ==="
+new_sandbox "1.2.3"
+# A pre-push hook that refuses, reproducing the gitlore 0.4.3 failure: the
+# recipe dies after the irreversible commit and tag, before the tag push.
+cat > "$plugin/.git/hooks/pre-push" <<'HOOK'
+#!/bin/sh
+echo "pre-push: refusing" >&2
+exit 1
+HOOK
+chmod +x "$plugin/.git/hooks/pre-push"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "interrupted release exit code"
+assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "1.2.4" "manifest bumped before the failure"
+assert_eq "$(git -C "$plugin" ls-remote origin refs/tags/v1.2.4 | wc -l | tr -d ' ')" \
+    "0" "tag not on origin after the failure"
+assert_eq "$(market_version)" "1.2.3" "marketplace still stale after the failure"
+
+rm -f "$plugin/.git/hooks/pre-push"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "0" "resume exit code"
+assert_eq "$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)" \
+    "$(git -C "$plugin" rev-parse HEAD)" "resume pushed the branch"
+assert_eq "$(git -C "$plugin" ls-remote origin refs/tags/v1.2.4 | wc -l | tr -d ' ')" \
+    "1" "resume pushed the tag"
+assert_contains "$(cat "$GH_LOG")" "release create v1.2.4" "resume created the GitHub release"
+assert_eq "$(market_version)" "1.2.4" "resume bumped the marketplace"
+assert_contains "$out" "Release v1.2.4 complete" "resume summary"
+
+echo "=== resume: refuses when no tag exists for the manifest version ==="
+new_sandbox "1.2.3"
+git -C "$plugin" tag -d v1.2.3 >/dev/null
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "1" "no-tag resume exit code"
+assert_contains "$out" "no tag v1.2.3 for plugin.json version 1.2.3" "no-tag resume message"
+assert_contains "$out" "run \`just release <bump>\` instead" "no-tag resume hint"
+assert_eq "$(cat "$GH_LOG")" "" "no-tag resume must not call gh"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1

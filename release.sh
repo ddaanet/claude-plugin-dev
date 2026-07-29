@@ -4,7 +4,9 @@ set -euo pipefail
 # Release a Claude Code plugin: bump the manifest, commit, tag, push, create the
 # GitHub release, and bump the plugin's entry in the marketplace repo.
 #
-# Usage: release.sh [patch|minor|major]
+# Usage:
+#   release.sh [patch|minor|major]   full release
+#   release.sh --resume              complete a release that landed partially
 #
 # Run from the plugin root (the directory holding .claude-plugin/plugin.json);
 # `just release` does that for you. Requires bash, jq, git, gh, and
@@ -14,7 +16,14 @@ unset CDPATH   # else `cd` may echo its target into the $(cd … && pwd) capture
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 manifest=".claude-plugin/plugin.json"
-bump="${1:-patch}"
+mode="release"
+bump="patch"
+case "${1:-}" in
+    --resume) mode="resume" ;;
+    "")       ;;
+    -*)       die "unknown option: $1 (usage: release.sh [patch|minor|major|--resume])" ;;
+    *)        bump="$1" ;;
+esac
 # shellcheck disable=SC2034  # set here, read by --resume in a later task
 acted=0
 
@@ -77,6 +86,20 @@ release_preflight() {
     ' "$manifest")
     tag="v$V"
     ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null || die "tag $tag already exists"
+}
+
+resume_preflight() {
+    V=$(jq -r .version "$manifest")
+    tag="v$V"
+    # Resume only ever finishes a release whose commit and tag already landed
+    # locally. No tag means no release was started at this version, and tagging
+    # HEAD on a guess would tag whatever work landed since.
+    git rev-parse -q --verify "refs/tags/$tag" >/dev/null || {
+        printf 'hint: no release was started at this version.\n' >&2
+        # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
+        printf '      run `just release <bump>` instead.\n' >&2
+        die "no tag $tag for plugin.json version $V"
+    }
 }
 
 bump_commit_tag() {
@@ -174,8 +197,12 @@ bump_marketplace() {
 }
 
 common_preflight
-release_preflight
-bump_commit_tag
+if [ "$mode" = "release" ]; then
+    release_preflight
+    bump_commit_tag
+else
+    resume_preflight
+fi
 push_branch
 push_tag
 create_github_release
