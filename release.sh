@@ -24,7 +24,6 @@ case "${1:-}" in
     -*)       die "unknown option: $1 (usage: release.sh [patch|minor|major|--resume])" ;;
     *)        bump="$1" ;;
 esac
-# shellcheck disable=SC2034  # set here, read by --resume in a later task
 acted=0
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
@@ -187,7 +186,6 @@ bump_marketplace() {
     fi
     git -C "$MARKETPLACE_DIR" commit -m "release: $plugin_name $V"
     git -C "$MARKETPLACE_DIR" push
-    # shellcheck disable=SC2034  # set here, read by --resume in a later task
     acted=1
     if [ "$marketplace_entry_exists" = 1 ]; then
         note "marketplace: bumped to $V"
@@ -207,4 +205,8 @@ push_branch
 push_tag
 create_github_release
 bump_marketplace
-note "Release $tag complete"
+if [ "$mode" = "resume" ] && [ "$acted" = 0 ]; then
+    note "release $tag is already complete (nothing to do)"
+else
+    note "Release $tag complete"
+fi

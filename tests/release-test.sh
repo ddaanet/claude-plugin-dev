@@ -193,6 +193,22 @@ assert_contains "$out" "no tag v1.2.3 for plugin.json version 1.2.3" "no-tag res
 assert_contains "$out" "run \`just release <bump>\` instead" "no-tag resume hint"
 assert_eq "$(cat "$GH_LOG")" "" "no-tag resume must not call gh"
 
+echo "=== resume: no-op on a healthy repo ==="
+new_sandbox "1.2.3"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "0" "setup release exit code"
+: > "$GH_LOG"
+marketplace_head_before="$(git -C "$marketplace" rev-parse HEAD)"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "0" "healthy resume exit code"
+assert_contains "$out" "already complete (nothing to do)" "healthy resume summary"
+assert_contains "$(cat "$GH_LOG")" "release view v1.2.4" "healthy resume probed the release"
+if grep -q "release create" "$GH_LOG"; then
+    fail "healthy resume re-created the GitHub release"
+fi
+assert_eq "$(git -C "$marketplace" rev-parse HEAD)" "$marketplace_head_before" \
+    "healthy resume left the marketplace untouched"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
