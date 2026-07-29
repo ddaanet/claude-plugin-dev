@@ -178,12 +178,15 @@ Scenarios:
 
 ## Documentation
 
-`DESIGN.md` gains one section, "Recovery: `resume-release` and the shared
+`docs/design.md` gains one section, "Recovery: `resume-release` and the shared
 release tail", covering both halves of this change: why a recovery path exists
 at all, and why the flow moved out of the recipe body (shellcheck coverage,
-offline testability, no just/bash quoting seam). A History entry records the
-release. The Limitations list is revisited — the "release is not atomic" reality
-stays, but its consequence is now recoverable.
+offline testability, no just/bash quoting seam). The Limitations list is
+revisited — the "release is not atomic" reality stays, but its consequence is
+now recoverable.
+
+A write-time record goes to `docs/changelog/<release-date>-resume-release.md`
+with a pointer line at the top of `docs/changelog.md`.
 
 `brief-half-landed-release-recovery.md` at the repo root is superseded by this
 spec and is deleted when the work lands.
@@ -194,4 +197,4 @@ spec and is deleted when the work lands.
   outward-facing; the design accepts partial landing and makes it recoverable.
 - Rolling a release *back*. Recovery only ever moves forward to the version
   already committed.
-- Hybrid Python+plugin repos (`edify`), unchanged from DESIGN.md's Limitations.
+- Hybrid Python+plugin repos (`edify`), unchanged from docs/design.md's Limitations.
