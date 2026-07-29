@@ -16,6 +16,10 @@ unset CDPATH   # else `cd` may echo its target into the $(cd … && pwd) capture
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 manifest=".claude-plugin/plugin.json"
+
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+note() { printf '%s\n' "$*"; }
+
 mode="release"
 bump="patch"
 case "${1:-}" in
@@ -25,9 +29,6 @@ case "${1:-}" in
     *)        bump="$1" ;;
 esac
 acted=0
-
-die() { printf 'error: %s\n' "$*" >&2; exit 1; }
-note() { printf '%s\n' "$*"; }
 
 common_preflight() {
     [ -f "$manifest" ] || die "$manifest not found — run from the plugin root"

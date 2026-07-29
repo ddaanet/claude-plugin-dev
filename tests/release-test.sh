@@ -209,6 +209,13 @@ fi
 assert_eq "$(git -C "$marketplace" rev-parse HEAD)" "$marketplace_head_before" \
     "healthy resume left the marketplace untouched"
 
+echo "=== release: unknown option is refused cleanly ==="
+new_sandbox "1.2.3"
+run_in "$plugin" bash plugin-dev/release.sh --bogus
+assert_eq "$rc" "1" "unknown option exit code"
+assert_contains "$out" "unknown option: --bogus" "unknown option message"
+assert_eq "$(cat "$GH_LOG")" "" "unknown option must not call gh"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
