@@ -216,6 +216,17 @@ assert_eq "$rc" "1" "unknown option exit code"
 assert_contains "$out" "unknown option: --bogus" "unknown option message"
 assert_eq "$(cat "$GH_LOG")" "" "unknown option must not call gh"
 
+echo "=== release: unknown bump word is refused cleanly ==="
+new_sandbox "1.2.3"
+run_in "$plugin" bash plugin-dev/release.sh bogusword
+assert_eq "$rc" "1" "unknown bump word exit code"
+assert_contains "$out" "unknown bump type: bogusword" "unknown bump word message"
+assert_contains "$out" "usage: release.sh" "unknown bump word usage hint"
+assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "1.2.3" "unknown bump word left manifest untouched"
+assert_eq "$(git -C "$plugin" rev-parse --verify -q refs/tags/v1.2.4 >/dev/null && echo yes || echo no)" \
+    "no" "unknown bump word created no tag"
+assert_eq "$(cat "$GH_LOG")" "" "unknown bump word must not call gh"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1

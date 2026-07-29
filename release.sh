@@ -23,10 +23,11 @@ note() { printf '%s\n' "$*"; }
 mode="release"
 bump="patch"
 case "${1:-}" in
-    --resume) mode="resume" ;;
-    "")       ;;
-    -*)       die "unknown option: $1 (usage: release.sh [patch|minor|major|--resume])" ;;
-    *)        bump="$1" ;;
+    --resume)           mode="resume" ;;
+    "")                 ;;
+    -*)                 die "unknown option: $1 (usage: release.sh [patch|minor|major|--resume])" ;;
+    patch|minor|major)  bump="$1" ;;
+    *)                  die "unknown bump type: $1 (usage: release.sh [patch|minor|major|--resume])" ;;
 esac
 acted=0
 
