@@ -193,6 +193,14 @@ spec and is deleted when the work lands.
 
 ## Out of scope
 
+- **This repo's own self-release recipe stays bespoke.** The `release` recipe in
+  the toolkit's local `justfile` has the same tail minus the marketplace step,
+  and it failed in the same window once (`v0.4.1` has a `VERSION` bump commit
+  and no tag). It is not folded into `release.sh`: resuming it by hand is a tag
+  and a `gh release create`, which the toolkit's sole maintainer can do, whereas
+  `resume-release` exists as a convenience for consumers. Folding it in would
+  also make the toolkit consume its own consumer-shaped code, which the "Don't
+  run `release.just`'s recipes from this repo" rule exists to prevent.
 - Making `release` atomic. The tag push and `gh release create` are
   outward-facing; the design accepts partial landing and makes it recoverable.
 - Rolling a release *back*. Recovery only ever moves forward to the version
