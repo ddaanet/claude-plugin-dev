@@ -389,6 +389,58 @@ assumed sibling directory. A missing marketplace entry is treated as
 pre-first-publication state (skip), not drift (fail) — consistent with how
 `release.just`'s marketplace step treats a missing entry.
 
+### Recovery: `resume-release` and the shared release tail
+
+`check-version.sh` detects a half-landed release but cannot fix one, and the
+guard it feeds is deliberately strict: `release` refuses to start on top of
+drift. Before `resume-release` nothing satisfied that guard except hand-editing
+another repository. `resume-release` is the forward exit.
+
+The last four steps of a release — push the branch, push the tag, create the
+GitHub release, bump the marketplace — are one idempotent block that both
+`release` and `resume-release` run. Each step probes remote state before acting:
+`git ls-remote` for the branch and tag, `gh release view` for the release, and a
+staged-diff check for the marketplace. Probing the remote directly means the
+answer is authoritative without a `git fetch`, so recovery never depends on how
+stale the local remote-tracking refs are. A step that finds its work already
+done says so and returns; only steps that act set `acted`.
+
+Resume takes its version from `plugin.json` and requires the matching local tag
+to already exist. It completes a release; it never starts one. Tagging `HEAD` on
+a guess would tag whatever landed since the interrupted release, so a missing
+tag is a refusal that points at `just release <bump>` instead. When every step
+finds nothing to do, the summary says the release is already complete rather
+than claiming to have completed it — that distinction is what makes running it
+on a healthy repo safe rather than merely harmless.
+
+A tag that exists on the remote at a *different* sha is an error, never a
+force-push. A reused tag means something published under that version already,
+and no recovery path should paper over that.
+
+`resume-release` has no `prerelease` dependency, unlike `release`. The code it
+completes is already committed, tagged, and in most cases pushed — the gate
+already passed once, before the interruption. Re-running it would make recovery
+cost whatever the consumer's slowest gate costs, and a consumer with paid checks
+would route around the recipe and finish by hand, which is the situation this
+exists to end.
+
+The flow moved out of `release.just`'s recipe body into `plugin-dev/release.sh`
+to get three things a justfile recipe cannot have: `shellcheck` coverage,
+offline end-to-end tests driving real git repos with a stubbed `gh`, and no
+just/bash quoting seam — `{{...}}` interpolation inside a shell body is a
+recurring source of quoting bugs that no linter sees. `release.just` keeps the
+two recipes as one-line wrappers, which is also the whole interface consumers
+depend on.
+
+This repo's own self-release recipe stays bespoke. It has the same tail minus
+the marketplace step, and it failed in the same window once — `v0.4.1` has a
+`VERSION` bump commit and no tag. Resuming it by hand is a tag and a `gh release
+create`, which the toolkit's sole maintainer can do; `resume-release` exists as
+a convenience for consumers, who are more numerous and less close to the code.
+Folding it in would also make the toolkit consume its own consumer-shaped code,
+which the "don't run `release.just`'s recipes from this repo" rule exists to
+prevent.
+
 ### Default branch detection via `origin/HEAD`
 
 The release recipe doesn't hardcode `main` — it reads the default
@@ -413,6 +465,14 @@ fallback fires cleanly.
   edify-style flows into the unified recipe would either require
   conditionals that obscure the main path, or break edify outright.
   Edify keeps its bespoke recipe.
+- **`release` is not atomic, but it is recoverable.** The tag push,
+  `gh release create` and marketplace push are outward-facing and cannot
+  be rolled back, so any failure from the version commit onward leaves
+  the plugin tagged at the new version with a stale marketplace entry.
+  That remains true. Its consequence no longer is: `just resume-release`
+  completes the release from wherever it stopped. Recovery only ever
+  moves forward to the version already committed — rolling a release
+  back is still out of scope.
 - **No automated propagation.** When the toolkit ships a new tag,
   each consumer plugin must run `just update-plugin-dev vX.Y.Z`
   individually. Adopting changes is a deliberate per-consumer
