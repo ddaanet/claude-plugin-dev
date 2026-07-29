@@ -1,22 +1,40 @@
-# Task — resume-release implementation
+# Task — cut toolkit 0.5.0 and propagate
 
 ## Current task
 
-The `resume-release` implementation is complete on branch `resume-release` in `/Users/david/code/claude-plugin-dev` — seven commits, `24ce3c8..01cd918`. `main` is untouched (no worktree: `EnterWorktree` refuses unless "worktree" is explicitly requested, so the work went in-place on a feature branch).
+`resume-release` is **done and merged**. `main` is at `c1f7e61` (merge commit,
+`--no-ff`), 22 commits unpushed, tree clean, `just precommit` green. The feature
+branch is deleted and the SDD workspace under `.superpowers/` is removed — this
+file and the task list are now the record.
 
-Tasks 1-4 of `plans/2026-07-29-release-resume-plan.md` are done and reviewed. A final whole-branch review is in flight — agent `final-review`, sonnet, base `24ce3c8`, head `01cd918`. It writes its verdict to `.superpowers/sdd/2026-07-29-release-resume-plan/final-review.md` and replies with only a one-line pointer. Read the file.
+What shipped: `release.sh` (the whole consumer release flow, `patch|minor|major`
+and `--resume`); `tests/release-test.sh` (offline harness, 12 scenarios, `gh`
+stub, bare-repo origins, no network); `release.just` thinned to one-line
+wrappers, with `resume-release` deliberately free of any `prerelease`
+dependency; `docs/design.md`'s "Recovery" section; a changelog entry.
 
-**Ledger:** `.superpowers/sdd/2026-07-29-release-resume-plan/progress.md`. It is the durable record — trust it and `git log` over recollection.
+The whole-branch review found one Critical in the feature itself:
+`bump_marketplace` decided "already done" from the staged diff (local) while
+every sibling tail step asked the remote, so a marketplace commit whose push was
+rejected made the next `--resume` skip the push and report the release complete
+— a silent false success on the exact failure the feature exists to recover
+from. Committing and pushing are now two questions with two probes.
 
-**What landed:** `release.sh` (the whole consumer release flow, `patch|minor|major` and `--resume`); `tests/release-test.sh` (offline harness, six scenarios, `gh` stub, bare-repo origins, no network); `release.just` thinned to two one-line wrappers plus `resume-release` with no `prerelease` dependency; `_import-check` extended with a no-gate assertion; `docs/design.md` section "Recovery: `resume-release` and the shared release tail"; `docs/changelog/2026-07-29-resume-release.md` plus its pointer; README Contents corrected to list `release.sh` and `check-version.sh`.
+## Remaining — by hand, not agent work
 
-**Five plan defects found and corrected while executing** (corrections committed as `fd18b0c`): two mutation-table rows that proved nothing when run (Step 5 #4 aborted on unbound `$tag` under `set -u` before reaching `gh`; Step 11 #2 corrupted the scenario's own setup so the assertion could not discriminate); an `_import-check` grep pattern that could never match `just --dry-run`'s quoted output; a Limitations entry the plan assumed existed but did not; and one real code bug the plan mandated — `die` called from above its own definition, so an unknown flag exited 127 with `die: command not found` (fixed in `0c640f5` with a regression scenario).
+Network, `gh` auth, irreversible pushes across repos. Full detail in task #5.
 
-**Subagent delivery is unreliable this session.** Two reviewers completed their analysis and returned empty messages; one implementer went idle mid-task without reporting. Every subagent that must produce output is now told to Write its report to a named file and reply with a pointer. Check the artifact before concluding an agent failed.
-
-**Done and off the list:** `brief-docs-plans-layout.md` dropped into handoff, gitmoji, onekeys, cwd-safety, shell-gotchas and gitlore (untracked in each, deliberately); `brief-half-landed-release-recovery.md` deleted and removed from the plan's Task 4.
+1. `just release minor` for 0.5.0. This repo is **not** a plugin — its
+   self-release recipe reads `VERSION`, not `plugin.json`.
+2. `just update-plugin-dev v0.5.0` in handoff, gitmoji, gitlore. handoff and
+   gitmoji each need `prerelease: precommit` added **in the same commit as the
+   subtree pull**, or their justfiles fail to compile on arrival.
+3. Verify in one consumer: `just check-version && just --list`.
+4. Check consumer justfiles for multi-line recipe doc comments.
 
 ## Open decisions
 
-- Whether and how to merge `resume-release` into `main` — `superpowers:finishing-a-development-branch` is the next skill once the final review is clean.
-- Whether the one deferred Minor is fixed before merge: `tests/release-test.sh` uses `fail` directly for the negative check rather than an `assert_not_contains` helper. The final review was asked to triage it.
+None. Two review residuals are parked with rulings: the detached-HEAD
+`mp_branch` edge (pre-existing shape, unreachable in the supported flow) and the
+`assert_not_contains` helper (extract only if a third must-not-contain site
+appears).
