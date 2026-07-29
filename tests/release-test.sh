@@ -213,6 +213,28 @@ if printf '%s' "$out" | grep -q "already complete (nothing to do)"; then
 fi
 assert_contains "$out" "Release v1.2.4 complete" "marketplace-push resume summary"
 
+echo "=== resume: refuses to move a tag origin already has elsewhere ==="
+new_sandbox "1.2.3"
+init_sha="$(git -C "$plugin" rev-parse HEAD)"   # the "init" commit, already on origin
+cat > "$plugin/.git/hooks/pre-push" <<'HOOK'
+#!/bin/sh
+echo "pre-push: refusing" >&2
+exit 1
+HOOK
+chmod +x "$plugin/.git/hooks/pre-push"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "setup interrupted release exit code"
+rm -f "$plugin/.git/hooks/pre-push"
+# Simulate someone else publishing a different v1.2.4 on origin while this
+# release was stalled: point the plugin origin's tag at the pre-bump commit,
+# not this run's local tag.
+git -C "$plugin-origin.git" tag v1.2.4 "$init_sha"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "1" "moved-tag resume exit code"
+assert_contains "$out" "refusing to move a published tag" "moved-tag resume message"
+assert_eq "$(cat "$GH_LOG")" "" "moved-tag resume must not call gh"
+assert_eq "$(market_version)" "1.2.3" "moved-tag resume must not touch the marketplace"
+
 echo "=== resume: refuses when no tag exists for the manifest version ==="
 new_sandbox "1.2.3"
 git -C "$plugin" tag -d v1.2.3 >/dev/null
