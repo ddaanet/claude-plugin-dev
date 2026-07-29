@@ -1,17 +1,10 @@
 ## Current task
 
-Propagating claude-plugin-dev `v0.4.0` to its consumer plugins. It is a
-breaking release: `release` now depends on a consumer-defined `prerelease`
-recipe rather than on `precommit`, and a consumer that vendors it without
-defining one gets `error: Recipe release has unknown dependency prerelease`
-— a whole-justfile compile error, so *every* recipe fails, `just precommit`
-included, not only `release`.
+The spec and implementation plan for `resume-release` are written and approved; nothing has been implemented yet, and the execution mode is the gate on starting Task 1.
+
+Alongside it, the repo adopted a new documentation layout this session — `docs/` holds only current content (`design.md`, `changelog.md` + `changelog/<date>-slug.md`), `plans/` holds specs and plans. The sibling plugin repos still use the old root `DESIGN.md` + `docs/superpowers/specs/` shape.
 
 ## Open decisions
 
-- Whether to push `v0.4.0` into all three consumers now or let each take it
-  at its next release. `gitlore` already defines `prerelease: precommit
-  evals` (it arrived at the same recipe name independently) so it gains the
-  gate the moment it pulls; `handoff` and `gitmoji` each need a new
-  `prerelease: precommit` line added in the same commit as the subtree pull,
-  or their justfiles break on arrival.
+- How to execute `plans/2026-07-29-release-resume-plan.md`: subagent-driven (fresh subagent per task, review between tasks) or inline with checkpoints.
+- Whether the sibling repos (handoff, gitmoji, onekeys, cwd-safety, shell-gotchas, gitlore) migrate to the docs/ + plans/ layout, and whether that happens before or after the 0.5.0 propagation.
