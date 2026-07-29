@@ -116,6 +116,16 @@ _import-check:
     stub widened "prerelease: precommit evals\n"
     check widened stub-precommit stub-evals
 
+    # `resume-release` must resolve with no gate dependency: a consumer must be
+    # able to finish an interrupted release without re-running a paid prerelease.
+    out=$(just --justfile "$tmp/plain/justfile" --dry-run resume-release 2>&1)
+    grep -q 'release.sh" --resume' <<< "$out" \
+        || { echo "error: resume-release did not reach release.sh: $out" >&2; exit 1; }
+    if grep -q 'stub-precommit' <<< "$out"; then
+        echo "error: resume-release ran the commit gate" >&2
+        exit 1
+    fi
+
     # Missing `prerelease` must be a hard error naming the missing recipe --
     # this is the contract consumers are told about, so test it, don't assume.
     stub missing ""
@@ -125,4 +135,4 @@ _import-check:
     grep -q 'unknown dependency `prerelease`' <<< "$err" \
         || { echo "error: missing 'prerelease' did not name the recipe: $err" >&2; exit 1; }
 
-    echo "release.just import: ok (plain + widened + missing gate)"
+    echo "release.just import: ok (plain + widened + missing gate, resume-release)"
