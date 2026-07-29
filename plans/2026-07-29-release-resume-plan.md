@@ -655,7 +655,12 @@ Six assertions here are **not** red, and Step 5 validates them:
 
 - [ ] **Step 3: Add the mode dispatch and `resume_preflight`**
 
-In `release.sh`, replace the `bump="${1:-patch}"` line with:
+In `release.sh`, first move the `die()` and `note()` definitions **above** this
+block — the dispatch calls `die` in its `-*` arm, and at top level a function
+must already be defined to be callable. Left where Task 1 put them (below), bash
+resolves `die` as an external command and an unknown flag exits 127 with
+`die: command not found` instead of the usage message. shellcheck does not catch
+it. Then replace the `bump="${1:-patch}"` line with:
 
 ```bash
 mode="release"
@@ -725,7 +730,7 @@ Expected: `all release scenarios passed`.
 | 1 | `tests/release-test.sh`: drop the `chmod +x "$plugin/.git/hooks/pre-push"` line, so the injected fault never fires | `interrupted release exit code`, `tag not on origin after the failure`, `marketplace still stale after the failure` |
 | 2 | `release.sh`, `bump_commit_tag`: `jq --arg v "$V" '.version = $v'` → `jq '.'` | `manifest bumped before the failure` |
 | 3 | `release.sh`, `resume_preflight`: replace `die "no tag $tag …"` with `exit 0`, keeping the two `printf` hints above it | `no-tag resume exit code` |
-| 4 | `release.sh`: move the `create_github_release` call *above* the `common_preflight`/mode-dispatch block | `no-tag resume must not call gh` |
+| 4 | `release.sh`, `resume_preflight`: insert a `create_github_release` call between `tag="v$V"` and the `git rev-parse` guard | `no-tag resume must not call gh` |
 
 Notes:
 
@@ -738,7 +743,13 @@ Notes:
   message assertions also fail, the mutation was applied wrong.
 - **#4** is what `no-tag resume must not call gh` actually protects: that the
   guard runs before any side effect, not merely that the crash happened to be
-  early. Revert carefully — this one moves a line rather than changing one.
+  early. The side effect must be planted where `$tag` is already bound but the
+  guard has not yet run — inside `resume_preflight`, right after `tag="v$V"`.
+  Hoisting `create_github_release` above the mode dispatch instead (the obvious
+  reading) does not work: `$tag` is unbound there, so `set -u` aborts on the
+  parameter expansion before `gh` is ever invoked, and the label stays green for
+  the same reason the unmutated code does. Revert carefully — this one inserts a
+  line rather than changing one.
 
 - [ ] **Step 6: Commit**
 
@@ -811,12 +822,25 @@ whole safety story is untested.
 | # | Mutation in `release.sh` | Must FAIL |
 |---|---|---|
 | 1 | `create_github_release`: `if gh release view "$tag" >/dev/null 2>&1; then` → `if false; then` | `healthy resume probed the release`, `healthy resume re-created the GitHub release` |
-| 2 | `bump_marketplace`: update-branch jq `= $v` → `= "9.9.9"` | `healthy resume left the marketplace untouched` |
+| 2 | `bump_marketplace`, both edits together: `if git -C "$MARKETPLACE_DIR" diff --cached --quiet; then` → `if false; then`, **and** `git -C "$MARKETPLACE_DIR" commit -m` → `git -C "$MARKETPLACE_DIR" commit --allow-empty -m` | `healthy resume left the marketplace untouched` |
 | 3 | `bump_marketplace`: `if git -C "$MARKETPLACE_DIR" diff --cached --quiet; then` → `if false; then` | `healthy resume exit code` |
 
 Notes:
 
 - **#1** relies on the `gh` stub tolerating a second `release create`; it does.
+- **#2** is the one mutation in this plan that needs two edits, and they are one
+  idea: *the idempotence guard is gone and the commit succeeds anyway*. Mutating
+  the jq write instead (`= $v` → `= "9.9.9"`) is vacuous — the healthy-resume
+  scenario's own setup release runs `bump_marketplace` too, so the mutation
+  corrupts both calls identically, the entry already holds the corrupted value
+  when `--resume` runs, and the rewrite is a no-op exactly as in the healthy
+  case. Disabling the guard alone is not enough either: nothing is staged, so
+  `git commit` exits 1 and the run dies before HEAD can move — that is #3's
+  signal, not this one. Only guard-off *plus* `--allow-empty` produces the
+  failure this assertion exists to catch: a resume that commits to the
+  marketplace when there was nothing to commit. Expect
+  `healthy resume summary` to fail alongside it (`acted` becomes 1); that
+  cascade is fine.
 - **#3** makes `git commit` run with nothing staged, which exits 1 under `set -e`
   — the exact bug the early return exists to prevent, and the reason that branch
   was written in Task 1.
