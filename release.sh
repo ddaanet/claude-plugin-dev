@@ -155,7 +155,7 @@ create_github_release() {
 }
 
 bump_marketplace() {
-    local mp_tmp repo_slug
+    local mp_tmp repo_slug mp_branch mp_remote_head mp_local_head committed=0
     mp_tmp=$(mktemp)
     if [ "$marketplace_entry_exists" = 1 ]; then
         jq --arg n "$plugin_name" --arg v "$V" \
@@ -180,19 +180,45 @@ bump_marketplace() {
     fi
     mv "$mp_tmp" "$marketplace_json"
     git -C "$MARKETPLACE_DIR" add .claude-plugin/marketplace.json
-    # Idempotent: when the entry was already at $V the rewrite is a no-op, and
-    # `git commit` would exit 1 under `set -e` after the irreversible steps.
+    # Committing and pushing are separate questions: the working tree can
+    # already hold $V (nothing to commit) while the commit that put it there
+    # never reached origin (nothing pushed) — e.g. this same push rejected on
+    # a previous run. A no-op diff must not short-circuit before the push is
+    # checked, or an interrupted marketplace push can never be resumed.
     if git -C "$MARKETPLACE_DIR" diff --cached --quiet; then
-        note "marketplace: already at $V"
+        : # already at $V locally; still must check whether it reached origin
+    else
+        git -C "$MARKETPLACE_DIR" commit -m "release: $plugin_name $V"
+        committed=1
+        acted=1
+    fi
+
+    mp_branch=$(git -C "$MARKETPLACE_DIR" symbolic-ref -q --short HEAD || echo "")
+    mp_remote_head=$(git -C "$MARKETPLACE_DIR" ls-remote origin "refs/heads/$mp_branch" | cut -f1)
+    mp_local_head=$(git -C "$MARKETPLACE_DIR" rev-parse HEAD)
+    if [ "$mp_remote_head" = "$mp_local_head" ]; then
+        if [ "$committed" = 1 ]; then
+            if [ "$marketplace_entry_exists" = 1 ]; then
+                note "marketplace: bumped to $V"
+            else
+                note "marketplace: entry created at $V"
+            fi
+        else
+            note "marketplace: already at $V"
+        fi
         return
     fi
-    git -C "$MARKETPLACE_DIR" commit -m "release: $plugin_name $V"
+
     git -C "$MARKETPLACE_DIR" push
     acted=1
-    if [ "$marketplace_entry_exists" = 1 ]; then
-        note "marketplace: bumped to $V"
+    if [ "$committed" = 1 ]; then
+        if [ "$marketplace_entry_exists" = 1 ]; then
+            note "marketplace: bumped to $V"
+        else
+            note "marketplace: entry created at $V"
+        fi
     else
-        note "marketplace: entry created at $V"
+        note "marketplace: committed earlier, pushed now"
     fi
 }
 

@@ -184,6 +184,35 @@ assert_contains "$(cat "$GH_LOG")" "release create v1.2.4" "resume created the G
 assert_eq "$(market_version)" "1.2.4" "resume bumped the marketplace"
 assert_contains "$out" "Release v1.2.4 complete" "resume summary"
 
+echo "=== resume: completes a release whose marketplace push was rejected ==="
+new_sandbox "1.2.3"
+# Same idea as the plugin-push scenario above, but the rejecting hook sits on
+# the marketplace repo: the marketplace commit lands locally, its push fails,
+# and a naive "is the working tree at $V" probe would call that done.
+cat > "$marketplace/.git/hooks/pre-push" <<'HOOK'
+#!/bin/sh
+echo "pre-push: refusing" >&2
+exit 1
+HOOK
+chmod +x "$marketplace/.git/hooks/pre-push"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "marketplace-push-interrupted release exit code"
+assert_eq "$(git -C "$plugin" ls-remote origin refs/tags/v1.2.4 | wc -l | tr -d ' ')" \
+    "1" "plugin tag reached origin despite the marketplace push failure"
+assert_eq "$(market_version)" "1.2.4" "marketplace committed locally despite the failure"
+assert_eq "$(git -C "$marketplace" ls-remote origin refs/heads/main | cut -f1)" \
+    "$(git -C "$marketplace" log -1 --format=%H HEAD^)" "marketplace origin not yet at the bumped commit"
+
+rm -f "$marketplace/.git/hooks/pre-push"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "0" "marketplace-push resume exit code"
+assert_eq "$(git -C "$marketplace" ls-remote origin refs/heads/main | cut -f1)" \
+    "$(git -C "$marketplace" rev-parse HEAD)" "resume pushed the marketplace"
+if printf '%s' "$out" | grep -q "already complete (nothing to do)"; then
+    fail "marketplace-push resume falsely claimed nothing-to-do"
+fi
+assert_contains "$out" "Release v1.2.4 complete" "marketplace-push resume summary"
+
 echo "=== resume: refuses when no tag exists for the manifest version ==="
 new_sandbox "1.2.3"
 git -C "$plugin" tag -d v1.2.3 >/dev/null
