@@ -213,6 +213,31 @@ if printf '%s' "$out" | grep -q "already complete (nothing to do)"; then
 fi
 assert_contains "$out" "Release v1.2.4 complete" "marketplace-push resume summary"
 
+echo "=== resume: completes a first-publication release whose marketplace push was rejected ==="
+new_sandbox ""   # empty .plugins — pre-first-publication, same as the plain
+                 # first-publication scenario above, but interrupted+resumed.
+cat > "$marketplace/.git/hooks/pre-push" <<'HOOK'
+#!/bin/sh
+echo "pre-push: refusing" >&2
+exit 1
+HOOK
+chmod +x "$marketplace/.git/hooks/pre-push"
+run_in "$plugin" bash plugin-dev/release.sh minor
+assert_eq "$rc" "1" "first-publication marketplace-push-interrupted release exit code"
+assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "1.3.0" "manifest bumped despite the marketplace push failure"
+assert_eq "$(jq '[.plugins[] | select(.name=="fixture")] | length' "$marketplace/.claude-plugin/marketplace.json")" \
+    "1" "marketplace entry created locally despite the failure"
+
+rm -f "$marketplace/.git/hooks/pre-push"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "0" "first-publication resume exit code"
+assert_contains "$out" "Release v1.3.0 complete" "first-publication resume summary"
+assert_eq "$(git -C "$marketplace" ls-remote origin refs/heads/main | cut -f1)" \
+    "$(git -C "$marketplace" rev-parse HEAD)" "first-publication resume pushed the marketplace"
+assert_eq "$(jq '[.plugins[] | select(.name=="fixture")] | length' "$marketplace/.claude-plugin/marketplace.json")" \
+    "1" "first-publication resume created the entry exactly once, not a duplicate"
+assert_eq "$(market_version)" "1.3.0" "first-publication resume entry version"
+
 echo "=== resume: refuses to move a tag origin already has elsewhere ==="
 new_sandbox "1.2.3"
 init_sha="$(git -C "$plugin" rev-parse HEAD)"   # the "init" commit, already on origin
