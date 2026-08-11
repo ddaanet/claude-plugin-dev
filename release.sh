@@ -43,7 +43,11 @@ check_marketplace_writable() {
 
 common_preflight() {
     [ -f "$manifest" ] || die "$manifest not found — run from the plugin root"
-    git diff --quiet HEAD || die "uncommitted changes"
+    # Exclude memory/: a gitlore-mounted memory submodule sits at a gitlink SHA
+    # ahead of what HEAD records between commits by design — its own pre-commit
+    # hook folds that in on the next commit, not this one. A no-op pathspec in
+    # any repo without a memory/ path.
+    git diff --quiet HEAD -- . ':(exclude)memory' || die "uncommitted changes"
     branch=$(git symbolic-ref -q --short HEAD || echo "")
     # Use symbolic-ref (not rev-parse): when origin/HEAD is unset, rev-parse
     # exits non-zero AND prints "origin/HEAD" to stdout, so the substitution
@@ -73,7 +77,7 @@ common_preflight() {
         git remote get-url origin >/dev/null 2>&1 \
             || die "'$plugin_name' has no entry in $marketplace_json and no 'origin' remote to derive one from"
     fi
-    git -C "$MARKETPLACE_DIR" diff --quiet HEAD \
+    git -C "$MARKETPLACE_DIR" diff --quiet HEAD -- . ':(exclude)memory' \
         || die "$MARKETPLACE_DIR has uncommitted changes"
 }
 
