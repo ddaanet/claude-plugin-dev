@@ -45,6 +45,13 @@ common_preflight() {
         || die "MARKETPLACE_DIR not set (set in .envrc to the claude-plugins repo root)"
     marketplace_json="$MARKETPLACE_DIR/.claude-plugin/marketplace.json"
     [ -f "$marketplace_json" ] || die "$marketplace_json not found"
+    # bump_marketplace replaces marketplace.json with mktemp + mv, which unlinks
+    # and recreates the file in its directory — so probe the directory, not just
+    # the file's mode bits. A sandboxed Bash call commonly can't write here.
+    marketplace_dir=$(dirname "$marketplace_json")
+    mp_probe=$(mktemp "$marketplace_dir/.release-writability-check.XXXXXX" 2>/dev/null) \
+        || die "$marketplace_dir is not writable — release needs to replace marketplace.json there. If this is a Claude Code sandbox restriction: rerun this Bash call with dangerouslyDisableSandbox, or run '/add-dir $MARKETPLACE_DIR' first."
+    rm -f "$mp_probe"
     plugin_name=$(jq -r .name "$manifest")
     # A missing entry is not an error: on first publication we create one from
     # plugin.json. Synthesising its `source` needs an `origin` remote to derive

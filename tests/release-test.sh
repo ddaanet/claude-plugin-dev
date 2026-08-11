@@ -303,6 +303,28 @@ assert_eq "$(git -C "$plugin" rev-parse --verify -q refs/tags/v1.2.4 >/dev/null 
     "no" "unknown bump word created no tag"
 assert_eq "$(cat "$GH_LOG")" "" "unknown bump word must not call gh"
 
+echo "=== release: refuses when the marketplace directory isn't writable ==="
+new_sandbox "1.2.3"
+chmod 555 "$marketplace/.claude-plugin"
+run_in "$plugin" bash plugin-dev/release.sh patch
+chmod 755 "$marketplace/.claude-plugin"
+assert_eq "$rc" "1" "read-only marketplace dir exit code"
+assert_contains "$out" "$marketplace/.claude-plugin is not writable" "read-only marketplace dir message names the path"
+assert_contains "$out" "dangerouslyDisableSandbox" "read-only marketplace dir message names the sandbox escape"
+assert_contains "$out" "/add-dir $marketplace" "read-only marketplace dir message names the add-dir escape"
+assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "1.2.3" "read-only marketplace dir left manifest untouched"
+assert_eq "$(git -C "$plugin" rev-parse --verify -q refs/tags/v1.2.4 >/dev/null && echo yes || echo no)" \
+    "no" "read-only marketplace dir created no tag"
+assert_eq "$(cat "$GH_LOG")" "" "read-only marketplace dir must not call gh"
+
+echo "=== resume: also refuses when the marketplace directory isn't writable ==="
+new_sandbox "1.2.3"
+chmod 555 "$marketplace/.claude-plugin"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+chmod 755 "$marketplace/.claude-plugin"
+assert_eq "$rc" "1" "read-only marketplace dir resume exit code"
+assert_contains "$out" "$marketplace/.claude-plugin is not writable" "read-only marketplace dir resume message"
+
 echo "=== release: major bump end-to-end ==="
 new_sandbox "1.2.3"
 run_in "$plugin" bash plugin-dev/release.sh major
