@@ -250,6 +250,69 @@ The release recipe, which bumps from current, would have produced the
 Caught at release time when the recipe's tag mismatch happened to
 trigger a check; would have shipped wrong otherwise.
 
+The one state the invariant cannot describe is a plugin that has never
+been released — there is no last release for the manifest to hold. See
+the next decision.
+
+### First release publishes the manifest version as-is
+
+On a plugin that has never been released, `just release` (no bump
+argument) publishes the version `plugin.json` already holds, rather
+than bumping forward from it. Passing an explicit bump there is
+refused, naming the version that would be published instead.
+
+A plugin arrives at its first release carrying a version somebody
+chose. The official Anthropic `plugin-dev` marketplace plugin — an
+unrelated project with a near-identical name — scaffolds new plugins at
+`0.1.0` through `/plugin-dev:create-plugin`. Under the
+bump-from-current rule that first release publishes `0.1.1`, and
+`0.1.0` can never be published at all. Every plugin scaffolded there
+and released here meets it.
+
+The seed cannot be fixed where it originates. `install.sh` vendors the
+toolkit and wires the recipe and hook into an *existing* manifest — it
+never writes a version — and the scaffold that does write one belongs
+to a different project. So the fix lives on this side.
+
+`resume_preflight` is the other path that accepts the manifest version
+verbatim, and a first release can be forced through it by hand-creating
+the tag and running `just resume-release`. It exists to recover a
+release that landed partially, and requires the tag to already exist
+precisely so it never invents one; leaning on it to cut a first release
+means doing by hand the step it refuses to guess at.
+
+Detection requires **both** no `v*` tags and no marketplace entry.
+Either signal alone misreads a real state: a repo whose tags were lost
+or never fetched still has its marketplace entry, and republishing over
+it would collide with a version already out there; a plugin that is
+tagged but not yet in the marketplace is the ordinary
+pre-first-publication state that `check-version.sh` already skips over.
+Only a repo with neither has demonstrably never been through this
+script. The tag test is `git tag --list 'v*'`, not `git describe`,
+which sees only tags reachable from HEAD.
+
+Refusing an explicit bump rather than ignoring it: a patch bump makes
+no sense as an initial release, and no other bump makes sense either. A
+first release has exactly one outcome, so a typed bump is a statement
+about a version history that does not exist. Ignoring the argument
+would hide that mismatch; the refusal names the version that will be
+published, which is the fact the caller needs to act on.
+
+This is also why `release.just` passes its bump argument through even
+when empty, leaving `patch` as a default inside `release.sh`. The
+recipe signature cannot distinguish an explicit `patch` from no
+argument at all, and on a first release that distinction is the whole
+decision.
+
+Rejected: seeding new consumers at `0.0.0` (via `install.sh` or by
+documented instruction) so that `0.0.0` reads unambiguously as "nothing
+released" and `just release minor` produces `0.1.0`. It keeps the
+invariant literally true, but it only helps plugins installed after the
+change — a plugin already vendored and sitting unreleased still hits
+the original conflict, which is precisely the case that surfaced it.
+It also puts `install.sh` in the business of rewriting the very field
+the version-guard hook exists to protect.
+
 ### Marketplace entry: bump if present, create on first publication
 
 The release recipe's marketplace step handles both a plugin that already

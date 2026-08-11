@@ -165,6 +165,27 @@ mount_resting_memory_submodule() {
     # Deliberately no parent commit here.
 }
 
+make_virgin() {
+    # $1=manifest version. Strips the fixture's release history so the plugin
+    # has never been released: no v* tags locally or on origin, and the manifest
+    # seeded at $1. Paired with new_sandbox "" (no marketplace entry) this is
+    # the state a plugin scaffolded by the external plugin-dev marketplace
+    # plugin arrives in; paired with new_sandbox "1.2.3" it isolates the
+    # no-tags half of the conjunct.
+    git -C "$plugin" tag -d v1.2.3 >/dev/null
+    git -C "$plugin" push -q origin :refs/tags/v1.2.3
+    jq --arg v "$1" '.version = $v' "$plugin/.claude-plugin/plugin.json" \
+        > "$plugin/.claude-plugin/plugin.json.tmp"
+    mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
+    git -C "$plugin" add -A
+    # Seeding the version the fixture already carries stages nothing, and a
+    # no-op `git commit` is a hard error under set -e.
+    if ! git -C "$plugin" diff --cached --quiet; then
+        git -C "$plugin" commit -qm "scaffold at $1"
+    fi
+    git -C "$plugin" push -q origin main
+}
+
 echo "=== release: happy path ==="
 new_sandbox "1.2.3"
 run_in "$plugin" bash plugin-dev/release.sh patch
@@ -440,6 +461,53 @@ run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "1" "dirty-marketplace release exit code"
 assert_contains "$out" "$MARKETPLACE_DIR has uncommitted changes" "dirty-marketplace release message"
 assert_eq "$(cat "$GH_LOG")" "" "dirty-marketplace release must not call gh"
+
+echo "=== release: a first release publishes the manifest version verbatim ==="
+new_sandbox ""            # no marketplace entry
+make_virgin "0.1.0"       # no v* tags, manifest seeded by an external scaffold
+head_before="$(git -C "$plugin" rev-parse HEAD)"
+run_in "$plugin" bash plugin-dev/release.sh
+assert_eq "$rc" "0" "first-release exit code"
+assert_contains "$out" "Release v0.1.0 complete" "first-release summary"
+assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "0.1.0" "first-release manifest untouched"
+# Nothing to bump means nothing to commit: the tag lands on the commit that was
+# already HEAD, not on a synthetic "release: 0.1.0" commit above it.
+assert_eq "$(git -C "$plugin" rev-parse HEAD)" "$head_before" "first-release makes no commit"
+assert_eq "$(git -C "$plugin" rev-parse -q --verify 'refs/tags/v0.1.0^{commit}')" \
+    "$head_before" "first-release tags HEAD"
+assert_eq "$(git -C "$plugin" ls-remote origin refs/tags/v0.1.0 | wc -l | tr -d ' ')" \
+    "1" "first-release tag pushed to origin"
+assert_contains "$(cat "$GH_LOG")" "release create v0.1.0" "first-release gh release created"
+assert_eq "$(market_version)" "0.1.0" "first-release marketplace entry created at the manifest version"
+
+echo "=== release: a first release refuses an explicit bump ==="
+for word in patch minor major; do
+    new_sandbox ""
+    make_virgin "0.1.0"
+    run_in "$plugin" bash plugin-dev/release.sh "$word"
+    assert_eq "$rc" "1" "first-release '$word' exit code"
+    assert_contains "$out" "never been released" "first-release '$word' explains why"
+    assert_contains "$out" "0.1.0" "first-release '$word' names the version it would publish"
+    assert_eq "$(git -C "$plugin" tag --list 'v*')" "" "first-release '$word' creates no tag"
+    assert_eq "$(cat "$GH_LOG")" "" "first-release '$word' must not call gh"
+    assert_eq "$(market_version)" "" "first-release '$word' must not touch the marketplace"
+done
+
+echo "=== release: a marketplace entry with no tags is not a first release ==="
+new_sandbox "1.2.3"       # entry exists — this plugin HAS been published
+make_virgin "1.2.3"       # ...but its tags are gone
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "0" "lost-tags exit code"
+assert_contains "$out" "Release v1.2.4 complete" "lost-tags bumps forward instead of republishing"
+assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "1.2.4" "lost-tags manifest bumped"
+assert_eq "$(market_version)" "1.2.4" "lost-tags marketplace bumped"
+
+echo "=== release: tags with no marketplace entry is not a first release ==="
+new_sandbox ""            # no entry...
+run_in "$plugin" bash plugin-dev/release.sh patch   # ...but the fixture's v1.2.3 tag stands
+assert_eq "$rc" "0" "tagged-unpublished exit code"
+assert_contains "$out" "Release v1.2.4 complete" "tagged-unpublished bumps forward"
+assert_eq "$(market_version)" "1.2.4" "tagged-unpublished marketplace entry created at the bumped version"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
