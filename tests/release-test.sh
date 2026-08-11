@@ -317,13 +317,38 @@ assert_eq "$(git -C "$plugin" rev-parse --verify -q refs/tags/v1.2.4 >/dev/null 
     "no" "read-only marketplace dir created no tag"
 assert_eq "$(cat "$GH_LOG")" "" "read-only marketplace dir must not call gh"
 
-echo "=== resume: also refuses when the marketplace directory isn't writable ==="
+echo "=== resume: succeeds on a no-op marketplace bump even when its directory isn't writable ==="
 new_sandbox "1.2.3"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "0" "setup release exit code"
 chmod 555 "$marketplace/.claude-plugin"
 run_in "$plugin" bash plugin-dev/release.sh --resume
 chmod 755 "$marketplace/.claude-plugin"
-assert_eq "$rc" "1" "read-only marketplace dir resume exit code"
-assert_contains "$out" "$marketplace/.claude-plugin is not writable" "read-only marketplace dir resume message"
+assert_eq "$rc" "0" "no-op resume exit code despite read-only marketplace dir"
+assert_contains "$out" "already complete (nothing to do)" "no-op resume summary despite read-only marketplace dir"
+
+echo "=== resume: still refuses when a real marketplace write is needed and the directory isn't writable ==="
+new_sandbox "1.2.3"
+# Plugin push rejected: manifest+tag land locally, but the marketplace is
+# never touched (still 1.2.3) — a real write is needed to catch it up.
+cat > "$plugin/.git/hooks/pre-push" <<'HOOK'
+#!/bin/sh
+echo "pre-push: refusing" >&2
+exit 1
+HOOK
+chmod +x "$plugin/.git/hooks/pre-push"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "setup interrupted-release exit code"
+assert_eq "$(market_version)" "1.2.3" "setup marketplace still stale"
+rm -f "$plugin/.git/hooks/pre-push"
+chmod 555 "$marketplace/.claude-plugin"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+chmod 755 "$marketplace/.claude-plugin"
+assert_eq "$rc" "1" "real-write resume exit code"
+assert_contains "$out" "$marketplace/.claude-plugin is not writable" "real-write resume message names the path"
+assert_eq "$(git -C "$plugin" ls-remote origin refs/tags/v1.2.4 | wc -l | tr -d ' ')" \
+    "1" "real-write resume still pushed the plugin tag before failing at the marketplace"
+assert_eq "$(market_version)" "1.2.3" "real-write resume left the marketplace untouched"
 
 echo "=== release: major bump end-to-end ==="
 new_sandbox "1.2.3"
