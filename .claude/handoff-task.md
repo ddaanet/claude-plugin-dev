@@ -1,11 +1,6 @@
-## Current task
+Three toolkit briefs (shared-claude-import, marketplace-writability-preflight, exclude-memory-submodule) are done. Next: release this toolkit, then propagate the new version into the 8 sibling consumers that vendor it.
 
-Nothing in flight. The toolkit is released at v0.5.0, which is where
-`resume-release` landed.
+## Open decisions
 
-Propagating 0.5.0 into the consumer plugins is deliberately **not** tracked
-here. Eight repos vendor the subtree — gitmoji, onekeys, gitlore,
-shell-gotchas, cwd-safety, handoff, unsandbox-git-status, candidature — and
-each carries an untracked `brief-plugin-dev-0.5.0.md` telling its own agent
-how to migrate. Finding a consumer on an old `plugin-dev/VERSION` is expected
-and is not work to pick up from this repo.
+- Version bump size for `just release`: all three changes are bug fixes / a convention import, no breaking changes — patch is the default reading, but confirm before running.
+- For each of the 8 sibling consumers (gitmoji, onekeys, gitlore, shell-gotchas, cwd-safety, handoff, unsandbox-git-status, candidature): check whether their untracked `brief-plugin-dev-0.5.0.md` still exists and whether that consumer has already upgraded past 0.5.0. Drop the brief if so; otherwise update it to reference the version this release produces.
