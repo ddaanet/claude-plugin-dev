@@ -1,6 +1,21 @@
-Three toolkit briefs (shared-claude-import, marketplace-writability-preflight, exclude-memory-submodule) are done. Next: release this toolkit, then propagate the new version into the 8 sibling consumers that vendor it.
+## Current task
+
+The install.sh subtree-add recursion fix and the deterministic test seeds
+are in; what remains is cutting the next toolkit release and propagating
+it to the sibling consumers.
 
 ## Open decisions
 
-- Version bump size for `just release`: all three changes are bug fixes / a convention import, no breaking changes — patch is the default reading, but confirm before running.
-- For each of the 8 sibling consumers (gitmoji, onekeys, gitlore, shell-gotchas, cwd-safety, handoff, unsandbox-git-status, candidature): check whether their untracked `brief-plugin-dev-0.5.0.md` still exists and whether that consumer has already upgraded past 0.5.0. Drop the brief if so; otherwise update it to reference the version this release produces.
+- Release bump size: the changes are fixes only, suggesting patch
+  (v0.5.4) — confirm before `just release` (which must run unsandboxed;
+  it dies at the marketplace bump otherwise).
+- The three `brief-*.md` files in the repo root remain open asks: how to
+  stop the subtree squash from shipping `plugin-dev/memory` and the
+  toolkit's working environment into consumers (subtree cannot exclude
+  paths, so the design call is between changing what this repo tracks
+  and changing how release tags are cut), and where the documented
+  bootstrap workaround for consumers still below v0.5.2 lives (README,
+  release notes, or the per-consumer briefs).
+- Which `memory/MEMORY.md` entries to retire — the index sits at ~98% of
+  Claude Code's 24.4KB loader budget, so tail entries risk being
+  silently dropped (carried from the previous handoff).

@@ -8,6 +8,7 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-08-13 — `install.sh` subtree add recursion scoping](changelog/2026-08-13-install-subtree-add-recursion.md) — v0.5.2 fixed one of two subtree call sites; `install.sh`'s add hit the same collision, and the test covering the fix could pass vacuously on same-second seed commits
 - [2026-08-11 — First release publishes the manifest version](changelog/2026-08-11-first-release-manifest-verbatim.md) — a never-released plugin has no version to bump from, so `just release` ships the version `plugin.json` already holds (v0.5.3)
 - [2026-08-11 — `update-plugin-dev` submodule collision](changelog/2026-08-11-subtree-submodule-collision.md) — a consumer's own `memory` submodule at the same path broke `git subtree pull`'s on-demand submodule fetch (v0.5.2)
 - [2026-07-29 — `resume-release`](changelog/2026-07-29-resume-release.md) — the release tail became an idempotent block both `release` and a recovery path run (v0.5.0)

@@ -21,7 +21,8 @@
 # Idempotent: re-running with everything already in place is a no-op.
 set -euo pipefail
 
-TOOLKIT_URL="git@github.com:ddaanet/claude-plugin-dev.git"
+# Env-overridable so tests can point it at a local fixture repo.
+TOOLKIT_URL="${TOOLKIT_URL:-git@github.com:ddaanet/claude-plugin-dev.git}"
 TOOLKIT_PREFIX="plugin-dev"
 
 ref="${1:-}"
@@ -60,7 +61,12 @@ if [ ! -d "$TOOLKIT_PREFIX" ]; then
           ;;
     esac
     git diff --quiet HEAD || { echo "error: uncommitted changes — commit or stash before vendoring" >&2; exit 1; }
-    git subtree add --prefix="$TOOLKIT_PREFIX" "$TOOLKIT_URL" "$ref" --squash
+    # Same collision release.just's update-plugin-dev scopes around: a plugin
+    # that already mounts its own gitlore `memory` submodule at top level sees
+    # this fetch of the toolkit's raw history recurse into the toolkit's
+    # `memory` gitlink and resolve it against the PLUGIN's registered
+    # submodule URL, dying with "not our ref". Scoped to this one fetch only.
+    git -c fetch.recurseSubmodules=no subtree add --prefix="$TOOLKIT_PREFIX" "$TOOLKIT_URL" "$ref" --squash
     changed+=("$TOOLKIT_PREFIX/ (vendored at $ref)")
 elif [ -n "$ref" ]; then
     echo "warning: $TOOLKIT_PREFIX/ already vendored — ignoring ref '$ref'." >&2

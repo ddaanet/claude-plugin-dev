@@ -98,13 +98,13 @@ from every other consumer and from the tagged source, and the next
 `subtree pull` will conflict. The single source of truth is
 `ddaanet/claude-plugin-dev` at a tag — nowhere else.
 
-### `update-plugin-dev` disables submodule recursion for its one fetch
+### Both subtree call sites disable submodule recursion for their fetch
 
 This repo mounts its own gitlore `memory` tier as a submodule at
-top-level path `memory`. `git subtree pull` fetches this repo's raw,
-unprefixed history before re-rooting it under `plugin-dev/` — so for
-that one `git fetch`, this repo's tree really does have a gitlink at
-top-level path `memory`.
+top-level path `memory`. `git subtree add` and `git subtree pull` both
+fetch this repo's raw, unprefixed history before re-rooting it under
+`plugin-dev/` — so for that one `git fetch`, this repo's tree really
+does have a gitlink at top-level path `memory`.
 
 A consumer that *also* mounts a gitlore `memory` submodule at that
 same top-level path collides: `fetch.recurseSubmodules=on-demand`
@@ -114,13 +114,22 @@ because on-demand resolution keys off the locally registered
 submodule path, and this repo's own submodule config isn't in scope
 for a consumer's local fetch. That remote doesn't have the commit, so
 the fetch dies with `fatal: remote error: upload-pack: not our ref
-…`, aborting the pull before any merge.
+…`, aborting the operation before any merge.
 
-Fixed by scoping `-c fetch.recurseSubmodules=no` to just the
-`subtree pull` invocation in `update-plugin-dev` — a no-op for
-consumers without a `memory` submodule, and harmless for consumers
-with one, since the vendored `plugin-dev/memory` gitlink is never
-meant to be checked out as a submodule inside a consumer either way.
+Both invocations — `update-plugin-dev`'s `subtree pull` in
+`release.just` and `install.sh`'s initial `subtree add` — scope
+`-c fetch.recurseSubmodules=no` to their one fetch. A no-op for
+consumers without a `memory` submodule; for consumers with one, the
+vendored `plugin-dev/memory` gitlink is never meant to be checked out
+as a submodule inside a consumer either way.
+
+The `subtree add` site was originally left unscoped on an ordering
+assumption: install first, mount the memory tier later, so the initial
+add has no registered `memory` submodule to collide with. The order
+isn't guaranteed — an existing repo that already mounts its memory
+tier and adopts the toolkit afterwards hits the collision on
+`install.sh` itself, with no vendored copy to carry a fix. Both sites
+scope the fetch; neither relies on when the consumer mounted its tier.
 
 ### Versioning: tags only, never `HEAD`
 

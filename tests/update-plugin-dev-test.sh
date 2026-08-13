@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# End-to-end test of release.just's `update-plugin-dev` recipe against real
-# git repos in a temp dir. No network: the toolkit and its "memory" submodule
-# are local bare repos.
+# End-to-end tests of the two subtree call sites — release.just's
+# `update-plugin-dev` recipe and install.sh's initial `subtree add` — against
+# real git repos in a temp dir. No network: the toolkit and its "memory"
+# submodule are local bare repos.
 #
 # Usage: bash tests/update-plugin-dev-test.sh   (run from repo root)
 set -euo pipefail
@@ -89,13 +90,22 @@ new_sandbox() {
     toolkit="$sandbox/toolkit"
     consumer="$sandbox/consumer"
 
+    # The two memory seeds MUST have distinct shas: git commits are fully
+    # deterministic, so two empty commits with the fixture identity, the same
+    # message, and timestamps in the same second are the SAME object. The
+    # consumer's submodule then already contains the commit the toolkit's
+    # gitlink names, on-demand recursion finds nothing to fetch, and the
+    # collision under test becomes unreachable — the test passes vacuously,
+    # depending on whether setup straddled a second boundary. Distinct seed
+    # content keeps the collision reachable deterministically.
+
     # Toolkit-side memory remote, standing in for claude-plugin-dev-memory.git.
     git init -q --bare -b main "$sandbox/toolkit-memory-origin.git"
     local seed
     seed="$(mktemp -d)"
     git init -q -b main "$seed"
     git_id "$seed"
-    git -C "$seed" commit --allow-empty -qm seed
+    git -C "$seed" commit --allow-empty -qm "seed: toolkit memory"
     git -C "$seed" remote add origin "$sandbox/toolkit-memory-origin.git"
     git -C "$seed" push -q -u origin main
     rm -rf "$seed"
@@ -112,7 +122,7 @@ new_sandbox() {
     seed="$(mktemp -d)"
     git init -q -b main "$seed"
     git_id "$seed"
-    git -C "$seed" commit --allow-empty -qm seed
+    git -C "$seed" commit --allow-empty -qm "seed: consumer memory"
     git -C "$seed" remote add origin "$sandbox/consumer-memory-origin.git"
     git -C "$seed" push -q -u origin main
     rm -rf "$seed"
@@ -125,11 +135,11 @@ new_sandbox() {
 echo "=== update-plugin-dev: survives a consumer's unrelated memory submodule at the same path ==="
 new_sandbox
 
-# Vendor the toolkit first, like install.sh's initial `subtree add` -- before
-# the consumer mounts its own memory submodule. This is the real-world order
-# (install, then `/gitlore:add-tier` later), and the initial add has no
-# collision to hit yet, since the consumer has no submodule registered at
-# "memory" at this point.
+# Vendor the toolkit first, before the consumer mounts its own memory
+# submodule -- the ordering where the initial add has no collision to hit,
+# since the consumer has no submodule registered at "memory" yet. The other
+# ordering (memory mounted first, then install) is the install.sh scenario
+# below.
 run_in "$consumer" allow_file git subtree add --prefix=plugin-dev "$toolkit" v1 --squash
 assert_eq "$rc" "0" "initial vendor exit code"
 assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.0" "initial vendor VERSION"
@@ -157,6 +167,34 @@ if grep -q 'not our ref' <<< "$out"; then
     printf '  --- output ---\n%s\n  --------------\n' "$out" >&2
 fi
 assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.1" "update-plugin-dev pulled the new VERSION"
+assert_eq "$(git -C "$consumer" config --get submodule.memory.url)" \
+    "$sandbox/consumer-memory-origin.git" "consumer's own memory submodule registration untouched"
+
+echo "=== install.sh: vendors into a consumer that already mounts a memory submodule ==="
+new_sandbox
+
+# The reverse ordering: an existing plugin repo that mounted its gitlore
+# memory submodule before adopting the toolkit. install.sh's `subtree add`
+# performs the same raw, unprefixed fetch of the toolkit's history as
+# `subtree pull`, so it hits the same on-demand recursion collision unless
+# scoped the same way.
+run_in "$consumer" allow_file git submodule add -q "$sandbox/consumer-memory-origin.git" memory
+assert_eq "$rc" "0" "consumer memory submodule mount exit code"
+git -C "$consumer" commit -qm "consumer: mount memory"
+
+# install.sh's run-in-target guard needs a plugin manifest in the cwd.
+mkdir -p "$consumer/.claude-plugin"
+printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer/.claude-plugin/plugin.json"
+git -C "$consumer" add .claude-plugin/plugin.json
+git -C "$consumer" commit -qm "consumer: plugin manifest"
+
+run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/install.sh" v1
+assert_eq "$rc" "0" "install.sh exit code through the submodule collision"
+if grep -q 'not our ref' <<< "$out"; then
+    fail "install.sh output shows the submodule collision (not our ref)"
+    printf '  --- output ---\n%s\n  --------------\n' "$out" >&2
+fi
+assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.0" "install.sh vendored VERSION"
 assert_eq "$(git -C "$consumer" config --get submodule.memory.url)" \
     "$sandbox/consumer-memory-origin.git" "consumer's own memory submodule registration untouched"
 
