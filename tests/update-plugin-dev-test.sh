@@ -72,15 +72,34 @@ run_in() {
     set -e
 }
 
+# The consumer-visible half of the leak: an unregistered gitlink under
+# plugin-dev/ fatals a bare `git submodule status` for the WHOLE repo, even
+# though every submodule the consumer itself registered is fine. Asserted on
+# both call sites, since either can be the one that vendors.
+assert_clean_vendor() {
+    # $1=consumer dir, $2=label
+    if git -C "$1" ls-files -s plugin-dev/ | grep -q '^160000'; then
+        fail "$2: vendored tree carries a gitlink"
+    fi
+    run_in "$1" git submodule status
+    assert_eq "$rc" "0" "$2: consumer's bare git submodule status stays clean"
+}
+
 # Advances the fixture toolkit repo (shaped like this repo: a `memory`
-# submodule mounted at top level, a VERSION file at root) by one commit and
-# tags it, mirroring a toolkit release.
+# submodule mounted at top level, consumer-facing files under toolkit/) by one
+# commit and cuts both tags a real toolkit release cuts.
 make_toolkit_release() {
-    local toolkit="$1" tag="$2" version="$3"
-    printf '%s\n' "$version" > "$toolkit/VERSION"
+    local toolkit="$1" tag="$2" version="$3" dist_sha
+    mkdir -p "$toolkit/toolkit"
+    printf '%s\n' "$version" > "$toolkit/toolkit/VERSION"
     git -C "$toolkit" add -A
     git -C "$toolkit" commit -qm "toolkit: $version"
     git -C "$toolkit" tag "$tag"
+    # The dist tag is what consumers vendor: `git subtree split --prefix=toolkit`
+    # yields a ref whose ROOT is toolkit/, so it carries neither the `memory`
+    # gitlink nor anything else from the toolkit's working environment.
+    dist_sha="$(git -C "$toolkit" subtree split -q --prefix=toolkit | tail -1)"
+    git -C "$toolkit" tag "dist-$tag" "$dist_sha"
 }
 
 new_sandbox() {
@@ -90,14 +109,11 @@ new_sandbox() {
     toolkit="$sandbox/toolkit"
     consumer="$sandbox/consumer"
 
-    # The two memory seeds MUST have distinct shas: git commits are fully
-    # deterministic, so two empty commits with the fixture identity, the same
-    # message, and timestamps in the same second are the SAME object. The
-    # consumer's submodule then already contains the commit the toolkit's
-    # gitlink names, on-demand recursion finds nothing to fetch, and the
-    # collision under test becomes unreachable — the test passes vacuously,
-    # depending on whether setup straddled a second boundary. Distinct seed
-    # content keeps the collision reachable deterministically.
+    # The two memory remotes are kept distinct (different seed messages, so
+    # different shas) to keep the toolkit's gitlink and the consumer's
+    # unrelated: assert_clean_vendor has to tell "the toolkit's memory was
+    # dropped" apart from "the consumer's memory survived", which it cannot do
+    # if both name the same object.
 
     # Toolkit-side memory remote, standing in for claude-plugin-dev-memory.git.
     git init -q --bare -b main "$sandbox/toolkit-memory-origin.git"
@@ -140,14 +156,14 @@ new_sandbox
 # since the consumer has no submodule registered at "memory" yet. The other
 # ordering (memory mounted first, then install) is the install.sh scenario
 # below.
-run_in "$consumer" allow_file git subtree add --prefix=plugin-dev "$toolkit" v1 --squash
+run_in "$consumer" allow_file git subtree add --prefix=plugin-dev "$toolkit" dist-v1 --squash
 assert_eq "$rc" "0" "initial vendor exit code"
 assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.0" "initial vendor VERSION"
 
 # Consumer mounts its own gitlore memory submodule at the same top-level path
-# the toolkit uses internally for its own memory -- this is the collision
-# surface: `fetch.recurseSubmodules=on-demand` will try to resolve the
-# toolkit's "memory" gitlink using the CONSUMER's registered submodule URL.
+# the toolkit uses internally for its own memory -- the shape where the pull
+# has both a toolkit-side gitlink to drop and a consumer-side one to leave
+# alone. assert_clean_vendor below checks both halves.
 run_in "$consumer" allow_file git submodule add -q "$sandbox/consumer-memory-origin.git" memory
 assert_eq "$rc" "0" "consumer memory submodule mount exit code"
 git -C "$consumer" commit -qm "consumer: mount memory"
@@ -157,18 +173,15 @@ make_toolkit_release "$toolkit" v2 1.0.1
 
 # A consumer justfile importing THIS repo's real release.just, so the recipe
 # under test is the one about to ship, not a copy.
-printf "import '%s/release.just'\n\nprecommit:\n    @echo stub-precommit\n\nprerelease: precommit\n" \
+printf "import '%s/toolkit/release.just'\n\nprecommit:\n    @echo stub-precommit\n\nprerelease: precommit\n" \
     "$repo_root" > "$consumer/justfile"
 
-run_in "$consumer" allow_file just --set toolkit_url "$toolkit" update-plugin-dev v2
-assert_eq "$rc" "0" "update-plugin-dev exit code through the submodule collision"
-if grep -q 'not our ref' <<< "$out"; then
-    fail "update-plugin-dev output shows the submodule collision (not our ref)"
-    printf '  --- output ---\n%s\n  --------------\n' "$out" >&2
-fi
+run_in "$consumer" allow_file just --set toolkit_url "$toolkit" update-plugin-dev dist-v2
+assert_eq "$rc" "0" "update-plugin-dev exit code"
 assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.1" "update-plugin-dev pulled the new VERSION"
 assert_eq "$(git -C "$consumer" config --get submodule.memory.url)" \
     "$sandbox/consumer-memory-origin.git" "consumer's own memory submodule registration untouched"
+assert_clean_vendor "$consumer" "update-plugin-dev"
 
 echo "=== install.sh: vendors into a consumer that already mounts a memory submodule ==="
 new_sandbox
@@ -188,15 +201,49 @@ printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer/.claude-plug
 git -C "$consumer" add .claude-plugin/plugin.json
 git -C "$consumer" commit -qm "consumer: plugin manifest"
 
-run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/install.sh" v1
-assert_eq "$rc" "0" "install.sh exit code through the submodule collision"
-if grep -q 'not our ref' <<< "$out"; then
-    fail "install.sh output shows the submodule collision (not our ref)"
-    printf '  --- output ---\n%s\n  --------------\n' "$out" >&2
-fi
+run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh" dist-v1
+assert_eq "$rc" "0" "install.sh exit code"
 assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.0" "install.sh vendored VERSION"
 assert_eq "$(git -C "$consumer" config --get submodule.memory.url)" \
     "$sandbox/consumer-memory-origin.git" "consumer's own memory submodule registration untouched"
+assert_clean_vendor "$consumer" "install.sh"
+
+echo "=== both call sites refuse any ref outside the dist lineage ==="
+new_sandbox
+
+# install.sh's run-in-target guard needs a plugin manifest in the cwd.
+mkdir -p "$consumer/.claude-plugin"
+printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer/.claude-plugin/plugin.json"
+git -C "$consumer" add .claude-plugin/plugin.json
+git -C "$consumer" commit -qm "consumer: plugin manifest"
+
+# A source tag resolves to the toolkit's ROOT tree -- its memory gitlink,
+# .claude/, CLAUDE.md, its own justfile. Vendoring one is the leak this whole
+# design exists to stop, and it is silent, so both call sites must refuse it
+# rather than warn. This is what makes the fetch-recursion collision
+# unreachable, so it is asserted rather than assumed.
+run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh" v1
+if [ "$rc" -eq 0 ]; then fail "install.sh accepted a source tag"; fi
+assert_contains "$out" "dist-v1" "install.sh refusal names the dist tag to use"
+if [ -d "$consumer/plugin-dev" ]; then fail "install.sh vendored despite refusing the ref"; fi
+
+run_in "$consumer" allow_file git subtree add --prefix=plugin-dev "$toolkit" dist-v1 --squash
+assert_eq "$rc" "0" "vendor for the update-side refusal checks"
+printf "import '%s/toolkit/release.just'\n\nprecommit:\n    @echo stub-precommit\n\nprerelease: precommit\n" \
+    "$repo_root" > "$consumer/justfile"
+git -C "$consumer" add -A
+git -C "$consumer" commit -qm "consumer: vendor + justfile"
+
+run_in "$consumer" allow_file just --set toolkit_url "$toolkit" update-plugin-dev v1
+if [ "$rc" -eq 0 ]; then fail "update-plugin-dev accepted a source tag"; fi
+assert_contains "$out" "dist-v1" "update-plugin-dev refusal names the dist tag to use"
+
+# A branch ref resolves to the same root tree as a source tag, so it leaks
+# identically. It used to be permitted with a warning; nothing about a branch
+# makes its tree safe to vendor.
+run_in "$consumer" allow_file just --set toolkit_url "$toolkit" update-plugin-dev main
+if [ "$rc" -eq 0 ]; then fail "update-plugin-dev accepted a branch ref"; fi
+assert_contains "$out" "not a dist tag" "branch ref refusal explains why"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2

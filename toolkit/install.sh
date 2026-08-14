@@ -7,7 +7,13 @@
 #     git clone --depth 1 -b vX.Y.Z \
 #         git@github.com:ddaanet/claude-plugin-dev.git /tmp/cpd
 #     cd /path/to/plugin
-#     bash /tmp/cpd/install.sh vX.Y.Z
+#     bash /tmp/cpd/toolkit/install.sh dist-vX.Y.Z
+#
+# Clone the SOURCE tag (vX.Y.Z) to get the script; vendor the DIST tag
+# (dist-vX.Y.Z), whose root tree is only the consumer-facing files. A
+# subtree add of the source tag would copy this repo's whole working
+# environment into the plugin -- see docs/design.md "Consumers vendor a
+# split dist ref".
 #
 # The script will:
 #   1. git subtree add the toolkit at plugin-dev/ (skipped if present)
@@ -51,22 +57,28 @@ fi
 if [ ! -d "$TOOLKIT_PREFIX" ]; then
     if [ -z "$ref" ]; then
         echo "error: $TOOLKIT_PREFIX/ not found and no ref given." >&2
-        echo "usage: bash install.sh vX.Y.Z   (pass a tag to vendor on first install)" >&2
+        echo "usage: bash install.sh dist-vX.Y.Z   (pass a dist tag to vendor on first install)" >&2
         exit 1
     fi
+    # Only a dist tag is vendorable. Every other ref -- source tag, branch,
+    # sha -- resolves to the toolkit's root tree, which is its own working
+    # environment: a `memory` gitlink, .claude/, CLAUDE.md, its own justfile.
+    # Vendoring one copies all of that into this plugin and is invisible until
+    # someone runs `git submodule status`, so it is refused, not warned about.
     case "$ref" in
-      v*) ;;
-      main|master|HEAD)
-          echo "warning: pulling a branch ref ($ref) — prefer a tag (vX.Y.Z) for reproducibility" >&2
+      dist-v*) ;;
+      v*)
+          echo "error: '$ref' is a source tag — vendor the dist tag instead: dist-$ref" >&2
+          exit 1
+          ;;
+      *)
+          echo "error: '$ref' is not a dist tag — vendor dist-vX.Y.Z" >&2
+          echo "       only the dist lineage contains the consumer-facing files." >&2
+          exit 1
           ;;
     esac
     git diff --quiet HEAD || { echo "error: uncommitted changes — commit or stash before vendoring" >&2; exit 1; }
-    # Same collision release.just's update-plugin-dev scopes around: a plugin
-    # that already mounts its own gitlore `memory` submodule at top level sees
-    # this fetch of the toolkit's raw history recurse into the toolkit's
-    # `memory` gitlink and resolve it against the PLUGIN's registered
-    # submodule URL, dying with "not our ref". Scoped to this one fetch only.
-    git -c fetch.recurseSubmodules=no subtree add --prefix="$TOOLKIT_PREFIX" "$TOOLKIT_URL" "$ref" --squash
+    git subtree add --prefix="$TOOLKIT_PREFIX" "$TOOLKIT_URL" "$ref" --squash
     changed+=("$TOOLKIT_PREFIX/ (vendored at $ref)")
 elif [ -n "$ref" ]; then
     echo "warning: $TOOLKIT_PREFIX/ already vendored — ignoring ref '$ref'." >&2

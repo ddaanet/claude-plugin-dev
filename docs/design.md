@@ -91,50 +91,82 @@ one-directional in practice.
 consumer's `plugin-dev/` are subtree-managed content owned by this
 repo. To change what a consumer vendors, edit the source *here*, cut a
 tagged toolkit release, then propagate into each consumer with `just
-update-plugin-dev vX.Y.Z` (which runs `git subtree pull`). Editing
+update-plugin-dev dist-vX.Y.Z` (which runs `git subtree pull`). Editing
 `<consumer>/plugin-dev/*` directly reintroduces exactly the drift the
 subtree model exists to prevent: the consumer's copy silently diverges
 from every other consumer and from the tagged source, and the next
 `subtree pull` will conflict. The single source of truth is
 `ddaanet/claude-plugin-dev` at a tag — nowhere else.
 
-### Both subtree call sites disable submodule recursion for their fetch
+### Consumers vendor a split dist ref, not the source tag
 
-This repo mounts its own gitlore `memory` tier as a submodule at
-top-level path `memory`. `git subtree add` and `git subtree pull` both
-fetch this repo's raw, unprefixed history before re-rooting it under
-`plugin-dev/` — so for that one `git fetch`, this repo's tree really
-does have a gitlink at top-level path `memory`.
+`git subtree` copies the **root tree** of whatever ref it is given. This
+repo's root is its own working environment — a `memory` gitlink, `.claude/`,
+`.envrc`, `.gitlore/`, `CLAUDE.md`, this repo's own `justfile`, `docs/`,
+`plans/`, `tests/` — so vendoring a source tag shipped all of it into every
+consumer, tracked in the consumer's own history.
 
-A consumer that *also* mounts a gitlore `memory` submodule at that
-same top-level path collides: `fetch.recurseSubmodules=on-demand`
-(git's default) sees the gitlink and tries to resolve it using the
-*consumer's* registered `memory` submodule URL, not this repo's —
-because on-demand resolution keys off the locally registered
-submodule path, and this repo's own submodule config isn't in scope
-for a consumer's local fetch. That remote doesn't have the commit, so
-the fetch dies with `fatal: remote error: upload-pack: not our ref
-…`, aborting the operation before any merge.
+Three of those actively misbehave rather than merely cluttering. The
+`memory` gitlink is unregistered in the consumer's `.gitmodules`, so a bare
+`git submodule status` fatals for the **whole repo** even though every
+submodule the consumer registered is fine. `.claude/settings.json` and
+`CLAUDE.md` are read by Claude Code for the directory an agent works in, so
+a consumer's agent operating under `plugin-dev/` picked up this repo's hooks
+and instructions.
 
-Both invocations — `update-plugin-dev`'s `subtree pull` in
-`release.just` and `install.sh`'s initial `subtree add` — scope
-`-c fetch.recurseSubmodules=no` to their one fetch. A no-op for
-consumers without a `memory` submodule; for consumers with one, the
-vendored `plugin-dev/memory` gitlink is never meant to be checked out
-as a submodule inside a consumer either way.
+The consumer-facing files therefore live under `toolkit/`, and `just release`
+cuts a second tag per release: `git subtree split --prefix=toolkit` yields a
+commit whose root **is** `toolkit/`, tagged `dist-vX.Y.Z`. Consumers vendor
+that. `tests/dist-tree-test.sh` pins the shipped set exactly, so adding a
+file to `toolkit/` is a deliberate act rather than a silent inheritance.
 
-The `subtree add` site was originally left unscoped on an ordering
-assumption: install first, mount the memory tier later, so the initial
-add has no registered `memory` submodule to collide with. The order
-isn't guaranteed — an existing repo that already mounts its memory
-tier and adopts the toolkit afterwards hits the collision on
-`install.sh` itself, with no vendored copy to carry a fix. Both sites
-scope the fetch; neither relies on when the consumer mounted its tier.
+Both `install.sh` and `update-plugin-dev` accept **only** a `dist-v*` ref.
+Every other ref — source tag, branch, sha — resolves to the root tree and so
+reintroduces the entire leak; a source tag is refused by name (`pull
+dist-vX.Y.Z instead`), everything else by shape. A warning would not do,
+because the damage is silent until someone runs `git submodule status`.
+
+That refusal is what makes the fetch-time submodule collision unreachable,
+and both call sites dropped the `-c fetch.recurseSubmodules=no` they used to
+carry. The collision needed the fetched lineage to contain a gitlink at a
+path the consumer had registered; the dist lineage contains no gitlink at
+all, and no other lineage is vendorable. Keeping the flag "just in case"
+would be guarding a case that can no longer arise — cruft with a
+reassuring name.
+
+Migration needs nothing manual. A consumer vendored from a source tag has
+the leaked paths in its tree, and its first pull of a `dist-` tag deletes
+all of them in that same commit — verified against a consumer fixture
+carrying all 37 leaked paths, which came out at exactly the 8 shipped files
+with `git submodule status` back to exit 0, no conflicts.
+
+Rejected alternatives:
+
+- **Building the dist tree from an allowlist** with `git mktree`/`commit-tree`
+  at release time. Avoids moving files, but trades a one-time restructuring
+  cost for permanent bespoke plumbing whose failure mode is silently shipping
+  the wrong tree. `subtree split` is a supported command that does exactly
+  this job, and costs *less* release-recipe code, not more.
+- **Pruning the leaked paths after the subtree pull**, inside
+  `update-plugin-dev`. The prune would live in the consumer's *vendored* copy,
+  and it is that copy — not the tag being requested — which executes the
+  upgrade, so the fix could never reach a consumer that does not already have
+  it. Locally deleting files the upstream ref still contains also makes every
+  subsequent 3-way subtree merge conflict.
+- **Registering `plugin-dev/memory` in the consumer's `.gitmodules`.**
+  Silences the error by making this repo's private memory a real submodule of
+  every consumer — the opposite of the intent.
+- **Untracking the offenders here** (`.claude/`, `.envrc`, `.gitlore/`).
+  Partial at best: `memory` is a gitlore submodule that must stay committed,
+  and `CLAUDE.md`, `justfile`, `docs/` and `tests/` are the repo. It cannot
+  reach a clean shipped set.
 
 ### Versioning: tags only, never `HEAD`
 
-`install.sh` and `update-plugin-dev` both expect a ref like `v0.2.0`.
-Branch refs (`main`, `master`, `HEAD`) are warned against.
+`install.sh` and `update-plugin-dev` both expect a ref like `dist-v0.5.5`
+(see "Consumers vendor a split dist ref" for why the `dist-` lineage rather
+than the source tag). Branch refs (`main`, `master`, `HEAD`) are warned
+against; a source `vX.Y.Z` ref is refused outright.
 
 Reasoning: the toolkit's whole purpose is release discipline. It would
 be inconsistent to ship that infrastructure with no version discipline

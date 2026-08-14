@@ -5,12 +5,13 @@ _default:
 
 # Run all syntax + style checks on the toolkit's own scripts.
 precommit: whitespace
-    shellcheck install.sh version-guard.sh check-version.sh release.sh
-    bash -n tests/hook-test.sh tests/release-test.sh tests/update-plugin-dev-test.sh
+    shellcheck toolkit/install.sh toolkit/version-guard.sh toolkit/check-version.sh toolkit/release.sh
+    bash -n tests/hook-test.sh tests/release-test.sh tests/update-plugin-dev-test.sh tests/dist-tree-test.sh
     just _import-check
     bash tests/hook-test.sh
     bash tests/release-test.sh
     bash tests/update-plugin-dev-test.sh
+    bash tests/dist-tree-test.sh
     @echo ok
 
 # Checks that run before a release. Add slow or paid checks here.
@@ -24,12 +25,14 @@ release bump='patch': prerelease
     branch=$(git symbolic-ref -q --short HEAD || echo "")
     main_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || echo "main")
     [ "$branch" = "$main_branch" ] || { echo "error: must be on $main_branch (currently $branch)" >&2; exit 1; }
-    [ -f VERSION ] || { echo "error: VERSION file missing" >&2; exit 1; }
-    file_version=$(tr -d '[:space:]' < VERSION)
-    latest_tag=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)
+    [ -f toolkit/VERSION ] || { echo "error: toolkit/VERSION file missing" >&2; exit 1; }
+    file_version=$(tr -d '[:space:]' < toolkit/VERSION)
+    # --match 'v*' so the dist-v* tags cut below can never be read as the
+    # latest release: they name a separate lineage, not a version history.
+    latest_tag=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null | sed 's/^v//' || true)
     if [ -n "$latest_tag" ] && [ "$file_version" != "$latest_tag" ]; then
-      echo "error: VERSION ($file_version) does not match latest tag (v$latest_tag)" >&2
-      echo "hint: VERSION holds the LAST released version. \`just release\` bumps from there." >&2
+      echo "error: toolkit/VERSION ($file_version) does not match latest tag (v$latest_tag)" >&2
+      echo "hint: toolkit/VERSION holds the LAST released version. \`just release\` bumps from there." >&2
       echo "      revert any manual VERSION bump and re-run." >&2
       exit 1
     fi
@@ -41,15 +44,25 @@ release bump='patch': prerelease
       *) echo "error: unknown bump type: {{bump}}" >&2; exit 1 ;;
     esac
     tag="v$new_version"
-    git rev-parse "$tag" >/dev/null 2>&1 && { echo "error: tag $tag already exists" >&2; exit 1; }
-    printf '%s\n' "$new_version" > VERSION
-    git add VERSION
+    dist_tag="dist-$tag"
+    for t in "$tag" "$dist_tag"; do
+      git rev-parse "$t" >/dev/null 2>&1 && { echo "error: tag $t already exists" >&2; exit 1; }
+    done
+    printf '%s\n' "$new_version" > toolkit/VERSION
+    git add toolkit/VERSION
     git commit -m "release: $new_version"
     git tag -a "$tag" -m "Release $new_version"
+    # Consumers vendor `dist_tag`, never `tag`. `git subtree pull` copies a
+    # ref's ROOT tree, and this repo's root is its own working environment --
+    # the memory gitlink, .claude/, CLAUDE.md, this justfile, docs, tests.
+    # Splitting toolkit/ yields a ref whose root is exactly what ships.
+    # Cut after the VERSION commit so the dist tree carries the new VERSION.
+    dist_sha=$(git subtree split -q --prefix=toolkit)
+    git tag -a "$dist_tag" -m "Dist $new_version" "$dist_sha"
     git push
-    git push origin "$tag"
+    git push origin "$tag" "$dist_tag"
     gh release create "$tag" --title "Release $new_version" --generate-notes
-    echo "Release $tag complete"
+    echo "Release $tag complete (consumers pull $dist_tag)"
 
 # Apply git stripspace to cached text files. Never blocks the recipe.
 whitespace:
@@ -94,7 +107,7 @@ _import-check:
 
     stub() {
         mkdir "$tmp/$1"
-        printf "import '%s/release.just'\n\nprecommit:\n    @echo stub-precommit\n\nevals:\n    @echo stub-evals\n\n%b" \
+        printf "import '%s/toolkit/release.just'\n\nprecommit:\n    @echo stub-precommit\n\nevals:\n    @echo stub-evals\n\n%b" \
             "$PWD" "$2" > "$tmp/$1/justfile"
     }
 

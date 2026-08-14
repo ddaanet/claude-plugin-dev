@@ -41,7 +41,7 @@ set +e
 out="$(
     jq -nc --arg cwd "$proj" --arg fp "$proj/.claude-plugin/plugin.json" \
         '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"\"version\": \"1.2.3\"", new_string:"\"version\": \"1.3.0\""}}' \
-        | bash version-guard.sh 2>&1
+        | bash toolkit/version-guard.sh 2>&1
 )"
 rc=$?
 set -e
@@ -56,7 +56,7 @@ echo "=== version-guard (Edit unrelated field: allow) ==="
 set +e
 jq -nc --arg cwd "$proj" --arg fp "$proj/.claude-plugin/plugin.json" \
     '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"\"license\": \"MIT\"", new_string:"\"license\": \"Apache-2.0\""}}' \
-    | bash version-guard.sh
+    | bash toolkit/version-guard.sh
 rc=$?
 set -e
 assert_eq "$rc" "0" "version-guard Edit-unrelated exit code"
@@ -68,7 +68,7 @@ set +e
 out="$(
     jq -nc --arg cwd "$proj" --arg fp "$proj/.claude-plugin/plugin.json" --arg c "$new_content" \
         '{cwd:$cwd, tool_name:"Write", tool_input:{file_path:$fp, content:$c}}' \
-        | bash version-guard.sh 2>&1
+        | bash toolkit/version-guard.sh 2>&1
 )"
 rc=$?
 set -e
@@ -81,7 +81,7 @@ echo "=== version-guard (unrelated file: allow) ==="
 set +e
 jq -nc --arg cwd "$proj" --arg fp "$proj/README.md" \
     '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"a", new_string:"b"}}' \
-    | bash version-guard.sh
+    | bash toolkit/version-guard.sh
 rc=$?
 set -e
 assert_eq "$rc" "0" "version-guard unrelated-file exit code"
@@ -92,7 +92,7 @@ market="$proj/marketplace.json"
 # explicit marketplace path is given.
 echo "=== check-version (MARKETPLACE_DIR unset: skip) ==="
 set +e
-out="$(env -u MARKETPLACE_DIR bash check-version.sh "$proj/.claude-plugin/plugin.json" 2>&1)"
+out="$(env -u MARKETPLACE_DIR bash toolkit/check-version.sh "$proj/.claude-plugin/plugin.json" 2>&1)"
 rc=$?
 set -e
 assert_eq "$rc" "0" "check-version MARKETPLACE_DIR-unset exit code"
@@ -102,7 +102,7 @@ echo "$out" | grep -q "MARKETPLACE_DIR not set" \
 # check-version skips non-fatally when the marketplace file doesn't exist.
 echo "=== check-version (marketplace.json missing: skip) ==="
 set +e
-out="$(bash check-version.sh "$proj/.claude-plugin/plugin.json" "$proj/no-such-marketplace.json" 2>&1)"
+out="$(bash toolkit/check-version.sh "$proj/.claude-plugin/plugin.json" "$proj/no-such-marketplace.json" 2>&1)"
 rc=$?
 set -e
 assert_eq "$rc" "0" "check-version missing-marketplace exit code"
@@ -112,7 +112,7 @@ assert_eq "$rc" "0" "check-version missing-marketplace exit code"
 echo "=== check-version (no entry: skip) ==="
 jq -n '{plugins: []}' > "$market"
 set +e
-out="$(bash check-version.sh "$proj/.claude-plugin/plugin.json" "$market" 2>&1)"
+out="$(bash toolkit/check-version.sh "$proj/.claude-plugin/plugin.json" "$market" 2>&1)"
 rc=$?
 set -e
 assert_eq "$rc" "0" "check-version no-entry exit code"
@@ -124,7 +124,7 @@ echo "$out" | grep -q "no fixture entry" \
 echo "=== check-version (in sync: pass) ==="
 jq -n '{plugins: [{name: "fixture", version: "1.2.3"}]}' > "$market"
 set +e
-out="$(bash check-version.sh "$proj/.claude-plugin/plugin.json" "$market" 2>&1)"
+out="$(bash toolkit/check-version.sh "$proj/.claude-plugin/plugin.json" "$market" 2>&1)"
 rc=$?
 set -e
 assert_eq "$rc" "0" "check-version in-sync exit code"
@@ -135,7 +135,7 @@ echo "$out" | grep -q "in sync (1.2.3)" \
 echo "=== check-version (drift: fail) ==="
 jq -n '{plugins: [{name: "fixture", version: "1.2.2"}]}' > "$market"
 set +e
-out="$(bash check-version.sh "$proj/.claude-plugin/plugin.json" "$market" 2>&1)"
+out="$(bash toolkit/check-version.sh "$proj/.claude-plugin/plugin.json" "$market" 2>&1)"
 rc=$?
 set -e
 assert_eq "$rc" "1" "check-version drift exit code"

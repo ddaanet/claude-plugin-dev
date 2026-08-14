@@ -11,23 +11,31 @@ inversion in mind when editing.
 
 ## Layout
 
-- `release.just` — release recipe imported into consumer plugins'
+**`toolkit/` is the shipped boundary.** Everything under it — and nothing
+else — reaches a consumer, because `just release` cuts a
+`dist-vX.Y.Z` tag via `git subtree split --prefix=toolkit` and consumers
+vendor that. Adding a file to `toolkit/` ships it to every plugin; the
+repo root is this repo's own working environment and stays here. Adding
+or removing a shipped file means updating the list in
+`tests/dist-tree-test.sh`, which fails otherwise.
+
+- `toolkit/release.just` — release recipe imported into consumer plugins'
   justfiles. Defines `release` and `update-plugin-dev`. Not run from
   this repo directly.
-- `version-guard.sh` — `PreToolUse(Write|Edit)` hook that fires inside
-  consumer plugins to refuse agent edits to
+- `toolkit/version-guard.sh` — `PreToolUse(Write|Edit)` hook that fires
+  inside consumer plugins to refuse agent edits to
   `.claude-plugin/plugin.json`'s `.version`.
-- `install.sh` — one-shot: vendors this toolkit into a consumer plugin
-  via `git subtree add`, wires the `release.just` import into the
+- `toolkit/install.sh` — one-shot: vendors this toolkit into a consumer
+  plugin via `git subtree add`, wires the `release.just` import into the
   consumer's `justfile`, and adds the version-guard hook to its
   `.claude/settings.json`.
-- `justfile` — *this repo's own* dev recipes (distinct from
-  `release.just`). Defines `precommit` and the toolkit's self-`release`
-  recipe.
-- `VERSION` — last-released toolkit version, plain text. Bumped by
+- `toolkit/VERSION` — last-released toolkit version, plain text. Bumped by
   the self-release recipe; mirrors the latest git tag. Exists so
   consumers (which vendor via subtree, where tags don't propagate) can
   identify the version they're on with `cat plugin-dev/VERSION`.
+- `justfile` — *this repo's own* dev recipes (distinct from
+  `release.just`). Defines `precommit` and the toolkit's self-`release`
+  recipe. Root-level, so it is not shipped.
 - `docs/design.md` — living rationale for every design decision.
   States what the toolkit *is*. Update when design choices change.
 - `docs/changelog.md` — index of write-time records, newest first, one
@@ -51,13 +59,14 @@ catch justfile syntax errors. Must be green before committing.
 just release [patch|minor|major]
 ```
 
-Reads `VERSION`, bumps, commits `release: X.Y.Z`, tags, pushes main +
-tag, and creates a GitHub release. Refuses to run on a dirty tree or
-when `VERSION` disagrees with the latest tag (same invariant as the
+Reads `toolkit/VERSION`, bumps, commits `release: X.Y.Z`, tags, cuts the
+`dist-vX.Y.Z` split tag consumers vendor, pushes main + both tags, and
+creates a GitHub release. Refuses to run on a dirty tree or when
+`toolkit/VERSION` disagrees with the latest tag (same invariant as the
 consumer release recipe protects on `plugin.json`).
 
 Tags only; never expect consumers to track `main`. See docs/design.md
-"Versioning" for the reasoning.
+"Versioning" and "Consumers vendor a split dist ref" for the reasoning.
 
 ## Conventions
 
@@ -103,7 +112,7 @@ Tags only; never expect consumers to track `main`. See docs/design.md
 ## Non-goals for this repo
 
 - Don't add a `.claude-plugin/plugin.json` here. It is not a Claude
-  Code plugin. The `VERSION` file is the source of truth.
+  Code plugin. The `toolkit/VERSION` file is the source of truth.
 - Don't run `release.just`'s recipes from this repo. They expect a
   consumer-shaped layout (`.claude-plugin/plugin.json`, a `precommit`
   recipe) and will fail or produce nonsense here. Use the local
