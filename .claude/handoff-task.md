@@ -1,10 +1,13 @@
 ## Current task
 
-The dist-ref restructure closing the subtree squash leak is complete and the
-gate is green: `toolkit/` is the shipped boundary, and `just release` cuts a
-`dist-vX.Y.Z` split tag alongside `vX.Y.Z`.
+Two threads. The dist-ref release is out (v0.6.0 plus dist-v0.6.0, the first
+to exercise the dist-tag path outside fixtures) and vendored into five of the
+eight consumers; onekeys, shell-gotchas and handoff still carry the leaked
+`plugin-dev/` paths, each blocked by its own uncommitted tracked work, and each
+has a `brief-plugin-dev-0.6.0.md` waiting in place.
 
-The next thread is cutting the first toolkit release that exercises that
-dist-tag path in `just release` for real — it has only ever run against
-fixtures — then propagating the dist tag into the eight sibling consumers,
-each of which sheds its leaked `plugin-dev/` paths on that pull.
+Separately, a design discussion was in progress on simplifying how the toolkit
+is installed and updated — reaching `toolkit/install.sh` from a sibling
+`claude-plugin-dev` checkout instead of a `/tmp` clone, and whether a new
+`update.sh` should own consumer-side migrations. It was interrupted during
+context-gathering, before any design was presented or approved.

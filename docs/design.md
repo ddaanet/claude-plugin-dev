@@ -163,7 +163,7 @@ Rejected alternatives:
 
 ### Versioning: tags only, never `HEAD`
 
-`install.sh` and `update-plugin-dev` both expect a ref like `dist-v0.5.5`
+`install.sh` and `update-plugin-dev` both expect a ref like `dist-vX.Y.Z`
 (see "Consumers vendor a split dist ref" for why the `dist-` lineage rather
 than the source tag). Branch refs (`main`, `master`, `HEAD`) are warned
 against; a source `vX.Y.Z` ref is refused outright.

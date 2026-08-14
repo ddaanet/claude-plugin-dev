@@ -51,15 +51,21 @@ Clone the toolkit at its **source** tag to get the script, then run
 `install.sh` from the plugin's root directory, passing the **dist** tag:
 
 ```sh
-git clone --depth 1 -b v0.5.5 \
-    git@github.com:ddaanet/claude-plugin-dev.git /tmp/cpd
+url=git@github.com:ddaanet/claude-plugin-dev.git
+ref=$(git ls-remote --tags --refs --sort=-v:refname "$url" 'dist-v*' \
+        | head -1 | sed 's|.*/||')
+git clone --depth 1 -b "${ref#dist-}" "$url" /tmp/cpd
 cd /path/to/your/plugin
-bash /tmp/cpd/toolkit/install.sh dist-v0.5.5
+bash /tmp/cpd/toolkit/install.sh "$ref"
 ```
+
+`$ref` resolves to the newest `dist-` tag, so this block does not name a
+version and cannot go stale. To pin an older one, set `ref=dist-vX.Y.Z`
+by hand instead of resolving it.
 
 `install.sh` does three things:
 
-1. `git subtree add --prefix=plugin-dev … dist-v0.5.5 --squash` (vendors the toolkit).
+1. `git subtree add --prefix=plugin-dev … "$ref" --squash` (vendors the toolkit).
 2. Adds `import 'plugin-dev/release.just'` to the plugin's `justfile`
    (creating one if absent).
 3. Wires the version-guard hook into `.claude/settings.json`.
@@ -108,7 +114,14 @@ git commit -m "add claude-plugin-dev toolkit"
 ## Updating in a plugin
 
 ```sh
-just update-plugin-dev dist-v0.5.5
+just update-plugin-dev dist-vX.Y.Z
+```
+
+Substitute the tag you want. To see what is available:
+
+```sh
+git ls-remote --tags --refs --sort=-v:refname \
+    git@github.com:ddaanet/claude-plugin-dev.git 'dist-v*'
 ```
 
 This wraps `git subtree pull` with the prefix and URL baked in. The
