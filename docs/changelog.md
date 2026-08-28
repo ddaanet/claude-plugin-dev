@@ -8,6 +8,7 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-08-28 — The marketplace writability probe keeps mktemp's own words](changelog/2026-08-28-writability-probe-keeps-mktemps-words.md) — the probe discarded `mktemp`'s stderr and then asserted a sandbox cause it never established; also comments why the release-only check must not be `common_preflight`'s last line
 - [2026-08-28 — A refused release commit rolls the manifest back](changelog/2026-08-28-refused-commit-rolls-back.md) — a consumer's `pre-commit` hook refusing the release commit left the bump staged and uncommitted, which then blocked both a re-run and `resume-release` on `uncommitted changes`
 - [2026-08-14 — Consumers vendor a split `dist-` ref](changelog/2026-08-14-dist-ref-stops-squash-leak.md) — `subtree` copies a ref's whole root tree, so consumers were receiving this repo's working environment; shipped files moved under `toolkit/` and releases cut a `dist-vX.Y.Z` split tag
 - [2026-08-13 — `install.sh` subtree add recursion scoping](changelog/2026-08-13-install-subtree-add-recursion.md) — v0.5.2 fixed one of two subtree call sites; `install.sh`'s add hit the same collision, and the test covering the fix could pass vacuously on same-second seed commits

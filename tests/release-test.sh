@@ -370,6 +370,7 @@ run_in "$plugin" bash plugin-dev/release.sh patch
 chmod 755 "$marketplace/.claude-plugin"
 assert_eq "$rc" "1" "read-only marketplace dir exit code"
 assert_contains "$out" "$marketplace/.claude-plugin is not writable" "read-only marketplace dir message names the path"
+assert_contains "$out" "Permission denied" "read-only marketplace dir message keeps mktemp's own diagnosis"
 assert_contains "$out" "dangerouslyDisableSandbox" "read-only marketplace dir message names the sandbox escape"
 assert_contains "$out" "/add-dir $marketplace" "read-only marketplace dir message names the add-dir escape"
 assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "1.2.3" "read-only marketplace dir left manifest untouched"

@@ -45,9 +45,13 @@ check_marketplace_writable() {
     # bump_marketplace replaces marketplace.json with mktemp + mv, which unlinks
     # and recreates the file in its directory — so probe the directory, not just
     # the file's mode bits. A sandboxed Bash call commonly can't write here.
+    # 2>&1, not 2>/dev/null: on failure $probe carries mktemp's own diagnosis
+    # (permission denied, read-only file system, no such directory), which is
+    # the only thing that distinguishes them. The sandbox line below is advice
+    # for the common case, not a cause this probe established.
     local probe
-    probe=$(mktemp "$marketplace_dir/.release-writability-check.XXXXXX" 2>/dev/null) \
-        || die "$marketplace_dir is not writable — release needs to replace marketplace.json there. If this is a Claude Code sandbox restriction: rerun this Bash call with dangerouslyDisableSandbox, or run '/add-dir $MARKETPLACE_DIR' first."
+    probe=$(mktemp "$marketplace_dir/.release-writability-check.XXXXXX" 2>&1) \
+        || die "$marketplace_dir is not writable: $probe — release needs to replace marketplace.json there. If this is a Claude Code sandbox restriction: rerun this Bash call with dangerouslyDisableSandbox, or run '/add-dir $MARKETPLACE_DIR' first."
     rm -f "$probe"
 }
 
@@ -75,6 +79,9 @@ common_preflight() {
     # the GitHub release. A resume may find the marketplace already correct
     # (a true no-op bump_marketplace can skip entirely); its own writability
     # need is checked there, only when a write actually happens.
+    # Keep this off the last line of the function: a false `&&` list is exempt
+    # from errexit mid-function, but as the final command its status becomes the
+    # function's, and `common_preflight` would exit 1 with no message on resume.
     [ "$mode" = "release" ] && check_marketplace_writable
     plugin_name=$(jq -r .name "$manifest")
     # A missing entry is not an error: on first publication we create one from
