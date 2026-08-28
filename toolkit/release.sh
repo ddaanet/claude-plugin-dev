@@ -55,13 +55,36 @@ check_marketplace_writable() {
     rm -f "$probe"
 }
 
+tree_is_clean() {
+    # $1=repo root. True when nothing tracked is uncommitted there, ignoring a
+    # gitlore-mounted memory submodule: its gitlink sits ahead of what HEAD
+    # records between commits by design — gitlore's own pre-commit hook folds
+    # that in on the next commit, not this one.
+    #
+    # The mount path is read from .gitmodules rather than assumed to be
+    # `memory`: that is only gitlore's default, the path being $1 to gitlore's
+    # install.sh. Keyed on the submodule NAME, which gitlore fixes, not its url
+    # — git absolutises a relative url on the way into .git/config, so a url
+    # only ever matches .gitmodules itself. `--get` of a single key returns the
+    # value whole, so a path containing spaces needs no -z splitting.
+    #
+    # Deliberately this narrow. A consumer that vendors some other submodule
+    # and forgets to commit its moved gitlink should be refused, so
+    # `--ignore-submodules=all` is not the shortcut it looks like.
+    local dir="$1" mem=""
+    if [ -f "$dir/.gitmodules" ]; then
+        mem=$(git config -f "$dir/.gitmodules" --get submodule.gitlore-memory.path) || mem=""
+    fi
+    if [ -n "$mem" ]; then
+        git -C "$dir" diff --quiet HEAD -- . ":(exclude)$mem"
+    else
+        git -C "$dir" diff --quiet HEAD -- .
+    fi
+}
+
 common_preflight() {
     [ -f "$manifest" ] || die "$manifest not found — run from the plugin root"
-    # Exclude memory/: a gitlore-mounted memory submodule sits at a gitlink SHA
-    # ahead of what HEAD records between commits by design — its own pre-commit
-    # hook folds that in on the next commit, not this one. A no-op pathspec in
-    # any repo without a memory/ path.
-    git diff --quiet HEAD -- . ':(exclude)memory' || die "uncommitted changes"
+    tree_is_clean "." || die "uncommitted changes"
     branch=$(git symbolic-ref -q --short HEAD || echo "")
     # Use symbolic-ref (not rev-parse): when origin/HEAD is unset, rev-parse
     # exits non-zero AND prints "origin/HEAD" to stdout, so the substitution
@@ -94,7 +117,7 @@ common_preflight() {
         git remote get-url origin >/dev/null 2>&1 \
             || die "'$plugin_name' has no entry in $marketplace_json and no 'origin' remote to derive one from"
     fi
-    git -C "$MARKETPLACE_DIR" diff --quiet HEAD -- . ':(exclude)memory' \
+    tree_is_clean "$MARKETPLACE_DIR" \
         || die "$MARKETPLACE_DIR has uncommitted changes"
 }
 

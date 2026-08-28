@@ -133,14 +133,16 @@ market_version() {
         "$marketplace/.claude-plugin/marketplace.json"
 }
 
-mount_resting_memory_submodule() {
-    # $1=parent repo path. Mounts a `memory` git submodule and commits the
-    # mount, then advances the submodule's checked-out HEAD by one commit
+mount_resting_submodule() {
+    # $1=parent repo path. $2=mount path, default `memory`. $3=submodule name,
+    # default `gitlore-memory` — the name gitlore's install.sh fixes, and what
+    # common_preflight keys its exclusion on. Mounts the submodule and commits
+    # the mount, then advances the submodule's checked-out HEAD by one commit
     # without folding the moved gitlink into a parent commit — gitlore's
-    # ordinary resting state between commits (see release.sh's
-    # common_preflight comment on the memory pathspec exclusion).
-    local parent="$1" sub_origin sub_seed
-    sub_origin="$parent-memory-origin.git"
+    # ordinary resting state between commits (see release.sh's tree_is_clean).
+    local parent="$1" path="${2:-memory}" name="${3:-gitlore-memory}"
+    local sub_origin sub_seed
+    sub_origin="$parent-$name-origin.git"
     sub_seed=$(mktemp -d)
     git init -q --bare -b main "$sub_origin"
     git init -q -b main "$sub_seed"
@@ -155,12 +157,12 @@ mount_resting_memory_submodule() {
     rm -rf "$sub_seed"
 
     env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=protocol.file.allow GIT_CONFIG_VALUE_0=always \
-        git -C "$parent" submodule add -q "$sub_origin" memory
-    git -C "$parent" commit -qm "mount memory submodule"
+        git -C "$parent" submodule add -q --name "$name" "$sub_origin" "$path"
+    git -C "$parent" commit -qm "mount $name submodule"
 
-    printf 'advance\n' >> "$parent/memory/MEMORY.md"
-    git -C "$parent/memory" add -A
-    git -C "$parent/memory" -c user.email=test@example.com -c user.name="Toolkit Test" \
+    printf 'advance\n' >> "$parent/$path/MEMORY.md"
+    git -C "$parent/$path" add -A
+    git -C "$parent/$path" -c user.email=test@example.com -c user.name="Toolkit Test" \
         -c commit.gpgsign=false commit -qm advance
     # Deliberately no parent commit here.
 }
@@ -435,7 +437,7 @@ assert_eq "$(market_version)" "1.2.4" "zero-argument marketplace bumped"
 
 echo "=== release: proceeds with a resting memory submodule in the plugin root ==="
 new_sandbox "1.2.3"
-mount_resting_memory_submodule "$plugin"
+mount_resting_submodule "$plugin"
 run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "0" "resting-memory release exit code"
 assert_contains "$out" "Release v1.2.4 complete" "resting-memory release summary"
@@ -443,7 +445,7 @@ assert_eq "$(market_version)" "1.2.4" "resting-memory release bumped the marketp
 
 echo "=== release: still refuses a genuinely dirty non-memory path in the plugin root ==="
 new_sandbox "1.2.3"
-mount_resting_memory_submodule "$plugin"
+mount_resting_submodule "$plugin"
 jq '.description = "dirty"' "$plugin/.claude-plugin/plugin.json" > "$plugin/.claude-plugin/plugin.json.tmp"
 mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
 run_in "$plugin" bash plugin-dev/release.sh patch
@@ -453,7 +455,7 @@ assert_eq "$(cat "$GH_LOG")" "" "dirty-plugin-root release must not call gh"
 
 echo "=== release: proceeds with a resting memory submodule in the marketplace repo ==="
 new_sandbox "1.2.3"
-mount_resting_memory_submodule "$marketplace"
+mount_resting_submodule "$marketplace"
 run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "0" "resting-memory marketplace release exit code"
 assert_contains "$out" "Release v1.2.4 complete" "resting-memory marketplace release summary"
@@ -461,13 +463,38 @@ assert_eq "$(market_version)" "1.2.4" "resting-memory marketplace release bumped
 
 echo "=== release: still refuses a genuinely dirty non-memory path in the marketplace repo ==="
 new_sandbox "1.2.3"
-mount_resting_memory_submodule "$marketplace"
+mount_resting_submodule "$marketplace"
 jq '.plugins[0].description = "dirty"' "$marketplace/.claude-plugin/marketplace.json" > "$marketplace/.claude-plugin/marketplace.json.tmp"
 mv "$marketplace/.claude-plugin/marketplace.json.tmp" "$marketplace/.claude-plugin/marketplace.json"
 run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "1" "dirty-marketplace release exit code"
 assert_contains "$out" "$MARKETPLACE_DIR has uncommitted changes" "dirty-marketplace release message"
 assert_eq "$(cat "$GH_LOG")" "" "dirty-marketplace release must not call gh"
+
+# A space in the mount path is the case a word-split read of .gitmodules would
+# pass on every other input: `git config --get` returns the value whole.
+echo "=== release: proceeds with the memory submodule at a non-default mount path ==="
+new_sandbox "1.2.3"
+mount_resting_submodule "$plugin" "store dir"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "0" "non-default-mount release exit code"
+assert_contains "$out" "Release v1.2.4 complete" "non-default-mount release summary"
+assert_eq "$(market_version)" "1.2.4" "non-default-mount release bumped the marketplace"
+
+echo "=== release: proceeds with the marketplace memory submodule at a non-default mount path ==="
+new_sandbox "1.2.3"
+mount_resting_submodule "$marketplace" store
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "0" "non-default-mount marketplace exit code"
+assert_contains "$out" "Release v1.2.4 complete" "non-default-mount marketplace summary"
+
+echo "=== release: still refuses a resting submodule that is not the memory store ==="
+new_sandbox "1.2.3"
+mount_resting_submodule "$plugin" vendor vendored-lib
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "non-memory-submodule exit code"
+assert_contains "$out" "uncommitted changes" "non-memory-submodule message"
+assert_eq "$(cat "$GH_LOG")" "" "non-memory-submodule release must not call gh"
 
 echo "=== release: a first release publishes the manifest version verbatim ==="
 new_sandbox ""            # no marketplace entry

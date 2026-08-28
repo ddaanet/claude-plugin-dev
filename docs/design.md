@@ -606,6 +606,46 @@ Folding it in would also make the toolkit consume its own consumer-shaped code,
 which the "don't run `release.just`'s recipes from this repo" rule exists to
 prevent.
 
+### The clean-tree check excludes gitlore's memory submodule, and only that
+
+`common_preflight` refuses to release from a dirty tree, in the plugin repo and
+in `MARKETPLACE_DIR` alike. A gitlore-mounted memory store makes that check
+wrong as stated: the store is a submodule whose checked-out HEAD moves whenever
+a session writes a fact, and the parent's gitlink is folded forward by gitlore's
+own `pre-commit` hook on the *next* commit, not immediately. Between commits the
+moved gitlink is the resting state, not uncommitted work, and every consumer
+mounts one — so an unqualified check refuses every release.
+
+The path is read from the repo's `.gitmodules`, keyed on the submodule name
+`gitlore-memory`, and excluded by pathspec. It was originally the literal
+`memory`, which is only gitlore's *default* mount point — the path is an
+argument to gitlore's `install.sh`. A consumer that mounted the store elsewhere
+got `uncommitted changes` on every release, with nothing in the message to point
+at why.
+
+Keyed on the name rather than the url because git absolutises a relative url on
+the way into `.git/config`, so a url comparison is only reliable against
+`.gitmodules` itself — and if `.gitmodules` is the file being read either way,
+the name is the simpler key. It is also the stable one: gitlore fixes the name,
+the user picks the path. `git config --get` returns a single key's value whole,
+so a mount path containing spaces needs no `-z` splitting. A repo with no
+`.gitmodules`, or one carrying no such submodule, is checked with no pathspec
+at all.
+
+The narrowness is the point. `git diff --ignore-submodules=all` would drop the
+`.gitmodules` read entirely for a two-line diff, but it exempts *every*
+submodule: a consumer that vendors a code submodule and forgets to commit its
+moved gitlink would release without being told. No consumer carries one today,
+which is exactly what would make that regression invisible until one does. The
+exemption is for the one submodule whose floating gitlink the toolkit knows to
+be by design, and a submodule mounted at `memory` under some other name is not
+that submodule.
+
+This is the toolkit's most specific coupling to gitlore, but not a new one — the
+release tail is already written around gitlore's `pre-commit` and `pre-push`
+hooks (see "Recovery"). Naming the submodule gitlore installs is weaker than
+assuming where it installed it.
+
 ### Default branch detection via `origin/HEAD`
 
 The release recipe doesn't hardcode `main` — it reads the default
