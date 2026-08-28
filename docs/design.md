@@ -552,6 +552,17 @@ finds nothing to do, the summary says the release is already complete rather
 than claiming to have completed it — that distinction is what makes running it
 on a healthy repo safe rather than merely harmless.
 
+A failure *of* the version commit is the one case recovery does not own. A
+consumer's `pre-commit` hook can refuse it — gitlore's memory-approval gate is
+on every consumer — and at that point nothing is committed or tagged, so there
+is no partial release to resume. The manifest rewrite is already staged though,
+and left in place it is a dirty tree that `common_preflight` refuses, blocking
+`release` and `resume-release` alike on `uncommitted changes` with no mention
+of the gate or the leftover. So the commit is guarded and the manifest restored
+from HEAD, returning the tree to what the run found: a refused commit means
+satisfy the gate and run the same command again, and recovery is not involved.
+Only the commit is guarded — a `pre-commit` hook cannot fail `git tag`.
+
 A tag that exists on the remote at a *different* sha is an error, never a
 force-push. A reused tag means something published under that version already,
 and no recovery path should paper over that.
@@ -606,7 +617,7 @@ fallback fires cleanly.
   Edify keeps its bespoke recipe.
 - **`release` is not atomic, but it is recoverable.** The tag push,
   `gh release create` and marketplace push are outward-facing and cannot
-  be rolled back, so any failure from the version commit onward leaves
+  be rolled back, so any failure after the version commit leaves
   the plugin tagged at the new version with a stale marketplace entry.
   That remains true. Its consequence no longer is: `just resume-release`
   completes the release from wherever it stopped. Recovery only ever

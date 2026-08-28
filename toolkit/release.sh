@@ -177,11 +177,24 @@ bump_commit_tag() {
         note "tag: $tag created locally (manifest already at $V)"
         return
     fi
+    local prev
+    prev=$(jq -r .version "$manifest")
     tmp=$(mktemp)
     jq --arg v "$V" '.version = $v' "$manifest" > "$tmp"
     mv "$tmp" "$manifest"
     git add "$manifest"
-    git commit -m "release: $V"
+    # A consumer's pre-commit hook can refuse this commit. Dying here with the
+    # bump written and staged strands it: nothing committed, nothing tagged, and
+    # a dirty manifest that then blocks BOTH a re-run and --resume on
+    # common_preflight's "uncommitted changes" — which names neither the gate nor
+    # the leftover. Restoring from HEAD leaves the tree as this run found it, so
+    # satisfying the gate and re-running is the whole recovery.
+    git commit -m "release: $V" || {
+        git checkout HEAD -- "$manifest"
+        printf 'hint: the manifest was rolled back to %s and nothing was tagged.\n' "$prev" >&2
+        printf '      fix what the gate reported above, then run the same command again.\n' >&2
+        die "commit gate refused the release commit"
+    }
     git tag -a "$tag" -m "Release $V"
     acted=1
     note "manifest + tag: $tag created locally"

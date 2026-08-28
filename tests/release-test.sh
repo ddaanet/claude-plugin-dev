@@ -509,6 +509,36 @@ assert_eq "$rc" "0" "tagged-unpublished exit code"
 assert_contains "$out" "Release v1.2.4 complete" "tagged-unpublished bumps forward"
 assert_eq "$(market_version)" "1.2.4" "tagged-unpublished marketplace entry created at the bumped version"
 
+echo "=== release: a refused commit rolls the manifest back ==="
+new_sandbox "1.2.3"
+# The manifest rewrite is already written and staged when `git commit` runs, so
+# a bare set -e death here strands the bump: no commit, no tag, and a dirty tree
+# that then blocks both a re-run and --resume on `uncommitted changes`.
+cat > "$plugin/.git/hooks/pre-commit" <<'HOOK'
+#!/bin/sh
+echo "pre-commit: refusing" >&2
+exit 1
+HOOK
+chmod +x "$plugin/.git/hooks/pre-commit"
+run_in "$plugin" bash plugin-dev/release.sh patch
+refused_out="$out"
+assert_eq "$rc" "1" "refused-commit exit code"
+assert_contains "$refused_out" "commit gate refused" "refused-commit names what failed"
+assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" \
+    "1.2.3" "refused-commit rolled the manifest back"
+run_in "$plugin" git status --porcelain
+assert_eq "$out" "" "refused-commit left a clean tree"
+assert_eq "$(git -C "$plugin" tag --list 'v1.2.4')" "" "refused-commit created no tag"
+assert_eq "$(cat "$GH_LOG")" "" "refused-commit must not call gh"
+
+# The rollback exists to make this re-run possible: with the gate satisfied,
+# an ordinary `release patch` proceeds with no manual repair in between.
+rm -f "$plugin/.git/hooks/pre-commit"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "0" "re-run after a refused commit exit code"
+assert_contains "$out" "Release v1.2.4 complete" "re-run completes the release"
+assert_eq "$(market_version)" "1.2.4" "re-run bumped the marketplace"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
