@@ -126,7 +126,8 @@ git ls-remote --tags --refs --sort=-v:refname \
 
 This wraps `git subtree pull` with the prefix and URL baked in. The
 recipe rejects a dirty tree, refuses a source (`vX.Y.Z`) ref naming the
-`dist-` one to use instead, and warns if you pass a branch ref.
+`dist-` one to use instead, and refuses anything else — a branch, a sha,
+`main` — since only the dist lineage carries the consumer-facing files.
 
 A plugin vendored before dist refs existed carries the toolkit's leaked
 working environment under `plugin-dev/` — most visibly a `plugin-dev/memory`
