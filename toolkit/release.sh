@@ -214,7 +214,23 @@ push_branch() {
         note "branch $branch: already pushed"
         return
     fi
-    git push
+    # A consumer's pre-push hook can refuse this. gitlore's publishes every
+    # memory store before the parent push and refuses when one diverged, and the
+    # window it opens is human-paced: the release commit's own approval round
+    # sits inside it. The commit and the tag are already local, so the recovery
+    # is resume — never an amend re-pinning the gitlink at the merged memory.
+    # The gitlink a release commit records is always an ancestor of memory's
+    # `live` or `live` itself (each merge takes the pending commit as its second
+    # parent), and a push of `live` publishes every ancestor — so nothing needs
+    # the tagged commit to name the merge, and the tag is never rewritten.
+    # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
+    git push || {
+        printf 'hint: the release commit and tag %s are local; nothing was pushed.\n' "$tag" >&2
+        printf '      clear what the push reported above, then run `just resume-release`.\n' >&2
+        printf '      gitlore refuses the push while a memory store is diverged: `/gitlore:resolve`\n' >&2
+        printf '      in Claude Code clears it. Repeat the pair if the push is refused again.\n' >&2
+        die "push of $branch failed"
+    }
     acted=1
     note "branch $branch: pushed"
 }

@@ -232,10 +232,16 @@ assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "1.2.4" "mani
 assert_eq "$(git -C "$plugin" ls-remote origin refs/tags/v1.2.4 | wc -l | tr -d ' ')" \
     "0" "tag not on origin after the failure"
 assert_eq "$(market_version)" "1.2.3" "marketplace still stale after the failure"
+assert_contains "$out" "pre-push: refusing" "refused push shows the hook's own words"
+assert_contains "$out" "are local; nothing was pushed" "refused push names what landed locally"
+assert_contains "$out" "just resume-release" "refused push names the recovery command"
+# The tag is published as-is by resume; nothing may recreate or move it.
+tag_before_resume=$(git -C "$plugin" rev-parse v1.2.4)
 
 rm -f "$plugin/.git/hooks/pre-push"
 run_in "$plugin" bash plugin-dev/release.sh --resume
 assert_eq "$rc" "0" "resume exit code"
+assert_eq "$(git -C "$plugin" rev-parse v1.2.4)" "$tag_before_resume" "resume left the tag object untouched"
 assert_eq "$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)" \
     "$(git -C "$plugin" rev-parse HEAD)" "resume pushed the branch"
 assert_eq "$(git -C "$plugin" ls-remote origin refs/tags/v1.2.4 | wc -l | tr -d ' ')" \

@@ -563,6 +563,21 @@ from HEAD, returning the tree to what the run found: a refused commit means
 satisfy the gate and run the same command again, and recovery is not involved.
 Only the commit is guarded — a `pre-commit` hook cannot fail `git tag`.
 
+A push refused by a consumer's `pre-push` hook is resume's ordinary case, and
+the release commit is never amended to chase it. gitlore's hook publishes every
+memory store before the parent push and refuses when one diverged, so the
+release dies with the commit and tag local and nothing pushed. The tempting
+repair — `commit --amend` the release commit so its gitlink names the merged
+memory, then `tag -f` — buys nothing. The gitlink a parent commit records is
+always an ancestor of memory's `live` or `live` itself, because each merge takes
+the pending commit as its second parent, and a push of `live` publishes every
+ancestor. So the moment the push succeeds the gitlink is public, whether or not
+the tagged commit names the merge. Against that, the amend would force a tag the
+script is about to publish and sequence a scripted rewrite behind a human merge
+review. `push_branch` re-pushes on resume instead, and says so when it fails:
+clear what the hook reported, run `just resume-release`, repeat if refused
+again.
+
 A tag that exists on the remote at a *different* sha is an error, never a
 force-push. A reused tag means something published under that version already,
 and no recovery path should paper over that.
