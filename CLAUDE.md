@@ -19,9 +19,21 @@ repo root is this repo's own working environment and stays here. Adding
 or removing a shipped file means updating the list in
 `tests/dist-tree-test.sh`, which fails otherwise.
 
-- `toolkit/release.just` — release recipe imported into consumer plugins'
-  justfiles. Defines `release` and `update-plugin-dev`. Not run from
-  this repo directly.
+- `toolkit/release.just` — the recipes imported into consumer plugins'
+  justfiles: `release`, `resume-release`, `check-version`,
+  `update-plugin-dev`. Thin wrappers over the scripts beside it; not run
+  from this repo directly.
+- `toolkit/release.sh` — the release flow itself. Validates state, bumps
+  `.claude-plugin/plugin.json`, commits, tags, pushes, creates the GitHub
+  release, and bumps the marketplace entry. `--resume` probes what already
+  landed and does only what is missing.
+- `toolkit/check-version.sh` — `plugin.json` against its `marketplace.json`
+  entry. Runs as `release`'s pre-flight, so a release refuses to start atop
+  an unfinished prior one.
+- `toolkit/update.sh` — pulls a newer toolkit version into a consumer.
+  Resolves the newest `dist-` tag when given no ref, refuses any ref
+  outside the dist lineage, and prints the migration notes for every
+  version the pull crossed.
 - `toolkit/version-guard.sh` — `PreToolUse(Write|Edit)` hook that fires
   inside consumer plugins to refuse agent edits to
   `.claude-plugin/plugin.json`'s `.version`.
@@ -29,6 +41,13 @@ or removing a shipped file means updating the list in
   plugin via `git subtree add`, wires the `release.just` import into the
   consumer's `justfile`, and adds the version-guard hook to its
   `.claude/settings.json`.
+- `toolkit/README.md` — the consumer-facing manual, shipped in the dist
+  tree. The place a plugin maintainer reads; keep it in step with the
+  scripts above.
+- `toolkit/migrations/vX.Y.Z.md` — optional per-release note for a step a
+  consumer must take by hand. Printed by `update.sh` for the crossed range;
+  `tests/dist-tree-test.sh` allows this path and no other under
+  `migrations/`.
 - `toolkit/VERSION` — last-released toolkit version, plain text. Bumped by
   the self-release recipe; mirrors the latest git tag. Exists so
   consumers (which vendor via subtree, where tags don't propagate) can
