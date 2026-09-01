@@ -21,7 +21,15 @@ prerelease: precommit
 release bump='patch': prerelease
     #!/usr/bin/env bash
     set -euo pipefail
-    git diff --quiet HEAD || { echo "error: uncommitted changes" >&2; exit 1; }
+    # Same two exclusions as release.sh's tree_is_clean, and for the same
+    # reason: `.claude/` holds the agent working environment and the task frames
+    # the handoff skills stage for the next commit, and the `memory` gitlink
+    # rests ahead of HEAD until gitlore's pre-commit hook folds it in. Both are
+    # written literally here -- this repo is one known repo, not a consumer the
+    # script has to discover. The pathspec matches at the path separator, so
+    # `.claude-plugin` is not in scope (nor does one exist here).
+    git diff --quiet HEAD -- . ':(exclude).claude' ':(exclude)memory' \
+      || { echo "error: uncommitted changes" >&2; exit 1; }
     branch=$(git symbolic-ref -q --short HEAD || echo "")
     main_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || echo "main")
     [ "$branch" = "$main_branch" ] || { echo "error: must be on $main_branch (currently $branch)" >&2; exit 1; }

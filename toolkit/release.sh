@@ -56,10 +56,21 @@ check_marketplace_writable() {
 }
 
 tree_is_clean() {
-    # $1=repo root. True when nothing tracked is uncommitted there, ignoring a
-    # gitlore-mounted memory submodule: its gitlink sits ahead of what HEAD
-    # records between commits by design — gitlore's own pre-commit hook folds
-    # that in on the next commit, not this one.
+    # $1=repo root. True when nothing tracked is uncommitted there, ignoring two
+    # paths an agent session moves by design between commits.
+    #
+    # `.claude/` is the repo's own agent working environment — settings, hooks,
+    # and the task frames the handoff and precompact skills stage for "whatever
+    # commit lands next". None of it is plugin content: a plugin ships
+    # .claude-plugin/ and the component directories beside it. Excluded whole
+    # rather than by filename, because the set of files written there is a
+    # function of which skills the maintainer runs, not of this script. The
+    # pathspec matches at the path separator, so .claude-plugin/ — where a dirty
+    # file must still stop a release — is untouched by it.
+    #
+    # The second is a gitlore-mounted memory submodule: its gitlink sits ahead
+    # of what HEAD records between commits by design — gitlore's own pre-commit
+    # hook folds that in on the next commit, not this one.
     #
     # The mount path is read from .gitmodules rather than assumed to be
     # `memory`: that is only gitlore's default, the path being $1 to gitlore's
@@ -72,14 +83,14 @@ tree_is_clean() {
     # and forgets to commit its moved gitlink should be refused, so
     # `--ignore-submodules=all` is not the shortcut it looks like.
     local dir="$1" mem=""
+    local specs=(. ':(exclude).claude')
     if [ -f "$dir/.gitmodules" ]; then
         mem=$(git config -f "$dir/.gitmodules" --get submodule.gitlore-memory.path) || mem=""
     fi
     if [ -n "$mem" ]; then
-        git -C "$dir" diff --quiet HEAD -- . ":(exclude)$mem"
-    else
-        git -C "$dir" diff --quiet HEAD -- .
+        specs+=(":(exclude)$mem")
     fi
+    git -C "$dir" diff --quiet HEAD -- "${specs[@]}"
 }
 
 common_preflight() {

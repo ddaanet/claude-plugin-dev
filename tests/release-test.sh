@@ -168,6 +168,21 @@ mount_resting_submodule() {
     # Deliberately no parent commit here.
 }
 
+stage_handoff_frame() {
+    # $1=repo root. Reproduces what the handoff and precompact skills leave
+    # behind: a task frame under .claude, committed once and then rewritten and
+    # staged for "whatever commit lands next". Staged, not merely written,
+    # because `git diff HEAD` sees only tracked paths — an untracked frame never
+    # reached the check in the first place.
+    local dir="$1"
+    mkdir -p "$dir/.claude"
+    printf 'frame v1\n' > "$dir/.claude/handoff-task.md"
+    git -C "$dir" add .claude/handoff-task.md
+    git -C "$dir" commit -qm "handoff frame"
+    printf 'frame v2\n' > "$dir/.claude/handoff-task.md"
+    git -C "$dir" add .claude/handoff-task.md
+}
+
 make_virgin() {
     # $1=manifest version. Strips the fixture's release history so the plugin
     # has never been released: no v* tags locally or on origin, and the manifest
@@ -496,6 +511,40 @@ run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "1" "non-memory-submodule exit code"
 assert_contains "$out" "uncommitted changes" "non-memory-submodule message"
 assert_eq "$(cat "$GH_LOG")" "" "non-memory-submodule release must not call gh"
+
+echo "=== release: proceeds with a staged handoff frame under .claude in the plugin root ==="
+new_sandbox "1.2.3"
+stage_handoff_frame "$plugin"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "0" "staged-frame release exit code"
+assert_contains "$out" "Release v1.2.4 complete" "staged-frame release summary"
+assert_eq "$(market_version)" "1.2.4" "staged-frame release bumped the marketplace"
+# Both assertions, or neither says anything: a refused release leaves HEAD at
+# the frame's own commit, which trivially names the frame.
+head_commit="$(git -C "$plugin" show --format=%s --name-only HEAD)"
+assert_contains "$head_commit" "release: 1.2.4" "staged frame: HEAD is the release commit"
+assert_contains "$head_commit" ".claude/handoff-task.md" "staged frame rode the release commit"
+
+echo "=== release: proceeds with a staged handoff frame under .claude in the marketplace repo ==="
+new_sandbox "1.2.3"
+stage_handoff_frame "$marketplace"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "0" "staged-frame marketplace exit code"
+assert_contains "$out" "Release v1.2.4 complete" "staged-frame marketplace summary"
+assert_eq "$(market_version)" "1.2.4" "staged-frame marketplace bumped the marketplace"
+
+# `.claude-plugin` shares the excluded prefix. A pathspec that matched on string
+# prefix rather than at the path separator would exempt the manifest directory
+# itself — the one place a dirty file must still stop a release.
+echo "=== release: the .claude exclusion does not spill into .claude-plugin ==="
+new_sandbox "1.2.3"
+stage_handoff_frame "$plugin"
+jq '.description = "dirty"' "$plugin/.claude-plugin/plugin.json" > "$plugin/.claude-plugin/plugin.json.tmp"
+mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "claude-plugin-decoy exit code"
+assert_contains "$out" "uncommitted changes" "claude-plugin-decoy message"
+assert_eq "$(cat "$GH_LOG")" "" "claude-plugin-decoy release must not call gh"
 
 echo "=== release: a first release publishes the manifest version verbatim ==="
 new_sandbox ""            # no marketplace entry

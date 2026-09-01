@@ -688,10 +688,47 @@ Folding it in would also make the toolkit consume its own consumer-shaped code,
 which the "don't run `release.just`'s recipes from this repo" rule exists to
 prevent.
 
-### The clean-tree check excludes gitlore's memory submodule, and only that
+### The clean-tree check excludes the agent's own working state
 
 `common_preflight` refuses to release from a dirty tree, in the plugin repo and
-in `MARKETPLACE_DIR` alike. A gitlore-mounted memory store makes that check
+in `MARKETPLACE_DIR` alike. Two paths are exempt, and they are exempt for the
+same underlying reason: an agent session moves them between commits by design,
+so their being ahead of HEAD is the resting state rather than unfinished work.
+
+#### `.claude/`
+
+`.claude/` is the repo's own agent working environment — settings, hooks, and
+the task frames the `handoff` and `precompact` skills write. Those skills stage
+their frame (`.claude/handoff-task.md`, `.claude/handoff-todo.md`) for whatever
+commit lands next, and a release is a commit that lands next; before the
+exclusion it was instead a release refused on `error: uncommitted changes`, a
+message naming neither the frame nor the skill that left it. The remedy was to
+land the frame in a commit of its own first, which is discipline standing in for
+a gate.
+
+Nothing under `.claude/` is plugin content. A Claude Code plugin ships
+`.claude-plugin/plugin.json` and the component directories beside it; `.claude/`
+is what the *maintainer's* sessions read. So a release that does not stop for it
+is not skipping over anything the release publishes. What is staged there rides
+the release commit, which is what the frame was staged for.
+
+Excluded whole rather than by filename. The set of files written under
+`.claude/` is a function of which skills the maintainer runs — the two handoff
+frames today, `gitlore-memory-message` and `settings.local.json` alongside them —
+and an enumeration in the toolkit would have to track a list it does not own. The
+cost of the wider exclusion is that a genuine edit to `.claude/settings.json`
+(the version-guard wiring) no longer stops a release. It stays in the tree either
+way and reaches no consumer, so the next commit picks it up.
+
+`.claude-plugin/` shares the excluded prefix and must *not* be exempt — it holds
+the manifest whose version the whole release turns on. Git pathspecs match at the
+path separator, so `:(exclude).claude` leaves it alone; that is asserted by a
+test that dirties the manifest with a frame staged at the same time, rather than
+inferred from how the matcher is documented to work.
+
+#### The gitlore memory submodule
+
+A gitlore-mounted memory store makes the check
 wrong as stated: the store is a submodule whose checked-out HEAD moves whenever
 a session writes a fact, and the parent's gitlink is folded forward by gitlore's
 own `pre-commit` hook on the *next* commit, not immediately. Between commits the
@@ -711,8 +748,8 @@ the way into `.git/config`, so a url comparison is only reliable against
 the name is the simpler key. It is also the stable one: gitlore fixes the name,
 the user picks the path. `git config --get` returns a single key's value whole,
 so a mount path containing spaces needs no `-z` splitting. A repo with no
-`.gitmodules`, or one carrying no such submodule, is checked with no pathspec
-at all.
+`.gitmodules`, or one carrying no such submodule, gets the `.claude` exclusion
+and nothing more.
 
 The narrowness is the point. `git diff --ignore-submodules=all` would drop the
 `.gitmodules` read entirely for a two-line diff, but it exempts *every*
@@ -727,6 +764,15 @@ This is the toolkit's most specific coupling to gitlore, but not a new one — t
 release tail is already written around gitlore's `pre-commit` and `pre-push`
 hooks (see "Recovery"). Naming the submodule gitlore installs is weaker than
 assuming where it installed it.
+
+#### This repo's own release recipe
+
+The self-release recipe in the root `justfile` carries both exclusions as
+literal pathspecs — `.claude` and `memory` — rather than repeating `release.sh`'s
+`.gitmodules` lookup. It runs against exactly one repo, whose mount path is
+known, so discovery would be answering a question that has no second answer.
+That is the same reasoning that keeps the recipe bespoke at all (see
+"Recovery"): it is not consumer-shaped code and does not have to generalise.
 
 ### Default branch detection via `origin/HEAD`
 

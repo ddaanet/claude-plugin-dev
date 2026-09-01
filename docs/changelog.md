@@ -8,6 +8,7 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-09-01 — The clean-tree check exempts `.claude/`](changelog/2026-09-01-clean-tree-excludes-dot-claude.md) — a staged handoff frame refused every release on `uncommitted changes`; `.claude` is now excluded alongside the memory gitlink, in `release.sh` and in this repo's own release recipe
 - [2026-09-01 — version-guard: output channel, manifest location, edit shape](changelog/2026-09-01-version-guard-channel-and-path.md) — the deny JSON moves to stdout with exit 0; `CLAUDE_PROJECT_DIR` replaces the drifting payload `cwd`; `realpath -m` dropped (it inverted the guard on macOS); an Edit of the bare version value no longer passes
 - [2026-09-01 — Fixes from a whole-toolkit shell-gotchas audit](changelog/2026-09-01-shell-gotchas-audit-fixes.md) — `install.sh` could replace a consumer's whole `settings.json`; `mktemp`+`mv` narrowed file modes; the drift check read any tag as the last release; `quote()` for recipe arguments; `unset CDPATH` in three suites
 - [2026-09-01 — `update.sh` owns the update flow](changelog/2026-09-01-update-sh-ref-resolution-migration-notes.md) — ref defaults to the newest dist tag at both call sites; migration notes ship in the dist tree and are printed after the pull, never applied
