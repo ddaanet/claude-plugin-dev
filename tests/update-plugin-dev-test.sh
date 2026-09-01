@@ -14,6 +14,7 @@ set -euo pipefail
 # shellcheck disable=SC2046  # word-splitting is the point: a var-name list
 unset $(git rev-parse --local-env-vars)
 
+unset CDPATH   # else `cd` may echo its target into the $(cd … && pwd) capture below
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_root"
 
@@ -332,6 +333,65 @@ fi
 assert_not_contains "$out" "NOTE-1.0.0" "below-range note not printed"
 assert_eq "$(printf '%s\n' "$out" | grep -o 'NOTE-1\.0\.[0-9]*' | tr '\n' ' ')" \
     "NOTE-1.0.1 NOTE-1.0.2 " "in-range notes print in version order"
+
+echo "=== install.sh: wires into an existing settings.json without replacing it ==="
+new_sandbox
+
+mkdir -p "$consumer/.claude-plugin" "$consumer/.claude"
+printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer/.claude-plugin/plugin.json"
+# A PreToolUse entry with no `matcher` key is legal — it matches every tool —
+# and is the ordinary shape of a hand-written block. `null | test(...)` aborts
+# jq, which used to fall through to the stub-from-scratch fallback and replace
+# the whole file with just the version-guard hook.
+cat > "$consumer/.claude/settings.json" <<'JSON'
+{
+  "permissions": {"allow": ["Bash(ls:*)"]},
+  "hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": "echo consumer-hook"}]}]}
+}
+JSON
+printf 'default:\n    @echo hi\n' > "$consumer/justfile"
+git -C "$consumer" add -A
+git -C "$consumer" commit -qm "consumer: manifest, settings, justfile"
+# `ls -l | cut` and not `stat`: the mode format flag is the GNU/BSD split this
+# whole file is careful about (`stat -c` vs `stat -f`). One fixed path, and only
+# the mode column is read, so SC2012's filename concerns don't arise.
+# shellcheck disable=SC2012  # fixed path, reading the mode column only
+settings_mode="$(ls -l "$consumer/.claude/settings.json" | cut -c1-10)"
+
+run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh" dist-v1
+assert_eq "$rc" "0" "install.sh exit code over an existing settings.json"
+settings_json="$consumer/.claude/settings.json"
+assert_eq "$(jq -r '.permissions.allow[0]' "$settings_json")" \
+    "Bash(ls:*)" "install.sh kept the consumer's permissions block"
+assert_eq "$(jq '[.hooks.PreToolUse[] | .hooks[]? | select(.command == "echo consumer-hook")] | length' "$settings_json")" \
+    "1" "install.sh kept the consumer's own matcher-less hook"
+assert_eq "$(jq '[.hooks.PreToolUse[] | .hooks[]? | select(.command | test("version-guard"))] | length' "$settings_json")" \
+    "1" "install.sh added the version-guard hook"
+# mktemp creates 0600, so replacing the file with `mv` silently narrows its
+# permissions. Compared against the mode the file already had, not a literal,
+# so the assertion holds under any umask.
+# shellcheck disable=SC2012  # fixed path, reading the mode column only
+assert_eq "$(ls -l "$settings_json" | cut -c1-10)" "$settings_mode" \
+    "install.sh preserved the settings.json mode"
+# `$(cat justfile)` strips every trailing newline, so the rewrite that prepends
+# the import line has to put one back.
+if [ -n "$(tail -c1 "$consumer/justfile")" ]; then
+    fail "install.sh dropped the justfile's trailing newline"
+fi
+assert_contains "$(cat "$consumer/justfile")" "@echo hi" "install.sh kept the justfile's own content"
+
+echo "=== install.sh: a malformed settings.json is reported with jq's diagnosis ==="
+new_sandbox
+mkdir -p "$consumer/.claude-plugin" "$consumer/.claude"
+printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer/.claude-plugin/plugin.json"
+printf '{"permissions": {\n' > "$consumer/.claude/settings.json"
+git -C "$consumer" add -A
+git -C "$consumer" commit -qm "consumer: manifest + broken settings"
+
+run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh" dist-v1
+if [ "$rc" -eq 0 ]; then fail "install.sh accepted a malformed settings.json"; fi
+assert_contains "$out" "parse error" "malformed settings.json refusal carries jq's parse error"
+if [ -d "$consumer/plugin-dev" ]; then fail "install.sh vendored despite the malformed settings.json"; fi
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2

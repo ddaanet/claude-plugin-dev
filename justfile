@@ -37,7 +37,9 @@ release bump='patch': prerelease
       exit 1
     fi
     IFS=. read -r maj min pat <<< "$file_version"
-    case "{{bump}}" in
+    # quote() and not "{{bump}}": just interpolates textually before bash parses
+    # this line, so double quotes do not stop a caller's $(...) from running.
+    case {{quote(bump)}} in
       major) new_version="$((maj+1)).0.0" ;;
       minor) new_version="$maj.$((min+1)).0" ;;
       patch) new_version="$maj.$min.$((pat+1))" ;;
@@ -74,7 +76,11 @@ whitespace:
         if cmp -s "$f" "$tmp"; then
             rm -f "$tmp"
         else
-            mv "$tmp" "$f"
+            # Written through the file, not mv-ed over it: mktemp creates 0600
+            # and mv would carry that mode across, so a whitespace-only pass
+            # would also stage a mode change on any 755 script.
+            cat "$tmp" > "$f"
+            rm -f "$tmp"
             git add "$f"
             echo "whitespace: $f"
         fi

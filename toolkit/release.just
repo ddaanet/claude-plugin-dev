@@ -54,9 +54,12 @@
 toolkit_url := "git@github.com:ddaanet/claude-plugin-dev.git"
 toolkit_prefix := "plugin-dev"
 
+# quote() and not "{{bump}}": just interpolates textually before this recipe's
+# shell parses the line, so surrounding double quotes do not stop a caller's
+# $(...) from being evaluated. quote() emits a single-quoted literal instead.
 # Bump plugin.json (patch by default), commit, tag, push, GitHub release, bump marketplace.
 release bump='': prerelease
-    bash "{{toolkit_prefix}}/release.sh" "{{bump}}"
+    bash "{{toolkit_prefix}}/release.sh" {{quote(bump)}}
 
 # Complete a release that landed only partially. Idempotent, no gate.
 resume-release:
@@ -68,4 +71,4 @@ check-version:
 
 # Pull the vendored toolkit up to a dist tag; no ref = newest on the remote.
 update-plugin-dev ref='':
-    TOOLKIT_URL="{{toolkit_url}}" bash "{{toolkit_prefix}}/update.sh" "{{ref}}"
+    TOOLKIT_URL="{{toolkit_url}}" bash "{{toolkit_prefix}}/update.sh" {{quote(ref)}}

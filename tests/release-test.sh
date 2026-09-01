@@ -12,6 +12,7 @@ set -euo pipefail
 # shellcheck disable=SC2046  # word-splitting is the point: a var-name list
 unset $(git rev-parse --local-env-vars)
 
+unset CDPATH   # else `cd` may echo its target into the $(cd … && pwd) capture below
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_root"
 
@@ -572,6 +573,37 @@ run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "0" "re-run after a refused commit exit code"
 assert_contains "$out" "Release v1.2.4 complete" "re-run completes the release"
 assert_eq "$(market_version)" "1.2.4" "re-run bumped the marketplace"
+
+echo "=== release: a non-v tag nearer than the release tag does not read as the latest release ==="
+new_sandbox "1.2.3"
+# `git describe --tags` returns the nearest tag of ANY name, distance-ordered
+# rather than version-ordered, so a nightly or docs tag on a later commit used
+# to be read as the last release and refused a repo that was perfectly
+# consistent — with a hint telling the user to revert a bump they never made.
+git -C "$plugin" commit --allow-empty -qm "later work"
+git -C "$plugin" tag nightly-2026
+git -C "$plugin" push -q origin main
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "0" "non-v tag does not block the release"
+assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" \
+    "1.2.4" "manifest bumped past the non-v tag"
+assert_eq "$(market_version)" "1.2.4" "marketplace bumped past the non-v tag"
+
+echo "=== release: refuses a detached-HEAD marketplace before anything is published ==="
+new_sandbox "1.2.3"
+# A detached marketplace HEAD makes `symbolic-ref` empty, and the ls-remote for
+# "refs/heads/" then matches nothing, so the push at the end is what discovers
+# it — by which point the plugin's commit, tag, pushed tag and GitHub release
+# have all landed. Preflight already validates MARKETPLACE_DIR three other
+# ways; this belongs with them.
+git -C "$marketplace" checkout -q --detach
+run_in "$plugin" bash plugin-dev/release.sh patch
+if [ "$rc" -eq 0 ]; then fail "detached-HEAD marketplace was accepted"; fi
+assert_contains "$out" "detached HEAD" "detached-HEAD refusal names the state"
+assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" \
+    "1.2.3" "detached-HEAD refusal left the manifest alone"
+assert_eq "$(git -C "$plugin" tag --list 'v1.2.4')" "" "detached-HEAD refusal created no tag"
+assert_eq "$(cat "$GH_LOG")" "" "detached-HEAD refusal must not call gh"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2

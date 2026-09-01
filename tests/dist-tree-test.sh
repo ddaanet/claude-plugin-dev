@@ -16,6 +16,7 @@
 # Usage: bash tests/dist-tree-test.sh   (run from repo root)
 set -euo pipefail
 
+unset CDPATH   # else `cd` may echo its target into the $(cd … && pwd) capture below
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_root"
 
@@ -57,7 +58,7 @@ if [ -n "$migration_notes" ]; then
         fail "unexpected files under toolkit/migrations/:"
         printf '%s\n' "$bad" | sed 's/^/    /' >&2
     fi
-    actual="$(printf '%s\n' "$actual" | grep -v '^migrations/')"
+    actual="$(printf '%s\n' "$actual" | grep -v '^migrations/' || true)"
 fi
 
 if [ "$actual" != "$expected" ]; then

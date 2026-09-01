@@ -208,6 +208,14 @@ the toolkit (if not already present), inject the `import` line into
 the consumer's `justfile`, and add the version-guard hook to
 `.claude/settings.json`.
 
+Everything it touches outside `plugin-dev/` belongs to the consumer, so
+it only ever adds: the justfile keeps its own content and its trailing
+newline, and `settings.json` is rewritten by a jq pass that appends one
+hook and preserves the rest of the document, its mode and its ownership.
+A jq failure over an existing `settings.json` is a hard error that leaves
+the file alone — never a fall-through to writing a fresh one, which would
+mean an install silently replacing a consumer's whole configuration.
+
 Earlier draft: split into a separate "vendor" step (manual `git
 subtree add`) and a vendored "wire" step (`bash plugin-dev/install.sh`
 post-vendor). Rejected — the bootstrap loop ("you can't run

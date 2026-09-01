@@ -96,6 +96,11 @@ common_preflight() {
         || die "MARKETPLACE_DIR not set (set in .envrc to the claude-plugins repo root)"
     marketplace_json="$MARKETPLACE_DIR/.claude-plugin/marketplace.json"
     [ -f "$marketplace_json" ] || die "$marketplace_json not found"
+    # A detached HEAD there is only discovered by the marketplace push, which
+    # runs after the plugin's commit, tag, tag push and GitHub release are all
+    # public. Catch it here instead, with the other MARKETPLACE_DIR checks.
+    git -C "$MARKETPLACE_DIR" symbolic-ref -q --short HEAD >/dev/null \
+        || die "$MARKETPLACE_DIR is on a detached HEAD — check out its branch first"
     marketplace_dir=$(dirname "$marketplace_json")
     # A release always bumps to a version the marketplace doesn't have yet, so
     # the write is never a no-op — check fails fast here, before the tag and
@@ -163,7 +168,13 @@ release_preflight() {
         return
     fi
 
-    latest_tag=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)
+    # `git tag --list 'v*'` for the same reason as the first-release check
+    # above, plus one more: describe returns the nearest tag of ANY name,
+    # distance-ordered rather than version-ordered, so any unrelated tag on a
+    # later commit reads as the last release. --sort=-v:refname orders by
+    # version; sed -n '1s…p' takes the newest without exiting early, which
+    # under pipefail would surface as a SIGPIPE on a repo with many tags.
+    latest_tag=$(git tag --list 'v*' --sort=-v:refname | sed -n '1s/^v//p')
     if [ -n "$latest_tag" ] && [ "$manifest_version" != "$latest_tag" ]; then
         # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
         printf 'hint: plugin.json holds the LAST released version. `just release` bumps from there.\n' >&2
@@ -317,6 +328,12 @@ bump_marketplace() {
         rm -f "$mp_tmp"
     else
         check_marketplace_writable
+        # mktemp creates 0600 and mv carries that mode onto the destination, so
+        # every bump silently narrowed a tracked file. 644 is the mode a clone
+        # of the marketplace repo gets under the usual umask; the mv is kept
+        # (rather than writing through the file) because the no-op guard above
+        # depends on the replace needing directory write, not file write.
+        chmod 644 "$mp_tmp"
         mv "$mp_tmp" "$marketplace_json"
         git -C "$MARKETPLACE_DIR" add .claude-plugin/marketplace.json
     fi
