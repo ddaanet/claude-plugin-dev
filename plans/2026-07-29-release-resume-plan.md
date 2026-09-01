@@ -1,11 +1,8 @@
 # release.sh + `resume-release` Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
->
-> **Task sizing:** Tasks 1 and 2 are the substantial units and suit a fresh
-> subagent each, with a review checkpoint between them. Tasks 3 and 4 are small
-> and want the session's full rationale — run them inline. Task 5 is not agent
-> work: it needs network, `gh` auth, and irreversible pushes across six repos.
+> **Landed.** This plan is executed and shipped; it is kept as the record of
+> how `release.sh` and `resume-release` were built, not as work to pick up.
+> The steps below are history — nothing here is outstanding.
 
 **Goal:** Move the consumer release flow out of `release.just`'s recipe body into
 `plugin-dev/release.sh`, and add a `--resume` mode that completes a release which
@@ -128,7 +125,7 @@ writes it, not four tasks later.
   `marketplace_entry_exists`, `V`, `tag`, `acted`. Task 2 adds `resume_preflight`,
   the `mode` dispatch, and reads `acted`.
 
-- [ ] **Step 1: Write the harness and both release scenarios**
+- **Step 1: Write the harness and both release scenarios**
 
 Create `tests/release-test.sh`:
 
@@ -298,7 +295,7 @@ fi
 printf '\nall release scenarios passed\n'
 ```
 
-- [ ] **Step 2: Run it to confirm it fails for the right reason**
+- **Step 2: Run it to confirm it fails for the right reason**
 
 ```sh
 bash tests/release-test.sh
@@ -309,7 +306,7 @@ Expected: FAIL — `cp: .../release.sh: No such file or directory`. That is a
 script is missing, and nothing else. **No assertion in this task ever goes red on
 its own** — the script and its tests arrive together. Step 5 is what earns them.
 
-- [ ] **Step 3: Write `release.sh`**
+- **Step 3: Write `release.sh`**
 
 Create `release.sh`. Every block below is a straight port of
 `release.just:38-139`; only the structure is new.
@@ -498,7 +495,7 @@ note "Release $tag complete"
 
 `acted` is set but not yet read — Task 2 is what consumes it.
 
-- [ ] **Step 4: Run the tests and make them pass**
+- **Step 4: Run the tests and make them pass**
 
 ```sh
 chmod +x release.sh
@@ -507,7 +504,7 @@ bash tests/release-test.sh
 
 Expected: `all release scenarios passed`.
 
-- [ ] **Step 5: Mutation-validate every assertion**
+- **Step 5: Mutation-validate every assertion**
 
 All fifteen assertions are green-at-first. Work the table top to bottom, one
 mutation at a time, following the protocol in Mutation validation above.
@@ -538,7 +535,7 @@ Notes on the two that need reading:
 If any assertion survives its mutation, fix the assertion — not the mutation —
 before continuing.
 
-- [ ] **Step 6: Wire both files into `precommit`**
+- **Step 6: Wire both files into `precommit`**
 
 In `justfile`, extend the `precommit` recipe (currently lines 7-12):
 
@@ -553,7 +550,7 @@ precommit: whitespace
     @echo ok
 ```
 
-- [ ] **Step 7: Run the gate**
+- **Step 7: Run the gate**
 
 ```sh
 just precommit
@@ -563,7 +560,7 @@ Expected: `ok`. Fix any shellcheck findings the move surfaces — most likely
 SC2155 (`local x=$(cmd)`) if a declaration was collapsed, and SC2086 on unquoted
 expansions.
 
-- [ ] **Step 8: Commit**
+- **Step 8: Commit**
 
 ```bash
 git add release.sh tests/release-test.sh justfile
@@ -588,7 +585,7 @@ nothing.
 - Consumes: everything Task 1 produced, including `acted`.
 - Produces: `mode` (`release` | `resume`), `resume_preflight`.
 
-- [ ] **Step 1: Write the failing tests for resume and its guard**
+- **Step 1: Write the failing tests for resume and its guard**
 
 Append to `tests/release-test.sh`, before the `failures` summary block:
 
@@ -631,7 +628,7 @@ assert_contains "$out" "run \`just release <bump>\` instead" "no-tag resume hint
 assert_eq "$(cat "$GH_LOG")" "" "no-tag resume must not call gh"
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- **Step 2: Run them to verify they fail**
 
 ```sh
 bash tests/release-test.sh
@@ -653,7 +650,7 @@ Six assertions here are **not** red, and Step 5 validates them:
 - `no-tag resume must not call gh`, which passes because the crash happens before
   any `gh` call, not because a guard stopped it.
 
-- [ ] **Step 3: Add the mode dispatch and `resume_preflight`**
+- **Step 3: Add the mode dispatch and `resume_preflight`**
 
 In `release.sh`, first move the `die()` and `note()` definitions **above** this
 block — the dispatch calls `die` in its `-*` arm, and at top level a function
@@ -715,7 +712,7 @@ Update the usage comment at the top of the file:
 #   release.sh --resume              complete a release that landed partially
 ```
 
-- [ ] **Step 4: Run the tests**
+- **Step 4: Run the tests**
 
 ```sh
 bash tests/release-test.sh
@@ -723,7 +720,7 @@ bash tests/release-test.sh
 
 Expected: `all release scenarios passed`.
 
-- [ ] **Step 5: Mutation-validate the six assertions that never went red**
+- **Step 5: Mutation-validate the six assertions that never went red**
 
 | # | Mutation | Must FAIL |
 |---|---|---|
@@ -751,7 +748,7 @@ Notes:
   the same reason the unmutated code does. Revert carefully — this one inserts a
   line rather than changing one.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```sh
 just precommit
@@ -761,7 +758,7 @@ git commit -m "✨ add --resume to complete a half-landed release"
 
 Expected: `ok`. Committing here keeps the tree green between the two cycles.
 
-- [ ] **Step 7: Write the failing test for the no-op summary**
+- **Step 7: Write the failing test for the no-op summary**
 
 Append to `tests/release-test.sh`, before the summary block:
 
@@ -783,7 +780,7 @@ assert_eq "$(git -C "$marketplace" rev-parse HEAD)" "$marketplace_head_before" \
     "healthy resume left the marketplace untouched"
 ```
 
-- [ ] **Step 8: Run it to verify it fails**
+- **Step 8: Run it to verify it fails**
 
 ```sh
 bash tests/release-test.sh
@@ -793,7 +790,7 @@ Expected: FAIL on `healthy resume summary` only — the idempotence probes alrea
 work, but the script prints `Release v1.2.4 complete` unconditionally. The other
 five assertions in this scenario are green-at-first; Step 11 validates them.
 
-- [ ] **Step 9: Make the summary reflect what happened**
+- **Step 9: Make the summary reflect what happened**
 
 In `release.sh`, replace the final `note "Release $tag complete"` with:
 
@@ -805,7 +802,7 @@ else
 fi
 ```
 
-- [ ] **Step 10: Run the tests**
+- **Step 10: Run the tests**
 
 ```sh
 bash tests/release-test.sh
@@ -814,7 +811,7 @@ bash tests/release-test.sh
 Expected: `all release scenarios passed` — including the earlier scenarios, which
 still assert `Release v1.2.4 complete`.
 
-- [ ] **Step 11: Mutation-validate the healthy-resume assertions**
+- **Step 11: Mutation-validate the healthy-resume assertions**
 
 These four are the idempotence claim. If they are vacuous, `resume-release`'s
 whole safety story is untested.
@@ -847,7 +844,7 @@ Notes:
 - `setup release exit code` needs no mutation here: it is the same code path
   Task 1 step 5 mutation #2 already drove red.
 
-- [ ] **Step 12: Commit**
+- **Step 12: Commit**
 
 ```sh
 just precommit
@@ -874,7 +871,7 @@ mutation to earn trust; written this way it is a genuine red for free.
 - Consumes: `release.sh`'s CLI from Tasks 1-2.
 - Produces: the `resume-release` recipe consumers call.
 
-- [ ] **Step 1: Extend `_import-check` first**
+- **Step 1: Extend `_import-check` first**
 
 In `justfile`'s `_import-check`, after the `check widened …` line, add:
 
@@ -896,7 +893,7 @@ Update the recipe's final echo:
     echo "release.just import: ok (plain + widened + missing gate, resume-release)"
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- **Step 2: Run it to verify it fails**
 
 ```sh
 just _import-check
@@ -907,7 +904,7 @@ Expected: FAIL — `error: Justfile does not contain recipe 'resume-release'`, a
 is a simple command, so its non-zero status trips `set -e` before the `grep` runs.
 That is fine — the recipe fails, which is the red. It resolves once Step 3 lands.
 
-- [ ] **Step 3: Replace the `release` body and add `resume-release`**
+- **Step 3: Replace the `release` body and add `resume-release`**
 
 In `release.just`, replace everything from `# Bump plugin.json, commit, tag…`
 through the end of the recipe (line 139) with:
@@ -935,7 +932,7 @@ Add to the file header comment, after the `MARKETPLACE_DIR` paragraph:
 # when everything already landed.
 ```
 
-- [ ] **Step 4: Run the gate**
+- **Step 4: Run the gate**
 
 ```sh
 just precommit
@@ -947,7 +944,7 @@ Note the `if` form on the second assertion: `grep -q … && { … }` returns the
 grep's status, so under `set -e` a *non*-matching grep — the passing case — would
 abort the recipe.
 
-- [ ] **Step 5: Mutation-validate the no-gate assertion**
+- **Step 5: Mutation-validate the no-gate assertion**
 
 Step 2's red only exercised the `release.sh --resume` grep. The `stub-precommit`
 branch — the one asserting recovery does not re-run a paid gate — has only ever
@@ -959,7 +956,7 @@ been green.
 
 Revert, re-run `just precommit`, confirm `ok`.
 
-- [ ] **Step 6: Verify the recipe surface by hand**
+- **Step 6: Verify the recipe surface by hand**
 
 ```sh
 just --justfile /dev/stdin --list <<'EOF'
@@ -973,7 +970,7 @@ EOF
 Expected: `release`, `resume-release`, `check-version` and `update-plugin-dev`
 all listed, each with a single-line doc comment.
 
-- [ ] **Step 7: Commit**
+- **Step 7: Commit**
 
 ```bash
 git add release.just justfile
@@ -993,7 +990,7 @@ section is an argument, not a transcription.
 - Modify: `docs/changelog.md`
 - Check: `README.md`, `install.sh` for recipe lists needing `resume-release`
 
-- [ ] **Step 1: Add the design section**
+- **Step 1: Add the design section**
 
 In `docs/design.md`, after "`check-version.sh`: catching a partially-completed
 release", add a section titled **"Recovery: `resume-release` and the shared
@@ -1015,7 +1012,7 @@ release tail"** covering, in present tense:
 Then revisit the **Limitations** list: "release is not atomic" stays true, but its
 consequence is now recoverable — state that rather than deleting the entry.
 
-- [ ] **Step 2: Write the changelog entry**
+- **Step 2: Write the changelog entry**
 
 Create `docs/changelog/2026-07-29-resume-release.md`, following the shape of the
 existing entries: what moved and the reasoning available at the time. Ground it in
@@ -1027,7 +1024,7 @@ is what the existing entries do (`2026-07-27-check-version.md` records v0.4.1 an
 v0.4.2, both already shipped). The version goes in the pointer line, not the
 filename.
 
-- [ ] **Step 3: Add the changelog pointer**
+- **Step 3: Add the changelog pointer**
 
 Add a line at the top of the list in `docs/changelog.md`:
 
@@ -1035,7 +1032,7 @@ Add a line at the top of the list in `docs/changelog.md`:
 - [2026-07-29 — `resume-release`](changelog/2026-07-29-resume-release.md) — the release tail became an idempotent block both `release` and a recovery path run (v0.5.0)
 ```
 
-- [ ] **Step 4: Check for stale recipe lists**
+- **Step 4: Check for stale recipe lists**
 
 ```sh
 grep -rn 'just release\|check-version\|precommit' README.md install.sh
@@ -1044,7 +1041,7 @@ grep -rn 'just release\|check-version\|precommit' README.md install.sh
 If either lists the recipes the toolkit provides, add `resume-release`. If they
 only describe installation, leave them alone.
 
-- [ ] **Step 5: Run the gate and commit**
+- **Step 5: Run the gate and commit**
 
 ```sh
 just precommit
@@ -1062,7 +1059,7 @@ merged and reviewed.
 
 **Files:** none in this repo beyond `VERSION` (the self-release recipe owns it).
 
-- [ ] **Step 1: Cut the toolkit release**
+- **Step 1: Cut the toolkit release**
 
 ```sh
 just release minor
@@ -1073,7 +1070,7 @@ If it dies partway, finish it by hand — `git push`, `git push origin v0.5.0`,
 `gh release create v0.5.0 --title "Release 0.5.0" --generate-notes` — which is
 exactly why the self-release recipe stays bespoke.
 
-- [ ] **Step 2: Propagate to consumers**
+- **Step 2: Propagate to consumers**
 
 In each consumer, `just update-plugin-dev v0.5.0`. `gitlore` already defines
 `prerelease: precommit evals` and needs no justfile edit. `handoff` and `gitmoji`
@@ -1081,7 +1078,7 @@ have not adopted v0.4.0 yet: each needs `prerelease: precommit` added **in the
 same commit as the subtree pull**, or their justfiles fail to compile on arrival —
 every recipe, not just `release`.
 
-- [ ] **Step 3: Verify in one consumer**
+- **Step 3: Verify in one consumer**
 
 ```sh
 just check-version && just --list
