@@ -37,8 +37,10 @@ release bump='patch': prerelease
       exit 1
     fi
     IFS=. read -r maj min pat <<< "$file_version"
-    # quote() and not "{{bump}}": just interpolates textually before bash parses
-    # this line, so double quotes do not stop a caller's $(...) from running.
+    # quote() and not a double-quoted interpolation: just substitutes the
+    # argument as raw text before bash parses the line, so shell quotes around
+    # it do not stop a caller's $(...) from running. Written without braces
+    # because a recipe body's comments are interpolated too.
     case {{quote(bump)}} in
       major) new_version="$((maj+1)).0.0" ;;
       minor) new_version="$maj.$((min+1)).0" ;;
