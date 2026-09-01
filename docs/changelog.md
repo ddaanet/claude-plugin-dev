@@ -8,6 +8,7 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-09-01 — `update.sh` owns the update flow](changelog/2026-09-01-update-sh-ref-resolution-migration-notes.md) — ref defaults to the newest dist tag at both call sites; migration notes ship in the dist tree and are printed after the pull, never applied
 - [2026-08-28 — The memory submodule's path is read, not assumed](changelog/2026-08-28-memory-path-read-from-gitmodules.md) — `common_preflight` excluded the literal path `memory`, which is only gitlore's default mount point; now read from `.gitmodules` by submodule name
 - [2026-08-28 — A refused push resumes; the release commit is never amended](changelog/2026-08-28-refused-push-resumes-never-amends.md) — why no `refresh_release_commit` amend step exists, and the hint `push_branch` now prints instead
 - [2026-08-28 — The marketplace writability probe keeps mktemp's own words](changelog/2026-08-28-writability-probe-keeps-mktemps-words.md) — the probe discarded `mktemp`'s stderr and then asserted a sandbox cause it never established; also comments why the release-only check must not be `common_preflight`'s last line

@@ -34,6 +34,7 @@ VERSION
 check-version.sh
 install.sh
 release.just
+update.sh
 release.sh
 version-guard.sh
 EOF
@@ -45,6 +46,19 @@ EOF
 # one that leaks. The index is what the next dist tag will be cut from.
 echo "=== toolkit/ holds exactly the consumer-facing set ==="
 actual="$(git ls-files toolkit/ | sed 's|^toolkit/||' | sort)"
+
+# Migration notes are shipped guidance, one optional note per release. Any
+# file of exactly that shape is allowed without editing the list above;
+# anything else under migrations/ is still a failure.
+migration_notes="$(printf '%s\n' "$actual" | grep '^migrations/' || true)"
+if [ -n "$migration_notes" ]; then
+    bad="$(printf '%s\n' "$migration_notes" | grep -v '^migrations/v[0-9][0-9.]*\.md$' || true)"
+    if [ -n "$bad" ]; then
+        fail "unexpected files under toolkit/migrations/:"
+        printf '%s\n' "$bad" | sed 's/^/    /' >&2
+    fi
+    actual="$(printf '%s\n' "$actual" | grep -v '^migrations/')"
+fi
 
 if [ "$actual" != "$expected" ]; then
     fail "toolkit/ does not match the shipped set"

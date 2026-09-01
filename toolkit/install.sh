@@ -7,13 +7,14 @@
 #     git clone --depth 1 -b vX.Y.Z \
 #         git@github.com:ddaanet/claude-plugin-dev.git /tmp/cpd
 #     cd /path/to/plugin
-#     bash /tmp/cpd/toolkit/install.sh dist-vX.Y.Z
+#     bash /tmp/cpd/toolkit/install.sh [dist-vX.Y.Z]
 #
-# Clone the SOURCE tag (vX.Y.Z) to get the script; vendor the DIST tag
-# (dist-vX.Y.Z), whose root tree is only the consumer-facing files. A
-# subtree add of the source tag would copy this repo's whole working
-# environment into the plugin -- see docs/design.md "Consumers vendor a
-# split dist ref".
+# With no ref, the newest dist- tag on the remote is resolved and
+# vendored. Clone the SOURCE tag (vX.Y.Z) to get the script; vendor the
+# DIST tag (dist-vX.Y.Z), whose root tree is only the consumer-facing
+# files. A subtree add of the source tag would copy this repo's whole
+# working environment into the plugin -- see docs/design.md "Consumers
+# vendor a split dist ref".
 #
 # The script will:
 #   1. git subtree add the toolkit at plugin-dev/ (skipped if present)
@@ -56,9 +57,16 @@ fi
 # 1. Vendor the toolkit if missing.
 if [ ! -d "$TOOLKIT_PREFIX" ]; then
     if [ -z "$ref" ]; then
-        echo "error: $TOOLKIT_PREFIX/ not found and no ref given." >&2
-        echo "usage: bash install.sh dist-vX.Y.Z   (pass a dist tag to vendor on first install)" >&2
-        exit 1
+        # Same resolver as update.sh's no-ref default. Kept as a copy here:
+        # the bootstrap script must stay runnable on its own, without
+        # depending on a sibling file.
+        ref="$(git ls-remote --tags --refs --sort=-v:refname "$TOOLKIT_URL" 'dist-v*' | sed -n '1s|.*/||p')"
+        if [ -z "$ref" ]; then
+            echo "error: could not resolve a dist tag from $TOOLKIT_URL" >&2
+            echo "hint: pass one explicitly: bash install.sh dist-vX.Y.Z" >&2
+            exit 1
+        fi
+        echo "install: resolved newest dist tag: $ref"
     fi
     # Only a dist tag is vendorable. Every other ref -- source tag, branch,
     # sha -- resolves to the toolkit's root tree, which is its own working

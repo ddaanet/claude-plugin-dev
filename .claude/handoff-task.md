@@ -1,9 +1,7 @@
 ## Current task
 
-Three threads.
+Two threads, both between pieces of work.
 
-The toolkit thread has closed the subagent audit: all six ranks landed, the last being rank 6 — `common_preflight`'s hardcoded `memory` pathspec, now read from `.gitmodules` keyed on the submodule name `gitlore-memory`. What remains on that thread is cutting the 0.6.1 patch that carries the five fixes to consumers.
+The toolkit thread has nothing in flight. Its live question is the install/update invocation design — a brainstorm interrupted during context-gathering, before any design was presented; the three separable sub-questions are in the todo file.
 
-The dist-ref propagation is unfinished. onekeys, shell-gotchas and handoff still carry the leaked `plugin-dev/` paths, each blocked by its own uncommitted tracked work, each with a `brief-plugin-dev-0.6.0.md` in place. onekeys is furthest behind — still at 0.5.3, still tracking `plugin-dev/CLAUDE.md` and `plugin-dev/.claude/settings.json`.
-
-Separately, a design discussion on simplifying toolkit install/update was interrupted during context-gathering, before any design was presented.
+The memory index thread is unresolved. The root index sits over Claude Code's loader cap, so its tail never reaches a session, and the entry falling past the cutoff is this repo's own only project pointer. The remedy is settled; the selection is not.

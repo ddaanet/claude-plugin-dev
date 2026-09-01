@@ -35,6 +35,13 @@ assert_contains() {
         printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
     fi
 }
+assert_not_contains() {
+    # $1=haystack $2=needle $3=label
+    if printf '%s' "$1" | grep -q -- "$2"; then
+        fail "$3: output contained '$2'"
+        printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
+    fi
+}
 
 sandboxes=()
 cleanup() {
@@ -92,6 +99,9 @@ make_toolkit_release() {
     local toolkit="$1" tag="$2" version="$3" dist_sha
     mkdir -p "$toolkit/toolkit"
     printf '%s\n' "$version" > "$toolkit/toolkit/VERSION"
+    # The vendored copy is what executes a consumer's update, so ship the
+    # real update.sh under test into the fixture's dist lineage.
+    cp "$repo_root/toolkit/update.sh" "$toolkit/toolkit/"
     git -C "$toolkit" add -A
     git -C "$toolkit" commit -qm "toolkit: $version"
     git -C "$toolkit" tag "$tag"
@@ -244,6 +254,84 @@ assert_contains "$out" "dist-v1" "update-plugin-dev refusal names the dist tag t
 run_in "$consumer" allow_file just --set toolkit_url "$toolkit" update-plugin-dev main
 if [ "$rc" -eq 0 ]; then fail "update-plugin-dev accepted a branch ref"; fi
 assert_contains "$out" "not a dist tag" "branch ref refusal explains why"
+
+echo "=== update-plugin-dev: no ref resolves the newest dist tag ==="
+new_sandbox
+
+run_in "$consumer" allow_file git subtree add --prefix=plugin-dev "$toolkit" dist-v1 --squash
+assert_eq "$rc" "0" "vendor for the no-ref update scenario"
+make_toolkit_release "$toolkit" v2 1.0.1
+printf "import '%s/toolkit/release.just'\n\nprecommit:\n    @echo stub-precommit\n\nprerelease: precommit\n" \
+    "$repo_root" > "$consumer/justfile"
+
+run_in "$consumer" allow_file just --set toolkit_url "$toolkit" update-plugin-dev
+assert_eq "$rc" "0" "no-ref update exit code"
+assert_contains "$out" "dist-v2" "no-ref update names the resolved tag"
+assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.1" "no-ref update pulled the newest VERSION"
+
+# Resolution failure must not fall through to a bogus pull: a remote with no
+# dist tags errors out naming the explicit-ref fallback.
+git init -q --bare -b main "$sandbox/tagless.git"
+run_in "$consumer" allow_file just --set toolkit_url "$sandbox/tagless.git" update-plugin-dev
+if [ "$rc" -eq 0 ]; then fail "no-ref update succeeded against a tagless remote"; fi
+assert_contains "$out" "dist-vX.Y.Z" "update tagless-remote refusal names the explicit-ref fallback"
+
+echo "=== install.sh: no ref resolves the newest dist tag ==="
+new_sandbox
+make_toolkit_release "$toolkit" v2 1.0.1
+
+mkdir -p "$consumer/.claude-plugin"
+printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer/.claude-plugin/plugin.json"
+git -C "$consumer" add .claude-plugin/plugin.json
+git -C "$consumer" commit -qm "consumer: plugin manifest"
+
+run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh"
+assert_eq "$rc" "0" "no-ref install exit code"
+assert_contains "$out" "dist-v2" "no-ref install names the resolved tag"
+assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.1" "no-ref install vendored the newest VERSION"
+
+# Same failure path on the install side, from a fresh consumer (install.sh
+# only resolves when plugin-dev/ is absent).
+consumer2="$sandbox/consumer2"
+git init -q -b main "$consumer2"
+git_id "$consumer2"
+git -C "$consumer2" commit --allow-empty -qm init
+mkdir -p "$consumer2/.claude-plugin"
+printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer2/.claude-plugin/plugin.json"
+git -C "$consumer2" add .claude-plugin/plugin.json
+git -C "$consumer2" commit -qm "consumer: plugin manifest"
+git init -q --bare -b main "$sandbox/tagless.git"
+run_in "$consumer2" allow_file env TOOLKIT_URL="$sandbox/tagless.git" bash "$repo_root/toolkit/install.sh"
+if [ "$rc" -eq 0 ]; then fail "no-ref install succeeded against a tagless remote"; fi
+assert_contains "$out" "dist-vX.Y.Z" "install tagless-remote refusal names the explicit-ref fallback"
+
+echo "=== update-plugin-dev: prints migration notes for the crossed range only ==="
+new_sandbox
+
+run_in "$consumer" allow_file git subtree add --prefix=plugin-dev "$toolkit" dist-v1 --squash
+assert_eq "$rc" "0" "vendor for the migration-notes scenario"
+
+# Notes ship inside the dist lineage. v1.0.0's note lands in the pulled tree
+# too, which is what keeps the below-range assertion non-vacuous.
+mkdir -p "$toolkit/toolkit/migrations"
+printf 'NOTE-1.0.0\n' > "$toolkit/toolkit/migrations/v1.0.0.md"
+printf 'NOTE-1.0.1\n' > "$toolkit/toolkit/migrations/v1.0.1.md"
+make_toolkit_release "$toolkit" v2 1.0.1
+printf 'NOTE-1.0.2\n' > "$toolkit/toolkit/migrations/v1.0.2.md"
+make_toolkit_release "$toolkit" v3 1.0.2
+
+printf "import '%s/toolkit/release.just'\n\nprecommit:\n    @echo stub-precommit\n\nprerelease: precommit\n" \
+    "$repo_root" > "$consumer/justfile"
+
+run_in "$consumer" allow_file just --set toolkit_url "$toolkit" update-plugin-dev dist-v3
+assert_eq "$rc" "0" "migration-range update exit code"
+assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.2" "migration-range update pulled the newest VERSION"
+if [ ! -f "$consumer/plugin-dev/migrations/v1.0.0.md" ]; then
+    fail "anchor: below-range note v1.0.0.md missing from the pulled tree"
+fi
+assert_not_contains "$out" "NOTE-1.0.0" "below-range note not printed"
+assert_eq "$(printf '%s\n' "$out" | grep -o 'NOTE-1\.0\.[0-9]*' | tr '\n' ' ')" \
+    "NOTE-1.0.1 NOTE-1.0.2 " "in-range notes print in version order"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2

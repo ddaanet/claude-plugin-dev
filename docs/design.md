@@ -163,10 +163,17 @@ Rejected alternatives:
 
 ### Versioning: tags only, never `HEAD`
 
-`install.sh` and `update-plugin-dev` both expect a ref like `dist-vX.Y.Z`
+`install.sh` and `update-plugin-dev` both take a ref like `dist-vX.Y.Z`
 (see "Consumers vendor a split dist ref" for why the `dist-` lineage rather
-than the source tag). Branch refs (`main`, `master`, `HEAD`) are warned
-against; a source `vX.Y.Z` ref is refused outright.
+than the source tag). Branch refs (`main`, `master`, `HEAD`) and a source
+`vX.Y.Z` ref are refused outright.
+
+The ref is optional: with none given, both resolve the newest `dist-` tag
+from the remote (`git ls-remote --sort=-v:refname`) and say which one they
+picked. That is still tag-pinning, not `HEAD`-tracking — the resolution
+happens once, at invocation, and the subtree commit records the exact tag
+vendored, so an old consumer checkout still names the exact toolkit content
+it carries. Passing a ref explicitly remains the way to pin an older one.
 
 Reasoning: the toolkit's whole purpose is release discipline. It would
 be inconsistent to ship that infrastructure with no version discipline
@@ -209,9 +216,12 @@ making the script self-aware of which phase it's in. One step is
 worth more than the conceptual purity of separation.
 
 `curl … | bash` is *not* the recommended bootstrap path. The README
-points to `git clone --depth 1 -b vX.Y.Z … /tmp/cpd` followed by
-`bash /tmp/cpd/install.sh vX.Y.Z`, so the script can be inspected
-before execution.
+points to a `git clone --depth 1` of the newest source tag (resolved by
+`ls-remote`, so the block never names a version and cannot go stale)
+followed by `bash /tmp/cpd/toolkit/install.sh`, so the script can be
+inspected before execution. A sibling-checkout shortcut was rejected for
+the docs: a local checkout is a local optimisation, and the instructions
+must work for someone who has only the plugin repo in front of them.
 
 ### Run-in-target invocation pattern
 
@@ -220,6 +230,45 @@ taking a target path as argument — was rejected for ergonomics
 (matches `pre-commit install`, `npm init`, etc.). The magic-cwd risk
 is contained by an early guard: the script aborts if the cwd doesn't
 contain `.claude-plugin/plugin.json`.
+
+### Update flow lives in `update.sh`, not the recipe
+
+`update-plugin-dev` is a one-line wrapper: `bash plugin-dev/update.sh
+"$ref"`, mirroring how `release` wraps `release.sh`. The guards, ref
+resolution, subtree pull, VERSION check and migration-note printing all
+live in the script. A justfile recipe body is second-class code here: it
+escapes `shellcheck` and `bash -n` (the precommit gate lints scripts, not
+recipe bodies), it cannot be executed directly by a test, and just's own
+parsing quirks apply inside it. The recipe keeps only what must be just's:
+the `toolkit_url`/`toolkit_prefix` settings and the recipe name.
+
+The small dist-tag resolver is deliberately duplicated between
+`install.sh` and `update.sh` (each side says so in a comment). The
+bootstrap script must stay runnable on its own from a fresh clone, so it
+cannot depend on a sibling file, and a shared lib file would grow the
+shipped set to spare a few lines.
+
+### Migration notes: shipped in the dist tree, printed, never applied
+
+Some toolkit releases need a consumer-side step the subtree pull cannot
+perform — v0.4.0 required a `prerelease` recipe in the consumer's
+justfile before the import would resolve. Those steps used to live only
+in per-release briefs written by hand.
+
+A release that has such a step ships `migrations/vX.Y.Z.md` in its dist
+tree. After the pull, `update.sh` prints every note in the crossed range
+(old `VERSION` exclusive, new inclusive, `sort -V` order). The notes are
+guidance for the human to apply: an upgrade never touches files outside
+`plugin-dev/`, because a consumer's justfile and settings are theirs, and
+a silently-mutating upgrade is exactly the class of surprise the rest of
+this design exists to prevent. Most releases need no note; the directory
+may not exist at all.
+
+Structural limit, the same one that ruled out pruning leaked paths in
+`update-plugin-dev`: the consumer's *existing* vendored copy executes the
+upgrade, so the release that introduces a behaviour cannot deliver it to
+the upgrade that lands it. Tolerable for guidance — the note is also
+readable in the pulled tree and the release notes.
 
 ### Dual-channel hook output
 
@@ -690,8 +739,9 @@ fallback fires cleanly.
   both in one step.
 - **Toolkit updates may require a consumer justfile edit.** Adopting a
   new toolkit tag is not always a pure `git subtree pull` — the
-  `prerelease` gate landed as a required consumer-side recipe. Consumers
-  are expected to read the release notes at `update-plugin-dev` time.
+  `prerelease` gate landed as a required consumer-side recipe. Releases
+  with such a step ship a `migrations/vX.Y.Z.md` note that `update.sh`
+  prints after the pull; the upgrade itself never edits consumer files.
 - **Solo-author workflow assumed.** The toolkit is built around one
   maintainer's plugins. Multi-contributor scenarios (e.g. forks
   proposing changes back to the toolkit) work mechanically but
