@@ -146,7 +146,13 @@ split dist ref" for the reasoning.
   argument alike. Each change also gets a dated write-time record at
   `docs/changelog/YYYY-MM-DD-slug.md`, pointed at from
   `docs/changelog.md` — those are never revised, because a dated record
-  is correct forever precisely because it is dated.
+  is correct forever precisely because it is dated. `just format-docs`
+  still wraps `docs/changelog/` along with everything else: re-flowing a
+  paragraph changes line breaks and not words, so it is not a revision,
+  and exempting the directory would leave the line cap unmeasurable
+  exactly where the longest records accumulate. The entries written
+  before the wrap existed were reflowed once, in the pass that
+  introduced it, and are grandfathered.
 
 ## Non-goals for this repo
 

@@ -74,3 +74,21 @@ bash instead, which is also what the rest of this repo is written in.
 That is a knowing duplication: gitlore's checker and this one will drift, and
 neither propagates to the other. The alternative was a shared dependency between
 two repos that have no other coupling, to spare 70 lines.
+
+## The changelog is inside the wrap
+
+The wrap pass reflowed three dated entries whose paragraphs had been
+hand-wrapped narrower — `2026-07-29-resume-release`,
+`2026-08-28-writability-probe-keeps-mktemps-words`,
+`2026-09-01-clean-tree-excludes-dot-claude`. Against the rule that a dated
+record is never revised, that reads like a violation.
+
+It is not, and `docs/changelog/` stays inside `format-docs`. A reflow changes
+where lines break; the word stream is identical, so nothing a reader takes from
+the record has moved. The rule exists to stop a later session rewriting what a
+past session concluded, which a wrap cannot do. The alternative — excluding the
+directory — would leave the 400-line cap unmeasurable in the one place records
+accumulate indefinitely, and would mean every future entry is written under a
+different convention from the docs beside it. The three entries reflowed here
+are grandfathered; every entry written from now on is wrapped by the same gate
+that commits it, so the question does not recur.

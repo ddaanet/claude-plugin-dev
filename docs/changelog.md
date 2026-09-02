@@ -3,7 +3,8 @@
 How the design got to its current shape. Each entry is a write-time record of
 one change: what moved, and the reasoning available at the time. Entries are
 never revised — a dated record is correct forever precisely because it is dated.
-The living design is [design.md](design.md); when a decision there is
+`just format-docs` re-wraps them at 80 columns, which changes line breaks and
+not words. The living design is [design.md](design.md); when a decision there is
 overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
