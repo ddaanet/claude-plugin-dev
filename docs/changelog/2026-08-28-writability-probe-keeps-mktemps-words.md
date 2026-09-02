@@ -19,12 +19,13 @@ Now `2>&1`, with mktemp's diagnosis interpolated into the message and the
 sandbox line kept as the advice it always was. On success `$probe` is still the
 path, because mktemp says nothing on stderr when it succeeds.
 
-Also comments the position of `[ "$mode" = "release" ] && check_marketplace_writable`
-inside `common_preflight`. A false `&&` list is exempt from `errexit`
-mid-function, which is why `--resume` skips the check rather than dying at it —
-but as the *last* command of the function its status would become the
-function's, and `common_preflight` would exit 1 with no message at all on every
-resume. The exemption is positional and nothing else in the file says so.
+Also comments the position of
+`[ "$mode" = "release" ] && check_marketplace_writable` inside
+`common_preflight`. A false `&&` list is exempt from `errexit` mid-function,
+which is why `--resume` skips the check rather than dying at it — but as the
+*last* command of the function its status would become the function's, and
+`common_preflight` would exit 1 with no message at all on every resume. The
+exemption is positional and nothing else in the file says so.
 
 `tests/release-test.sh`'s existing read-only-marketplace scenario carries the
 new assertion. Confirmed red against the unfixed script: the message contained

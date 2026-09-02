@@ -1,9 +1,11 @@
 # Shell audit — shipped toolkit scripts (2026-09-01)
 
+<!-- cap-ok: an audit record, read as one pass; kept whole -->
+
 Scope: `toolkit/install.sh`, `toolkit/update.sh`, `toolkit/release.sh`,
-`toolkit/check-version.sh`, `toolkit/version-guard.sh`, read whole. Target
-class is bugs ShellCheck cannot see: GNU/BSD flag divergence, `set -e` blind
-spots, dishonest success reporting, hook-channel semantics, path drift.
+`toolkit/check-version.sh`, `toolkit/version-guard.sh`, read whole. Target class
+is bugs ShellCheck cannot see: GNU/BSD flag divergence, `set -e` blind spots,
+dishonest success reporting, hook-channel semantics, path drift.
 
 Every finding below was reproduced. Constructs I suspected and then *disproved*
 are in "Checked and clean" at the end, so silence there means covered, not
@@ -44,8 +46,8 @@ after:  {"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"command":"bas
 
 The consumer's permissions, env, status line and their own hook are gone. The
 script then prints `claude-plugin-dev: installed.` — a success message on a path
-where the reported operation destroyed data. The `jq empty` pre-flight on
-line 52 does not catch it: the file is perfectly valid JSON.
+where the reported operation destroyed data. The `jq empty` pre-flight on line
+52 does not catch it: the file is perfectly valid JSON.
 
 **Minimal fix.** Two changes, both needed. Make the select null-safe, and stop
 using `||` as a file-existence test:
@@ -72,10 +74,10 @@ this silent.
 
 **Trigger.** Every deny.
 
-**Mechanism.** Claude Code parses a hook's **stdout** as JSON, and **only on
-exit 0**. On `exit 2` the **stderr** text is fed to the model verbatim; it is
-not parsed. The script writes its JSON to stderr (`>&2` on line 58) and then
-`exit 2`.
+**Mechanism.** Claude Code parses a hook's **stdout** as JSON, and
+**only on exit 0**. On `exit 2` the **stderr** text is fed to the model
+verbatim; it is not parsed. The script writes its JSON to stderr (`>&2` on line
+58) and then `exit 2`.
 
 **Observable behaviour.** Reproduced with the repo's own Edit-bump payload —
 stdout is empty and stderr carries:
@@ -113,13 +115,13 @@ broken one.
 
 **Trigger.** Any Write or Edit in a plugin repo, on macOS.
 
-**Mechanism.** BSD/macOS `realpath` takes `[-q] path ...` and has no `-m`
-(and no `realpath` at all before macOS 12.3). Both substitutions on line 19
-therefore produce empty stdout. `[[ "" == "" ]]` is **true**, so the
-`|| exit 0` never fires and the hook falls through to the version comparison
-for *every* file. Errexit does not save it: the substitutions sit inside a
-`[[ … ]]` that is part of an `||` list, where errexit is suspended, and a
-failing command substitution never triggers errexit regardless.
+**Mechanism.** BSD/macOS `realpath` takes `[-q] path ...` and has no `-m` (and
+no `realpath` at all before macOS 12.3). Both substitutions on line 19 therefore
+produce empty stdout. `[[ "" == "" ]]` is **true**, so the `|| exit 0` never
+fires and the hook falls through to the version comparison for *every* file.
+Errexit does not save it: the substitutions sit inside a `[[ … ]]` that is part
+of an `||` list, where errexit is suspended, and a failing command substitution
+never triggers errexit regardless.
 
 **Observable behaviour.** On macOS, in any repo with
 `.claude-plugin/plugin.json`, writing any file whose content carries a
@@ -152,11 +154,11 @@ into a subdirectory, or `/add-dir` has moved focus to another repo.
 
 **Mechanism.** `cwd` in a hook payload tracks the Bash tool's persistent shell
 working directory, not the project's configured root. Line 17 builds
-`manifest="$cwd/.claude-plugin/plugin.json"`; line 18 `[[ -f "$manifest" ]] ||
-exit 0`. Once cwd is a subdirectory the manifest is not there, the hook exits 0,
-and the version edit is allowed. `CLAUDE_PROJECT_DIR` is exported to hooks and
-is stable for the session; the script never reads it, even though
-`install.sh:47` wires the hook command around exactly that variable.
+`manifest="$cwd/.claude-plugin/plugin.json"`; line 18
+`[[ -f "$manifest" ]] || exit 0`. Once cwd is a subdirectory the manifest is not
+there, the hook exits 0, and the version edit is allowed. `CLAUDE_PROJECT_DIR`
+is exported to hooks and is stable for the session; the script never reads it,
+even though `install.sh:47` wires the hook command around exactly that variable.
 
 **Observable behaviour.** A silent, complete bypass of the guard — no message on
 either channel, because exit 0 is the "not my file" path.
@@ -178,10 +180,10 @@ reintroduces the drift.
 replacing just the version *value*, which is the shortest unique string and the
 form an agent reaches for first.
 
-**Mechanism.** Line 34 greps `new_string` for `"version"[[:space:]]*:[[:space:]]*"[^"]+"`.
-A `new_string` of `9.9.9` has no `"version"` key, so `version_line` is empty,
-`proposed` stays empty, and line 40's `[[ -z "$proposed" … ]] && exit 0` allows
-the edit.
+**Mechanism.** Line 34 greps `new_string` for
+`"version"[[:space:]]*:[[:space:]]*"[^"]+"`. A `new_string` of `9.9.9` has no
+`"version"` key, so `version_line` is empty, `proposed` stays empty, and line
+40's `[[ -z "$proposed" … ]] && exit 0` allows the edit.
 
 **Observable behaviour.** Reproduced against a fixture manifest at `1.2.3`:
 
@@ -229,8 +231,8 @@ git tag --list 'v*'             ->  v1.0.0
 
 `release_preflight` dies with
 `plugin.json version (1.0.0) does not match latest tag (vnightly-2026)` and the
-hint on line 169-170 tells the user to "revert any manual version bump" — a
-bump they never made. Release is blocked with an unactionable diagnosis.
+hint on line 169-170 tells the user to "revert any manual version bump" — a bump
+they never made. Release is blocked with an unactionable diagnosis.
 
 Note the internal inconsistency: the comment at `release.sh:148-150` explains
 why `git tag --list 'v*'` is used instead of `describe` for the first-release
@@ -287,8 +289,8 @@ substitution), and the format string `'%s\n\n%s'` supplies none.
 **Observable behaviour.** Reproduced: a 24-byte justfile ending `echo hi\n\n`
 becomes a 56-byte file ending `echo hi` with no newline at all. The consumer's
 `git diff` shows `\ No newline at end of file` on a file the installer claims
-only to have added a line to, and the next hand edit re-adds it as a second
-diff hunk. Any trailing blank lines are also collapsed.
+only to have added a line to, and the next hand edit re-adds it as a second diff
+hunk. Any trailing blank lines are also collapsed.
 
 **Minimal fix.** `printf '%s\n\n%s\n'` on line 100.
 
@@ -336,10 +338,10 @@ half of the report.
   `[ -d "$TOOLKIT_PREFIX/migrations" ]` is always false. The code itself is
   sound (the unmatched-glob guard at line 89 is correct, and `printf '%s\n'`
   always terminates the last record so the `read` loop drops nothing) — it is
-  simply never exercised. One asymmetry to fix before the first note ships:
-  line 82's `[ -n "$new_version" ]` skips *silently* when the incoming tag has
-  no `VERSION` file, whereas the missing-*old*-version case at line 83 does
-  print a "review by hand" note. The two cases deserve the same treatment.
+  simply never exercised. One asymmetry to fix before the first note ships: line
+  82's `[ -n "$new_version" ]` skips *silently* when the incoming tag has no
+  `VERSION` file, whereas the missing-*old*-version case at line 83 does print a
+  "review by hand" note. The two cases deserve the same treatment.
 
 - **`release.sh:109` — a manifest with no `.name`.** `jq -r .name` prints the
   literal `null`, so `plugin_name="null"`, the marketplace lookup finds no
@@ -347,9 +349,9 @@ half of the report.
   `null`. Requires a malformed manifest.
 
 - **`release.sh:173-180` — a two-component manifest version.** With `.version`
-  of `1.2`, `as [$maj,$min,$pat]` binds `$pat` to `null`, and jq's `null + 1`
-  is `1`, so a patch bump yields `1.2.1`. Silently plausible-looking rather than
-  an error. Requires a non-semver manifest.
+  of `1.2`, `as [$maj,$min,$pat]` binds `$pat` to `null`, and jq's `null + 1` is
+  `1`, so a patch bump yields `1.2.1`. Silently plausible-looking rather than an
+  error. Requires a non-semver manifest.
 
 - **`install.sh:88` — `git diff --quiet HEAD` in a repo with no commits.** An
   unborn HEAD makes git exit non-zero with `fatal: ambiguous argument 'HEAD'`,
@@ -369,12 +371,12 @@ half of the report.
   `release.sh:131` then prints `fix the version drift above before releasing`
   for what was actually a malformed marketplace file.
 
-- **`release.sh:316` — `cmp -s` against jq's re-serialisation.** jq always
-  emits 2-space-indented JSON. A marketplace.json kept in any other style is
+- **`release.sh:316` — `cmp -s` against jq's re-serialisation.** jq always emits
+  2-space-indented JSON. A marketplace.json kept in any other style is
   reformatted wholesale, so every release commit carries a whole-file diff. Not
-  a defect today (the marketplace repo is jq-formatted), but it makes the
-  "no-op rewrite must not touch the file" guarantee on lines 312-315 conditional
-  on formatting that nothing enforces.
+  a defect today (the marketplace repo is jq-formatted), but it makes the "no-op
+  rewrite must not touch the file" guarantee on lines 312-315 conditional on
+  formatting that nothing enforces.
 
 ---
 
@@ -385,8 +387,9 @@ the findings above is coverage, not an oversight.
 
 **`set -e` blind spots.** Verified on bash 5.2 that a false `A && B` list does
 *not* trigger errexit, at top level with code following, and inside a `case`
-arm. That clears `version-guard.sh:35` (`[[ -n "$version_line" ]] && proposed=…`),
-`version-guard.sh:40` (`[[ … ]] && exit 0`), and `release.sh:108`
+arm. That clears `version-guard.sh:35`
+(`[[ -n "$version_line" ]] && proposed=…`), `version-guard.sh:40`
+(`[[ … ]] && exit 0`), and `release.sh:108`
 (`[ "$mode" = "release" ] && check_marketplace_writable`). The explanatory
 comment at `release.sh:105-107` is accurate as written.
 
@@ -415,15 +418,16 @@ empirically confirm on the target platform. Cheap to make moot if wanted.
 `shopt -s inherit_errexit`, or `getopt(1)` appears in any of the five files.
 `realpath -m` (finding #3) is the sole instance of the class.
 
-**`sort -V`** at `update.sh:79,96` — present on both GNU sort and macOS/BSD sort,
-so not a portability defect.
+**`sort -V`** at `update.sh:79,96` — present on both GNU sort and macOS/BSD
+sort, so not a portability defect.
 
-**`sed -E`** (`release.sh:299`) and **`grep -oE`** (`version-guard.sh:34`) — both
-portable; neither uses GNU-only `-r` or `-P`, and macOS grep does support `-o`.
+**`sed -E`** (`release.sh:299`) and **`grep -oE`** (`version-guard.sh:34`) —
+both portable; neither uses GNU-only `-r` or `-P`, and macOS grep does support
+`-o`.
 
 **`mktemp` usage.** Every call is bare `mktemp` / `mktemp -d` or a full template
-with six trailing `X`s (`release.sh:53`). No `-t`, whose semantics differ between
-GNU and BSD.
+with six trailing `X`s (`release.sh:53`). No `-t`, whose semantics differ
+between GNU and BSD.
 
 **`unset CDPATH`.** Present in `release.sh:20` and `check-version.sh:19` — the
 only two scripts that use `$(cd … && pwd)`. `install.sh`, `update.sh` and
@@ -463,16 +467,16 @@ propagates through the plain assignment to errexit, which is the honest
 behaviour even though the tailored "could not resolve a dist tag" message is
 then unreachable for that case.
 
-**Annotated-tag comparison** (`release.sh:263-264`). `git ls-remote origin
-refs/tags/X` does not also match the peeled `refs/tags/X^{}`, and
-`git rev-parse X` on an annotated tag returns the tag object — so both sides of
-the comparison are the tag object sha and the "refusing to move a published tag"
-guard compares like with like.
+**Annotated-tag comparison** (`release.sh:263-264`).
+`git ls-remote origin refs/tags/X` does not also match the peeled
+`refs/tags/X^{}`, and `git rev-parse X` on an annotated tag returns the tag
+object — so both sides of the comparison are the tag object sha and the
+"refusing to move a published tag" guard compares like with like.
 
-**Commit-gate rollback** (`release.sh:222-227`). `git checkout HEAD -- "$manifest"`
-resets both the index and the working tree for that path, so a refused
-pre-commit gate really does leave the tree as the run found it, as the comment
-claims.
+**Commit-gate rollback** (`release.sh:222-227`).
+`git checkout HEAD -- "$manifest"` resets both the index and the working tree
+for that path, so a refused pre-commit gate really does leave the tree as the
+run found it, as the comment claims.
 
 **Honest reporting.** `release.sh`'s final `note "Release $tag complete"` is
 genuinely unreachable unless every step succeeded, because errexit is live and

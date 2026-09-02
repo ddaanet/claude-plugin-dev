@@ -13,8 +13,8 @@
 # vendored. Clone the SOURCE tag (vX.Y.Z) to get the script; vendor the
 # DIST tag (dist-vX.Y.Z), whose root tree is only the consumer-facing
 # files. A subtree add of the source tag would copy this repo's whole
-# working environment into the plugin -- see docs/design.md "Consumers
-# vendor a split dist ref".
+# working environment into the plugin -- see the toolkit repo's
+# docs/references/distribution.md, "Consumers vendor a split dist ref".
 #
 # The script will:
 #   1. git subtree add the toolkit at plugin-dev/ (skipped if present)

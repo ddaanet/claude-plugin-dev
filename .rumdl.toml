@@ -1,0 +1,20 @@
+# Only MD013 with reflow: rumdl is used as a prose wrapper, not a linter.
+# Wrapping is what makes a line count mean something, which is what
+# `tests/docs-test.sh` gates. Headings, code and tables are not wrapped,
+# so they are not reported either.
+#
+# `reflow-mode = "normalize"` re-fills every paragraph to the column. The
+# default mode only breaks lines already over it, which leaves prose
+# hand-wrapped at 60 columns sitting at 1.3x the line count of the same
+# content -- a cap measured against that is measuring the wrap, not the
+# content.
+[global]
+enable = ["MD013"]
+
+[MD013]
+line-length = 80
+reflow = true
+reflow-mode = "normalize"
+headings = false
+code-blocks = false
+tables = false

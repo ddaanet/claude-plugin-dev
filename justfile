@@ -4,14 +4,15 @@ _default:
     @just --list
 
 # Run all syntax + style checks on the toolkit's own scripts.
-precommit: whitespace
+precommit: whitespace format-docs
     shellcheck toolkit/install.sh toolkit/version-guard.sh toolkit/check-version.sh toolkit/release.sh toolkit/update.sh
-    bash -n tests/hook-test.sh tests/release-test.sh tests/update-plugin-dev-test.sh tests/dist-tree-test.sh
+    bash -n tests/hook-test.sh tests/release-test.sh tests/update-plugin-dev-test.sh tests/dist-tree-test.sh tests/docs-test.sh
     just _import-check
     bash tests/hook-test.sh
     bash tests/release-test.sh
     bash tests/update-plugin-dev-test.sh
     bash tests/dist-tree-test.sh
+    bash tests/docs-test.sh
     @echo ok
 
 # Checks that run before a release. Add slow or paid checks here.
@@ -95,6 +96,37 @@ whitespace:
             echo "whitespace: $f"
         fi
     done < <(git ls-files | grep -E '(^justfile$|\.(sh|md|just)$)')
+
+# Hard-wrap prose in docs/ and plans/ at 80 columns, so a line count means something.
+format-docs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # The wrap is what makes `tests/docs-test.sh`'s line cap mean anything: an
+    # unwrapped file stays under a line count by cramming paragraphs onto
+    # 300-character lines. rumdl comes from uv.lock via `uv sync`, on PATH
+    # through `.envrc`; the pin check turns a stale `.venv` into a message
+    # rather than a differently wrapped tree.
+    # PATH first, so an override or a system install wins; then the venv by
+    # path, because a git hook runs `just precommit` without direnv having
+    # exported anything. Not `uv run`, which would reach for ~/.cache/uv and
+    # is blocked under a sandbox.
+    bin={{ rumdl }}
+    command -v "$bin" >/dev/null 2>&1 || bin="$PWD/.venv/bin/{{ rumdl }}"
+    have=$("$bin" --version 2>/dev/null) || {
+        echo "format-docs: rumdl not on PATH and no .venv — run 'uv sync'" >&2
+        exit 1
+    }
+    want=$(sed -n 's/.*"rumdl==\([0-9.]*\)".*/\1/p' pyproject.toml)
+    [ "$have" = "rumdl $want" ] || {
+        echo "format-docs: $have at $bin, pyproject.toml pins $want — run 'uv sync'" >&2
+        exit 1
+    }
+    # `fmt` exits 0 with anything it cannot wrap left in place; `check --fix`
+    # would exit 1 on the same tree and fail the gate over a long URL.
+    "$bin" fmt --no-cache docs plans
+
+# Overridable so a test can stand in a stub: `just rumdl=/path/to/stub format-docs`.
+rumdl := "rumdl"
 
 # Install .git/hooks/pre-commit to run just precommit. Idempotent.
 install-hooks:

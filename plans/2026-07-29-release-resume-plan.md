@@ -1,12 +1,14 @@
 # release.sh + `resume-release` Implementation Plan
 
-> **Landed.** This plan is executed and shipped; it is kept as the record of
-> how `release.sh` and `resume-release` were built, not as work to pick up.
-> The steps below are history — nothing here is outstanding.
+<!-- cap-ok: landed; kept whole as the record of how this shipped -->
 
-**Goal:** Move the consumer release flow out of `release.just`'s recipe body into
-`plugin-dev/release.sh`, and add a `--resume` mode that completes a release which
-landed only partially — exposed to consumers as `just resume-release`.
+> **Landed.** This plan is executed and shipped; it is kept as the record of how
+> `release.sh` and `resume-release` were built, not as work to pick up. The
+> steps below are history — nothing here is outstanding.
+
+**Goal:** Move the consumer release flow out of `release.just`'s recipe body
+into `plugin-dev/release.sh`, and add a `--resume` mode that completes a release
+which landed only partially — exposed to consumers as `just resume-release`.
 
 **Architecture:** One script, two entry paths through three blocks: a common
 pre-flight, a mode-specific pre-flight (compute-and-bump for `release`,
@@ -21,26 +23,29 @@ repos in a temp dir with a `gh` stub on `PATH`.
 
 ## Global Constraints
 
-- **bash 3.2 compatible.** No associative arrays, no `mapfile`, no `${x^^}`,
-  no `&>>`. The toolkit runs on macOS's system bash in consumer plugins.
+- **bash 3.2 compatible.** No associative arrays, no `mapfile`, no `${x^^}`, no
+  `&>>`. The toolkit runs on macOS's system bash in consumer plugins.
 - **Portable `sed`.** BSD and GNU differ on `-i` and on `\+`/`\?`. Use `-E`, and
   never `sed -i` inside shipped scripts (`jq` to a `mktemp` then `mv` is the
   established pattern).
 - **Never `local x=$(cmd)`.** The assignment masks the command's exit status
   under `set -e` (SC2155). Declare on one line, assign on the next.
-- **`set -euo pipefail`** at the top of every script, matching `check-version.sh`.
+- **`set -euo pipefail`** at the top of every script, matching
+  `check-version.sh`.
 - **shellcheck clean.** `just precommit` runs `shellcheck` over the `.sh` files;
   `release.sh` and `tests/release-test.sh` join that list in Task 1.
-- **Vendored path prefix is `plugin-dev/`** — `release.just` addresses siblings as
-  `{{toolkit_prefix}}/…`, scripts address them via `BASH_SOURCE`.
-- **No network in tests.** All git remotes are local bare repos; `gh` is stubbed.
-- **Commit message style:** gitmoji prefix, e.g. `✨ add release.sh with a resumable tail`.
-- **Quality gate:** `just precommit` must be green before every commit (it runs as
-  this repo's pre-commit hook).
+- **Vendored path prefix is `plugin-dev/`** — `release.just` addresses siblings
+  as `{{toolkit_prefix}}/…`, scripts address them via `BASH_SOURCE`.
+- **No network in tests.** All git remotes are local bare repos; `gh` is
+  stubbed.
+- **Commit message style:** gitmoji prefix, e.g.
+  `✨ add release.sh with a resumable tail`.
+- **Quality gate:** `just precommit` must be green before every commit (it runs
+  as this repo's pre-commit hook).
 - **Every assertion must be observed failing.** An assertion that has only ever
-  been green is not evidence — it may be testing nothing. An *error* is not a red
-  either: a run that dies on a missing file or a parse error never reached the
-  assertion, so it proves the harness executes and nothing more.
+  been green is not evidence — it may be testing nothing. An *error* is not a
+  red either: a run that dies on a missing file or a parse error never reached
+  the assertion, so it proves the harness executes and nothing more.
 
 ## Mutation validation
 
@@ -56,8 +61,8 @@ Protocol, per mutation:
    appear in the output. Extra failures are fine (a mutation may cascade); a
    *missing* label means that assertion is vacuous and must be fixed before
    moving on.
-3. Revert with the inverse edit — no stray `.orig`/`.bak` files, nothing to clean
-   up before the commit.
+3. Revert with the inverse edit — no stray `.orig`/`.bak` files, nothing to
+   clean up before the commit.
 4. Re-run `bash tests/release-test.sh` — green again. This is what proves the
    revert was complete; once `release.sh` is committed, `git diff release.sh`
    confirms it independently.
@@ -73,23 +78,23 @@ missing label no longer tells you which assertion is vacuous.
 
 - `release.sh` — the whole consumer release flow, both modes. Vendored into
   consumers at `plugin-dev/release.sh`.
-- `tests/release-test.sh` — offline end-to-end harness: fixture plugin repo, bare
-  origin, fixture marketplace repo with its own bare origin, `gh` stub.
-- `docs/changelog/2026-07-29-resume-release.md` — write-time record. Dated the day
-  it is written, matching the existing entries (`2026-07-27-check-version.md`
-  records v0.4.1/v0.4.2, both shipped earlier); if Task 4 lands on a later day,
-  use that day's date.
+- `tests/release-test.sh` — offline end-to-end harness: fixture plugin repo,
+  bare origin, fixture marketplace repo with its own bare origin, `gh` stub.
+- `docs/changelog/2026-07-29-resume-release.md` — write-time record. Dated the
+  day it is written, matching the existing entries
+  (`2026-07-27-check-version.md` records v0.4.1/v0.4.2, both shipped earlier);
+  if Task 4 lands on a later day, use that day's date.
 
 **Modify:**
 
 - `release.just:38-139` — the `release` recipe body becomes one line; a
   `resume-release` recipe is added.
-- `justfile:7-12` — `precommit` gains `release.sh` in the shellcheck list and runs
-  `tests/release-test.sh`.
+- `justfile:7-12` — `precommit` gains `release.sh` in the shellcheck list and
+  runs `tests/release-test.sh`.
 - `justfile:86-127` — `_import-check` gains an assertion that `resume-release`
   resolves in a stub consumer.
-- `check-version.sh` — no code change; `release.sh` adds the `resume-release` hint
-  around its failure.
+- `check-version.sh` — no code change; `release.sh` adds the `resume-release`
+  hint around its failure.
 - `docs/design.md` — new section, revisited Limitations.
 - `docs/changelog.md` — pointer line for the new entry.
 
@@ -106,10 +111,10 @@ The move first, the feature second: after this task `release.sh` does exactly
 what the recipe body did, with a test harness proving it. `--resume` arrives in
 Task 2.
 
-Both release paths are covered here, not just the happy one. `bump_marketplace`'s
-entry-*creation* branch is the code most likely to be broken by the move and the
-only one the resume scenarios never touch — it gets pinned in the same task that
-writes it, not four tasks later.
+Both release paths are covered here, not just the happy one.
+`bump_marketplace`'s entry-*creation* branch is the code most likely to be
+broken by the move and the only one the resume scenarios never touch — it gets
+pinned in the same task that writes it, not four tasks later.
 
 **Files:**
 - Create: `release.sh`
@@ -117,13 +122,14 @@ writes it, not four tasks later.
 - Modify: `justfile:7-12` (precommit)
 
 **Interfaces:**
-- Consumes: `check-version.sh` (sibling, invoked as `bash "$here/check-version.sh"`).
+- Consumes: `check-version.sh` (sibling, invoked as
+  `bash "$here/check-version.sh"`).
 - Produces: `release.sh` accepting `patch|minor|major` as `$1`; shell functions
   `common_preflight`, `release_preflight`, `bump_commit_tag`, `push_branch`,
   `push_tag`, `create_github_release`, `bump_marketplace`, and the globals they
   set: `manifest`, `branch`, `plugin_name`, `marketplace_json`,
-  `marketplace_entry_exists`, `V`, `tag`, `acted`. Task 2 adds `resume_preflight`,
-  the `mode` dispatch, and reads `acted`.
+  `marketplace_entry_exists`, `V`, `tag`, `acted`. Task 2 adds
+  `resume_preflight`, the `mode` dispatch, and reads `acted`.
 
 - **Step 1: Write the harness and both release scenarios**
 
@@ -303,8 +309,9 @@ bash tests/release-test.sh
 
 Expected: FAIL — `cp: .../release.sh: No such file or directory`. That is a
 *setup* failure, not an assertion failure: it proves the harness runs and the
-script is missing, and nothing else. **No assertion in this task ever goes red on
-its own** — the script and its tests arrive together. Step 5 is what earns them.
+script is missing, and nothing else.
+**No assertion in this task ever goes red on its own** — the script and its
+tests arrive together. Step 5 is what earns them.
 
 - **Step 3: Write `release.sh`**
 
@@ -524,13 +531,13 @@ mutation at a time, following the protocol in Mutation validation above.
 Notes on the two that need reading:
 
 - **#2** cascades: `push_tag`'s `git rev-parse "$tag"` dies, so the run exits
-  non-zero and the downstream labels fail too. That is the point — it is the only
-  mutation that exercises `happy-path exit code`. Confirm both listed labels
-  appear; ignore the rest.
+  non-zero and the downstream labels fail too. That is the point — it is the
+  only mutation that exercises `happy-path exit code`. Confirm both listed
+  labels appear; ignore the rest.
 - **#8** is the one that matters most. It forces the update branch on a
   marketplace with no entry, which is exactly the state the create branch exists
-  to handle. If the six create-entry labels do not all fail, those assertions are
-  not discriminating create from update and the scenario is worthless.
+  to handle. If the six create-entry labels do not all fail, those assertions
+  are not discriminating create from update and the scenario is worthless.
 
 If any assertion survives its mutation, fix the assertion — not the mutation —
 before continuing.
@@ -634,21 +641,23 @@ assert_eq "$(cat "$GH_LOG")" "" "no-tag resume must not call gh"
 bash tests/release-test.sh
 ```
 
-Expected: FAIL on `resume exit code`, `resume pushed the branch`, `resume pushed
-the tag`, `resume created the GitHub release`, `resume bumped the marketplace`,
-`resume summary`, and the two no-tag *message* assertions — `release.sh` treats
-`--resume` as a bump type, so `release_preflight`'s jq raises `unknown bump type:
---resume`. Those are genuine reds and need nothing further.
+Expected: FAIL on `resume exit code`, `resume pushed the branch`,
+`resume pushed the tag`, `resume created the GitHub release`,
+`resume bumped the marketplace`, `resume summary`, and the two no-tag *message*
+assertions — `release.sh` treats `--resume` as a bump type, so
+`release_preflight`'s jq raises `unknown bump type: --resume`. Those are genuine
+reds and need nothing further.
 
 Six assertions here are **not** red, and Step 5 validates them:
 
-- the four in the interrupted block (`interrupted release exit code`, `manifest
-  bumped before the failure`, `tag not on origin after the failure`, `marketplace
-  still stale after the failure`) — Task 1's code already produces that state;
-- `no-tag resume exit code`, which passes for the wrong reason (the jq crash also
-  exits 1);
-- `no-tag resume must not call gh`, which passes because the crash happens before
-  any `gh` call, not because a guard stopped it.
+- the four in the interrupted block (`interrupted release exit code`,
+  `manifest bumped before the failure`, `tag not on origin after the failure`,
+  `marketplace still stale after the failure`) — Task 1's code already produces
+  that state;
+- `no-tag resume exit code`, which passes for the wrong reason (the jq crash
+  also exits 1);
+- `no-tag resume must not call gh`, which passes because the crash happens
+  before any `gh` call, not because a guard stopped it.
 
 - **Step 3: Add the mode dispatch and `resume_preflight`**
 
@@ -734,8 +743,8 @@ Notes:
 - **#1** mutates the harness, not the script, because those four assertions
   describe a state the harness injects. Removing the injected fault is the only
   edit that can distinguish "the assertions observe the failure" from "they pass
-  no matter what". `manifest bumped before the failure` survives #1 (the manifest
-  is bumped either way), which is why #2 exists.
+  no matter what". `manifest bumped before the failure` survives #1 (the
+  manifest is bumped either way), which is why #2 exists.
 - **#3** keeps the hint text so only the exit-code assertion moves. If the two
   message assertions also fail, the mutation was applied wrong.
 - **#4** is what `no-tag resume must not call gh` actually protects: that the
@@ -808,8 +817,8 @@ fi
 bash tests/release-test.sh
 ```
 
-Expected: `all release scenarios passed` — including the earlier scenarios, which
-still assert `Release v1.2.4 complete`.
+Expected: `all release scenarios passed` — including the earlier scenarios,
+which still assert `Release v1.2.4 complete`.
 
 - **Step 11: Mutation-validate the healthy-resume assertions**
 
@@ -835,12 +844,11 @@ Notes:
   `git commit` exits 1 and the run dies before HEAD can move — that is #3's
   signal, not this one. Only guard-off *plus* `--allow-empty` produces the
   failure this assertion exists to catch: a resume that commits to the
-  marketplace when there was nothing to commit. Expect
-  `healthy resume summary` to fail alongside it (`acted` becomes 1); that
-  cascade is fine.
-- **#3** makes `git commit` run with nothing staged, which exits 1 under `set -e`
-  — the exact bug the early return exists to prevent, and the reason that branch
-  was written in Task 1.
+  marketplace when there was nothing to commit. Expect `healthy resume summary`
+  to fail alongside it (`acted` becomes 1); that cascade is fine.
+- **#3** makes `git commit` run with nothing staged, which exits 1 under
+  `set -e` — the exact bug the early return exists to prevent, and the reason
+  that branch was written in Task 1.
 - `setup release exit code` needs no mutation here: it is the same code path
   Task 1 step 5 mutation #2 already drove red.
 
@@ -856,8 +864,8 @@ git commit -m "✨ report nothing-to-do when resume finds a complete release"
 
 ### Task 3: `release.just` wrappers and the `_import-check` contract
 
-Small and inline-able: two recipe bodies and one assertion, but the assertion has
-a `set -e` trap worth reading carefully (Step 4).
+Small and inline-able: two recipe bodies and one assertion, but the assertion
+has a `set -e` trap worth reading carefully (Step 4).
 
 The check comes before the recipe here, deliberately. Written in the other order
 the `resume-release` assertion would be green on its first run and would need a
@@ -865,7 +873,8 @@ mutation to earn trust; written this way it is a genuine red for free.
 
 **Files:**
 - Modify: `justfile:86-127` (`_import-check`)
-- Modify: `release.just:38-139` (recipe bodies), `release.just:1-33` (header comment)
+- Modify: `release.just:38-139` (recipe bodies), `release.just:1-33` (header
+  comment)
 
 **Interfaces:**
 - Consumes: `release.sh`'s CLI from Tasks 1-2.
@@ -900,9 +909,10 @@ just _import-check
 ```
 
 Expected: FAIL — `error: Justfile does not contain recipe 'resume-release'`, and
-`_import-check` aborts there. The custom message is *not* what you see: `out=$(…)`
-is a simple command, so its non-zero status trips `set -e` before the `grep` runs.
-That is fine — the recipe fails, which is the red. It resolves once Step 3 lands.
+`_import-check` aborts there. The custom message is *not* what you see:
+`out=$(…)` is a simple command, so its non-zero status trips `set -e` before the
+`grep` runs. That is fine — the recipe fails, which is the red. It resolves once
+Step 3 lands.
 
 - **Step 3: Replace the `release` body and add `resume-release`**
 
@@ -938,11 +948,12 @@ Add to the file header comment, after the `MARKETPLACE_DIR` paragraph:
 just precommit
 ```
 
-Expected: `ok`, with `release.just import: ok (plain + widened + missing gate, resume-release)`.
+Expected: `ok`, with
+`release.just import: ok (plain + widened + missing gate, resume-release)`.
 
 Note the `if` form on the second assertion: `grep -q … && { … }` returns the
-grep's status, so under `set -e` a *non*-matching grep — the passing case — would
-abort the recipe.
+grep's status, so under `set -e` a *non*-matching grep — the passing case —
+would abort the recipe.
 
 - **Step 5: Mutation-validate the no-gate assertion**
 
@@ -986,22 +997,24 @@ section is an argument, not a transcription.
 
 **Files:**
 - Modify: `docs/design.md`
-- Create: `docs/changelog/2026-07-29-resume-release.md` (or the day it is written)
+- Create: `docs/changelog/2026-07-29-resume-release.md` (or the day it is
+  written)
 - Modify: `docs/changelog.md`
 - Check: `README.md`, `install.sh` for recipe lists needing `resume-release`
 
 - **Step 1: Add the design section**
 
 In `docs/design.md`, after "`check-version.sh`: catching a partially-completed
-release", add a section titled **"Recovery: `resume-release` and the shared
-release tail"** covering, in present tense:
+release", add a section titled
+**"Recovery: `resume-release` and the shared release tail"** covering, in
+present tense:
 
-- The tail (push branch, push tag, GitHub release, marketplace) is one idempotent
-  block that both `release` and `resume-release` run; state is probed with
-  `git ls-remote` and `gh release view` so the answer is authoritative without a
-  fetch.
-- Resume takes its version from the manifest and requires the local tag to
-  exist — it completes a release, it never starts one.
+- The tail (push branch, push tag, GitHub release, marketplace) is one
+  idempotent block that both `release` and `resume-release` run; state is probed
+  with `git ls-remote` and `gh release view` so the answer is authoritative
+  without a fetch.
+- Resume takes its version from the manifest and requires the local tag to exist
+  — it completes a release, it never starts one.
 - A remote tag at a different sha is an error, never a force-push.
 - `resume-release` has no `prerelease` dependency, and why.
 - Why the flow moved out of the recipe body: shellcheck coverage, offline
@@ -1009,19 +1022,20 @@ release tail"** covering, in present tense:
 - Why this repo's own self-release recipe stays bespoke (copy the reasoning from
   the spec's Out of scope section).
 
-Then revisit the **Limitations** list: "release is not atomic" stays true, but its
-consequence is now recoverable — state that rather than deleting the entry.
+Then revisit the **Limitations** list: "release is not atomic" stays true, but
+its consequence is now recoverable — state that rather than deleting the entry.
 
 - **Step 2: Write the changelog entry**
 
 Create `docs/changelog/2026-07-29-resume-release.md`, following the shape of the
-existing entries: what moved and the reasoning available at the time. Ground it in
-the gitlore 0.4.3 incident from the spec's Problem section, and record that the
-toolkit's own `v0.4.1` failed the same way (a `VERSION` bump commit with no tag).
+existing entries: what moved and the reasoning available at the time. Ground it
+in the gitlore 0.4.3 incident from the spec's Problem section, and record that
+the toolkit's own `v0.4.1` failed the same way (a `VERSION` bump commit with no
+tag).
 
 The date is the day the record is written, not the day the release ships — that
-is what the existing entries do (`2026-07-27-check-version.md` records v0.4.1 and
-v0.4.2, both already shipped). The version goes in the pointer line, not the
+is what the existing entries do (`2026-07-27-check-version.md` records v0.4.1
+and v0.4.2, both already shipped). The version goes in the pointer line, not the
 filename.
 
 - **Step 3: Add the changelog pointer**
@@ -1065,18 +1079,18 @@ merged and reviewed.
 just release minor
 ```
 
-Expected: `VERSION` at `0.5.0`, tag `v0.5.0` pushed, GitHub release created.
-If it dies partway, finish it by hand — `git push`, `git push origin v0.5.0`,
+Expected: `VERSION` at `0.5.0`, tag `v0.5.0` pushed, GitHub release created. If
+it dies partway, finish it by hand — `git push`, `git push origin v0.5.0`,
 `gh release create v0.5.0 --title "Release 0.5.0" --generate-notes` — which is
 exactly why the self-release recipe stays bespoke.
 
 - **Step 2: Propagate to consumers**
 
 In each consumer, `just update-plugin-dev v0.5.0`. `gitlore` already defines
-`prerelease: precommit evals` and needs no justfile edit. `handoff` and `gitmoji`
-have not adopted v0.4.0 yet: each needs `prerelease: precommit` added **in the
-same commit as the subtree pull**, or their justfiles fail to compile on arrival —
-every recipe, not just `release`.
+`prerelease: precommit evals` and needs no justfile edit. `handoff` and
+`gitmoji` have not adopted v0.4.0 yet: each needs `prerelease: precommit` added
+**in the same commit as the subtree pull**, or their justfiles fail to compile
+on arrival — every recipe, not just `release`.
 
 - **Step 3: Verify in one consumer**
 
@@ -1084,4 +1098,5 @@ every recipe, not just `release`.
 just check-version && just --list
 ```
 
-Expected: `check-version: in sync (…)`, and `resume-release` present in the list.
+Expected: `check-version: in sync (…)`, and `resume-release` present in the
+list.

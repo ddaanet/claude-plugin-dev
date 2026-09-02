@@ -8,10 +8,10 @@ without it, and the workaround — remembering to type `just prerelease release`
 is discipline, not a gate.
 
 **Every consumer must add `prerelease: precommit` to its justfile** when
-adopting this tag. Without it, just rejects the whole justfile with `unknown
-dependency prerelease`, so *every* recipe fails, `just precommit` included. That
-blast radius is deliberate: it fires at update time, when the maintainer is
-already in the justfile, and names the exact missing recipe.
+adopting this tag. Without it, just rejects the whole justfile with
+`unknown dependency prerelease`, so *every* recipe fails, `just precommit`
+included. That blast radius is deliberate: it fires at update time, when the
+maintainer is already in the justfile, and names the exact missing recipe.
 
 `_import-check` now tests three stub shapes — plain (`prerelease: precommit`),
 widened (`prerelease: precommit evals`), and missing — asserting via `--dry-run`

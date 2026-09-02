@@ -3,10 +3,9 @@
 2026-08-27 — target: `claude-plugin-dev` · found from `gitlore`
 
 Both were found auditing gitlore's vendored `plugin-dev/` subtree and are
-recorded there as propose-only (a vendored subtree is never hand-edited; the
-fix arrives via a `dist-vX.Y.Z` bump). Both re-verified against this repo's
-current `toolkit/release.sh` before writing this, not carried over from the
-audit text.
+recorded there as propose-only (a vendored subtree is never hand-edited; the fix
+arrives via a `dist-vX.Y.Z` bump). Both re-verified against this repo's current
+`toolkit/release.sh` before writing this, not carried over from the audit text.
 
 ### 1. `check_marketplace_writable` discards mktemp's own words
 
@@ -43,10 +42,10 @@ ahead of HEAD by design between commits — but `memory` is only gitlore's
 installed the store elsewhere gets "uncommitted changes" on every release, and
 the message names nothing that would let them find out why.
 
-Reading the path from `.gitmodules` generalises it — the submodule whose name
-or url identifies it as the gitlore memory store, rather than the literal
-`memory`. A repo with no such submodule keeps today's behaviour, since the
-pathspec is then a no-op.
+Reading the path from `.gitmodules` generalises it — the submodule whose name or
+url identifies it as the gitlore memory store, rather than the literal `memory`.
+A repo with no such submodule keeps today's behaviour, since the pathspec is
+then a no-op.
 
 ### Cleared, not a defect — but worth a comment
 

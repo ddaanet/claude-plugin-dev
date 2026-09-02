@@ -1,7 +1,6 @@
 # claude-plugin-dev — recovery path for a half-landed release — Design
 
-**Date:** 2026-07-29
-**Status:** Approved design, ready for implementation
+**Date:** 2026-07-29 **Status:** Approved design, ready for implementation
 **Scope:** Move the consumer release flow out of `release.just`'s recipe body
 into a `release.sh` script, and add a `--resume` mode that completes a release
 which landed only partially. Exposed to consumers as `just resume-release`.
@@ -9,8 +8,8 @@ which landed only partially. Exposed to consumers as `just resume-release`.
 ## Problem
 
 `release` is not atomic and cannot easily be made so. It bumps
-`.claude-plugin/plugin.json`, commits, tags, `git push`, `git push origin
-<tag>`, `gh release create`, and only then bumps
+`.claude-plugin/plugin.json`, commits, tags, `git push`,
+`git push origin <tag>`, `gh release create`, and only then bumps
 `$MARKETPLACE_DIR/.claude-plugin/marketplace.json` and pushes that repo.
 Everything from the tag push onward is irreversible or outward-facing.
 
@@ -34,8 +33,8 @@ completes it:
   `release`'s clean-tree check on `$MARKETPLACE_DIR`. The bump has to be
   committed and pushed either way.
 
-So the gap is that nothing satisfies the guard except hand-running the
-remaining steps against another repo:
+So the gap is that nothing satisfies the guard except hand-running the remaining
+steps against another repo:
 
 ```
 git push && git push origin v0.4.3 \
@@ -124,16 +123,16 @@ Probes use `ls-remote` and `gh release view` rather than remote-tracking refs,
 so the answer is authoritative without requiring a prior `git fetch`.
 
 A remote tag that exists but points at a *different* sha is an error, never a
-force-push: it means the tag was moved or reused, which no recovery should
-paper over.
+force-push: it means the tag was moved or reused, which no recovery should paper
+over.
 
 The marketplace step keeps both of today's branches (bump an existing entry;
 synthesise one from `plugin.json` plus the `origin`-derived repo slug on first
 publication) and its existing idempotent-commit check.
 
-When resume finds every step already done it reports `release v$V is already
-complete (nothing to do)` and exits 0. Running it against a healthy repo is a
-no-op that says so, not an error.
+When resume finds every step already done it reports
+`release v$V is already complete (nothing to do)` and exits 0. Running it
+against a healthy repo is a no-op that says so, not an error.
 
 `release` mode's `check-version` failure message gains a line naming
 `just resume-release`, so the guard that detects the drift now points at the
@@ -157,8 +156,8 @@ Expect a few shellcheck findings to fix during the move.
 
 Harness, entirely offline: a bare `origin.git` plus a plugin clone with the
 toolkit copied into `plugin-dev/` (so `BASH_SOURCE` resolution matches a real
-consumer's vendored layout), a bare marketplace origin plus a marketplace
-clone, and a `gh` stub on `PATH` that records its invocations and answers
+consumer's vendored layout), a bare marketplace origin plus a marketplace clone,
+and a `gh` stub on `PATH` that records its invocations and answers
 `release view` from a marker file `release create` writes. A rejected push is
 simulated with a `pre-push` hook that exits 1 — the gitlore failure exactly.
 
@@ -205,4 +204,5 @@ spec and is deleted when the work lands.
   outward-facing; the design accepts partial landing and makes it recoverable.
 - Rolling a release *back*. Recovery only ever moves forward to the version
   already committed.
-- Hybrid Python+plugin repos (`edify`), unchanged from docs/design.md's Limitations.
+- Hybrid Python+plugin repos (`edify`), unchanged from docs/design.md's
+  Limitations.

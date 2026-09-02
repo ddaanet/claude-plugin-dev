@@ -55,12 +55,26 @@ or removing a shipped file means updating the list in
 - `justfile` — *this repo's own* dev recipes (distinct from
   `release.just`). Defines `precommit` and the toolkit's self-`release`
   recipe. Root-level, so it is not shipped.
-- `docs/design.md` — living rationale for every design decision.
-  States what the toolkit *is*. Update when design choices change.
+- `README.md` — presents this repo and carries the consumer install and
+  update instructions. Root-level, so it is not shipped: the vendored
+  manual is `toolkit/README.md`, and a change to the install or update
+  flow has to land in both.
+- `docs/design.md` — the design hub: motivation, requirements,
+  limitations, and a one-line conclusion per decision. States what the
+  toolkit *is*. Read it first and open only the node you need.
+- `docs/references/*.md` — one node per group of decisions
+  (`distribution`, `release-flow`, `recovery`, `version-guard`), each
+  holding the argument behind the hub's conclusions: alternatives
+  weighed, the bug that motivated it, what it costs. A decision that
+  changes is rewritten in both places.
 - `docs/changelog.md` — index of write-time records, newest first, one
-  line per entry. Bodies live in `docs/changelog/YYYY-MM-DD-slug.md`.
+  entry per bullet. Bodies live in `docs/changelog/YYYY-MM-DD-slug.md`.
 - `plans/` — specs and implementation plans. Prospective content only;
   `docs/` holds what is true now.
+- `pyproject.toml`, `.rumdl.toml`, `.envrc` — dev tooling, not a Python
+  package and not shipped. `uv sync` materializes `.venv`, direnv puts
+  it on PATH, and `just format-docs` runs rumdl over `docs/` and
+  `plans/`.
 
 ## Quality gate
 
@@ -68,9 +82,13 @@ or removing a shipped file means updating the list in
 just precommit
 ```
 
-Runs `bash -n` and `shellcheck` on the shell scripts, plus a private
+Runs `bash -n` and `shellcheck` on the shell scripts, a private
 `_import-check` that imports `release.just` into a stub consumer to
-catch justfile syntax errors. Must be green before committing.
+catch justfile syntax errors, and `tests/docs-test.sh` (the 400-line cap
+over `docs/` and `plans/`, plus pointer resolution). It also runs
+`format-docs`, which needs rumdl: `uv sync` once, and the recipe finds
+`.venv/bin/rumdl` whether or not direnv has exported it. Must be green
+before committing.
 
 ## Releasing the toolkit
 
@@ -84,20 +102,21 @@ creates a GitHub release. Refuses to run on a dirty tree or when
 `toolkit/VERSION` disagrees with the latest tag (same invariant as the
 consumer release recipe protects on `plugin.json`).
 
-Tags only; never expect consumers to track `main`. See docs/design.md
-"Versioning" and "Consumers vendor a split dist ref" for the reasoning.
+Tags only; never expect consumers to track `main`. See
+docs/references/distribution.md "Versioning" and "Consumers vendor a
+split dist ref" for the reasoning.
 
 ## Conventions
 
 - **The consumer-defined commit gate is `precommit`**, not `validate`.
   All documentation and example justfiles must use this name. See
-  docs/design.md "Recipe naming".
+  docs/references/release-flow.md "Recipe naming".
 - **`release` depends on `prerelease`, never on `precommit` directly.**
   Consumers define both; `prerelease: precommit` is the usual body, and
   a consumer with slow or paid checks widens it. Don't "simplify" the
-  indirection away — see docs/design.md "Release gate". Any change to the
-  binding must keep `_import-check`'s three stub shapes passing (plain,
-  widened, and missing-`prerelease`).
+  indirection away — see docs/references/release-flow.md "Release
+  gate". Any change to the binding must keep `_import-check`'s three
+  stub shapes passing (plain, widened, and missing-`prerelease`).
 - **Hook output is dual-channel.** When `version-guard.sh` denies an
   edit, `permissionDecisionReason` carries the verbose agent-facing
   message (no escape hatches the agent can self-authorise);
@@ -121,9 +140,10 @@ Tags only; never expect consumers to track `main`. See docs/design.md
   longer explanation in a file header or inside the recipe body — but
   never above a shebang recipe's `#!` line, which must come first.
 - **Design and changelog are separate files with separate rules.**
-  `docs/design.md` is present-tense: overturned decisions are rewritten
-  in place with the new reasoning, never struck through. Each change
-  also gets a dated write-time record at
+  `docs/design.md` and its `docs/references/` nodes are present-tense:
+  overturned decisions are rewritten in place with the new reasoning,
+  never struck through, in the hub's conclusion and in the node's
+  argument alike. Each change also gets a dated write-time record at
   `docs/changelog/YYYY-MM-DD-slug.md`, pointed at from
   `docs/changelog.md` — those are never revised, because a dated record
   is correct forever precisely because it is dated.

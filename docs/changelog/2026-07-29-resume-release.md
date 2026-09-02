@@ -29,12 +29,12 @@ What landed: the last four steps of a release — push branch, push tag, GitHub
 release, marketplace bump — became one idempotent block that both `release` and
 a new `resume-release` run, each step probing remote state (`git ls-remote` for
 the branch and tag, `gh release view` for the release, `ls-remote` against the
-marketplace repo's own origin for the marketplace push) before acting. Resume takes its version
-from the manifest and requires the local tag to exist, so it completes a release
-and never starts one. A remote tag at a different sha is an error, never a
-force-push. `resume-release` has no `prerelease` dependency: the gate already
-passed before the interruption, and making recovery cost a paid gate is how you
-get people finishing releases by hand instead.
+marketplace repo's own origin for the marketplace push) before acting. Resume
+takes its version from the manifest and requires the local tag to exist, so it
+completes a release and never starts one. A remote tag at a different sha is an
+error, never a force-push. `resume-release` has no `prerelease` dependency: the
+gate already passed before the interruption, and making recovery cost a paid
+gate is how you get people finishing releases by hand instead.
 
 The flow moved out of `release.just`'s recipe body into `plugin-dev/release.sh`
 to buy shellcheck coverage, offline end-to-end tests against real git repos with
@@ -45,12 +45,13 @@ Building it turned up four defects in the implementation plan and one in the
 shipped code. Two mutation-table entries proved nothing when actually run — one
 aborted on an unbound variable under `set -u` before reaching the code it meant
 to break, the other corrupted the scenario's own setup step so the assertion
-could not discriminate. A third mutation's `grep` pattern never matched `just
---dry-run`'s quoted output. The code defect: the new argument dispatch called
-`die` from a position above `die()`'s definition, so an unknown flag exited 127
-with `die: command not found` instead of the usage message — shellcheck clean,
-and uncovered by any test until one was added. All four were caught by insisting
-that every assertion be observed failing before it is trusted.
+could not discriminate. A third mutation's `grep` pattern never matched
+`just --dry-run`'s quoted output. The code defect: the new argument dispatch
+called `die` from a position above `die()`'s definition, so an unknown flag
+exited 127 with `die: command not found` instead of the usage message —
+shellcheck clean, and uncovered by any test until one was added. All four were
+caught by insisting that every assertion be observed failing before it is
+trusted.
 
 The whole-branch review then found the same class of bug in the feature itself.
 The marketplace step was the one tail step whose "already done" probe read the

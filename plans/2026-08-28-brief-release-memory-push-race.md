@@ -11,13 +11,12 @@ argument is stated as D46 in gitlore's
 
 `release.sh` runs `bump_commit_tag` — the release commit's gitlore `pre-commit`
 hook commits memory, advances memory's `live`, and stages the memory gitlink
-into the release commit — then tags, then `push_branch`. The parent's
-`pre-push` hook publishes each tier's `live` and then memory's *before* the
-parent push (gitlore NFR5). If any store's `origin/live` moved between the
-commit and the push, that hook prepares a merge, prints
-`gitlore: memory merge prepared` with the resolve directive, and refuses; under
-`set -euo pipefail` the script dies with the commit and the tag landed locally
-and nothing pushed.
+into the release commit — then tags, then `push_branch`. The parent's `pre-push`
+hook publishes each tier's `live` and then memory's *before* the parent push
+(gitlore NFR5). If any store's `origin/live` moved between the commit and the
+push, that hook prepares a merge, prints `gitlore: memory merge prepared` with
+the resolve directive, and refuses; under `set -euo pipefail` the script dies
+with the commit and the tag landed locally and nothing pushed.
 
 The window is human-paced, not narrow: the FR11 approval round on the release
 commit itself sits inside it, and so does the review of any merge. It can also
@@ -28,25 +27,23 @@ that happens, so the push can be refused any number of times before it lands.
 
 The direction on the table was a `refresh_release_commit` step on the resume
 path: after the merge lands, `git commit --amend` the release commit so its
-gitlink names the merged memory, then `git tag -f`, guarded by
-branch-unpushed and tag-unpublished. gitlore's `pre-commit` would have
-cooperated — a plain `--amend` on the tip is not a replay to it, so it re-pins
-the gitlink itself.
+gitlink names the merged memory, then `git tag -f`, guarded by branch-unpushed
+and tag-unpublished. gitlore's `pre-commit` would have cooperated — a plain
+`--amend` on the tip is not a replay to it, so it re-pins the gitlink itself.
 
 It is unnecessary, and the reason is an invariant that holds in every round:
 
-**The gitlink a parent commit records is always an ancestor of memory's
-`live`, or `live` itself.** `pre-commit` makes it `live` itself. Each
-`head-vs-remote` merge takes the pending commit — the one the release recorded
-— as its *second* parent (gitlore D6, authority first), so it stays an
-ancestor however many times `origin/live` moves and the merge is re-prepared
-or re-reviewed.
+**The gitlink a parent commit records is always an ancestor of memory's `live`,
+or `live` itself.** `pre-commit` makes it `live` itself. Each `head-vs-remote`
+merge takes the pending commit — the one the release recorded — as its *second*
+parent (gitlore D6, authority first), so it stays an ancestor however many times
+`origin/live` moves and the merge is re-prepared or re-reviewed.
 
 **The window closes exactly when a push of `live` succeeds.** That push
 publishes every ancestor, so `origin/live` contains the gitlink from that
-moment; and because `pre-push` publishes memory before the parent, a parent
-push that exits 0 implies the release commit's gitlink is public. Nothing in
-that needs the tagged commit to name the merge.
+moment; and because `pre-push` publishes memory before the parent, a parent push
+that exits 0 implies the release commit's gitlink is public. Nothing in that
+needs the tagged commit to name the merge.
 
 A gitlink behind memory's HEAD is gitlore's resting state, not drift: the
 session-start fast-forward, `commit-memory.sh` and `/gitlore:merge` all leave
@@ -74,20 +71,20 @@ The existing resume path is the recovery, unchanged:
   `pre-push` again — and may be refused again if `origin/live` moved meanwhile.
 - `push_tag`, `create_github_release`, `bump_marketplace` proceed as before.
 
-So the loop is: `/gitlore:resolve` in Claude Code (the merge needs the
-sub-agent and the approval, which a shell script cannot drive), then
+So the loop is: `/gitlore:resolve` in Claude Code (the merge needs the sub-agent
+and the approval, which a shell script cannot drive), then
 `just resume-release`, repeated until the push lands. No code change is needed
 for correctness.
 
 ## A preflight that makes the window empty
 
 The loop above is the recovery; the release can also be arranged so it never
-runs. `pre-push` yields only on a genuine divergence: a store whose local
-`live` is a strict ancestor of `origin/live` is classified `behind`, prints
-"nothing to publish — run `/gitlore:merge`", and the push proceeds (gitlore ≥
-0.6.0; 0.5.0 stranded the tier on that state). So a release whose memory is
-clean and already published cannot yield: the release commit pins nothing new,
-and `pre-push` has nothing to send.
+runs. `pre-push` yields only on a genuine divergence: a store whose local `live`
+is a strict ancestor of `origin/live` is classified `behind`, prints "nothing to
+publish — run `/gitlore:merge`", and the push proceeds (gitlore ≥ 0.6.0; 0.5.0
+stranded the tier on that state). So a release whose memory is clean and already
+published cannot yield: the release commit pins nothing new, and `pre-push` has
+nothing to send.
 
 The order matters, because `/gitlore:merge` is itself a source of uncommitted
 memory. Taking a tier's upstream facts fast-forwards the tier and writes the
@@ -98,28 +95,28 @@ incident in `brief-release-commit-rejection-strands-bump.md`) or, with the
 summary approved, puts the approval round back inside the release. The
 resolve-free ordering is:
 
-1. Optionally `/gitlore:merge`, then commit memory under its approval — a
-   parent commit, or the standalone memory commit — so the tree is clean.
+1. Optionally `/gitlore:merge`, then commit memory under its approval — a parent
+   commit, or the standalone memory commit — so the tree is clean.
 2. `/gitlore:push`, and read its report: every store at its remote, nothing
    uncommitted named as unpublished.
 3. `just release`.
 
 A behind tier can be left behind: the release push proceeds past it with the
 notice, and taking the facts afterwards dirties memory *after* the release,
-where it rides the next ordinary commit. Following the notice between step 2
-and step 3 reopens the window step 2 closed.
+where it rides the next ordinary commit. Following the notice between step 2 and
+step 3 reopens the window step 2 closed.
 
 ## Optional, for the maintainer
 
-1. **Name the loop at the failure.** When `git push` in `push_branch` fails,
-   the only text is gitlore's own directive, which says resolve but not what
-   to run afterwards. A one-line hint after the failure — resolve the memory
-   merge (`/gitlore:resolve` in Claude Code), then `just resume-release`;
-   repeat if the push is refused again — closes that. Since the hook's own
-   message is what the agent reads, keep the hint short and after it.
-2. **A test.** `tests/release-test.sh` could carry a case with a `pre-push`
-   hook that refuses once and passes on the second call: `release` dies after
-   the tag exists locally; `--resume` completes; the tag was never moved
+1. **Name the loop at the failure.** When `git push` in `push_branch` fails, the
+   only text is gitlore's own directive, which says resolve but not what to run
+   afterwards. A one-line hint after the failure — resolve the memory merge
+   (`/gitlore:resolve` in Claude Code), then `just resume-release`; repeat if
+   the push is refused again — closes that. Since the hook's own message is what
+   the agent reads, keep the hint short and after it.
+2. **A test.** `tests/release-test.sh` could carry a case with a `pre-push` hook
+   that refuses once and passes on the second call: `release` dies after the tag
+   exists locally; `--resume` completes; the tag was never moved
    (`git rev-parse v$V` unchanged across the two runs).
 3. **A comment, not a step.** A sentence near `push_branch` saying that a
    refused push is re-pushed after resolve and that the release commit is never

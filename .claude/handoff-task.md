@@ -1,7 +1,7 @@
 ## Current task
 
-Two threads, both between pieces of work.
+Two threads.
 
-The toolkit thread has nothing in flight. Its live question is the install/update invocation design — a brainstorm interrupted during context-gathering, before any design was presented; the three separable sub-questions are in the todo file.
+The docs restructuring just landed and is green: `docs/design.md` is a 190-line hub carrying one conclusion per decision, its arguments live in four `docs/references/` nodes, `just format-docs` hard-wraps `docs/` and `plans/` with rumdl, and `tests/docs-test.sh` gates a 400-line cap plus pointer resolution. Two scope questions about it are open.
 
-The memory index thread is unresolved. The root index sits over Claude Code's loader cap, so its tail never reaches a session, and the entry falling past the cutoff is this repo's own only project pointer. The remedy is settled; the selection is not.
+The toolkit thread has nothing in flight. Its live question is the install/update invocation design — a brainstorm interrupted during context-gathering, before any design was presented.

@@ -6,8 +6,8 @@ First publication now creates the `marketplace.json` entry from `plugin.json`
 for '<name>'" — which had made the *first* release of any plugin impossible
 through the recipe, exactly when the marketplace touch matters most.
 
-The marketplace commit also became idempotent: a no-op rewrite (entry already
-at the target version) is reported and skipped rather than failing the recipe
+The marketplace commit also became idempotent: a no-op rewrite (entry already at
+the target version) is reported and skipped rather than failing the recipe
 *after* the release already landed. Under `set -e` that failure surfaced as
 `exit code 1` on a release that had actually succeeded.
 

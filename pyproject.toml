@@ -1,0 +1,16 @@
+# Dev tooling only; nothing here is a Python package, and none of it ships --
+# `toolkit/` is the shipped boundary and this file sits outside it. `uv sync`
+# materializes `.venv/bin`, which `.envrc` puts on PATH; `just format-docs`
+# then calls a bare `rumdl` off PATH. No pyyaml equivalent is needed here:
+# nothing in this repo probes `python3` for a module, so the venv's python3
+# shadowing the system one costs nothing.
+[project]
+name = "claude-plugin-dev-tools"
+version = "0"
+requires-python = ">=3.9"
+
+[dependency-groups]
+dev = ["rumdl==0.2.60"]
+
+[tool.uv]
+package = false

@@ -6,18 +6,17 @@ and 2026-08-13 (`brief-subtree-squash-leaks-memory-submodule.md`,
 and `gitlore` consumers.
 
 `git subtree` copies the **root tree** of the ref it is given, and this repo's
-root is its own working environment. Every consumer that vendored a `vX.Y.Z`
-tag therefore received, tracked in its own history: the `memory` gitlink,
-`.claude/` (including `settings.json` and the maintainer's `handoff-task.md`),
-`.envrc`, `.gitlore/bin/claude`, `.gitignore`, `.gitmodules`, `CLAUDE.md`, this
-repo's own `justfile`, `docs/`, `plans/` and `tests/` — 37 paths where 8 were
-wanted.
+root is its own working environment. Every consumer that vendored a `vX.Y.Z` tag
+therefore received, tracked in its own history: the `memory` gitlink, `.claude/`
+(including `settings.json` and the maintainer's `handoff-task.md`), `.envrc`,
+`.gitlore/bin/claude`, `.gitignore`, `.gitmodules`, `CLAUDE.md`, this repo's own
+`justfile`, `docs/`, `plans/` and `tests/` — 37 paths where 8 were wanted.
 
-Two beyond what the briefs identified. `CLAUDE.md` ships agent instructions
-that load for a consumer's agent working under `plugin-dev/`, telling it it is
-in the toolkit repo; and this repo's `justfile` lands as a second justfile
-inside the consumer. Both join `.claude/settings.json` in the "changes
-behaviour" class rather than the "inert clutter" class.
+Two beyond what the briefs identified. `CLAUDE.md` ships agent instructions that
+load for a consumer's agent working under `plugin-dev/`, telling it it is in the
+toolkit repo; and this repo's `justfile` lands as a second justfile inside the
+consumer. Both join `.claude/settings.json` in the "changes behaviour" class
+rather than the "inert clutter" class.
 
 Fixed by moving the consumer-facing files under `toolkit/` and having
 `just release` cut a second tag per release —
@@ -27,21 +26,21 @@ vendor instead. `install.sh` and `update-plugin-dev` now accept **only** a
 entire leak silently and stays invisible until someone runs
 `git submodule status`.
 
-Refusing branch refs is a reversal, not just a tightening. They were
-previously permitted with a "prefer a tag for reproducibility" warning, on the
-reasoning that reproducibility was the only thing at stake. It is not: a
-branch resolves to the same root tree a source tag does, so nothing about
-being a branch makes its tree safe to vendor.
+Refusing branch refs is a reversal, not just a tightening. They were previously
+permitted with a "prefer a tag for reproducibility" warning, on the reasoning
+that reproducibility was the only thing at stake. It is not: a branch resolves
+to the same root tree a source tag does, so nothing about being a branch makes
+its tree safe to vendor.
 
-That reversal in turn retires the `-c fetch.recurseSubmodules=no` scoping
-added in v0.5.2 and extended to `install.sh` in v0.5.4. Its collision needed
-the fetched lineage to carry a gitlink at a path the consumer had registered
-as a submodule; the dist lineage carries no gitlink, and no other lineage is
-vendorable, so the case cannot arise. It was briefly kept as "defence in
-depth" — which, for a case unreachable by construction, is a reassuring name
-for cruft. The tests' `not our ref` assertions went with it: they could no
-longer fail, since the refusal now exits before any fetch. Replaced by
-scenarios asserting the refusals themselves, which can.
+That reversal in turn retires the `-c fetch.recurseSubmodules=no` scoping added
+in v0.5.2 and extended to `install.sh` in v0.5.4. Its collision needed the
+fetched lineage to carry a gitlink at a path the consumer had registered as a
+submodule; the dist lineage carries no gitlink, and no other lineage is
+vendorable, so the case cannot arise. It was briefly kept as "defence in depth"
+— which, for a case unreachable by construction, is a reassuring name for cruft.
+The tests' `not our ref` assertions went with it: they could no longer fail,
+since the refusal now exits before any fetch. Replaced by scenarios asserting
+the refusals themselves, which can.
 
 The migration was expected to produce a wall of conflicts, since the dist
 lineage is unrelated to what consumers previously pulled. Checked rather than
