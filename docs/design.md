@@ -125,6 +125,10 @@ the dated record of the reversal goes in the changelog.
 - **`resume-release` completes one** — the last four steps are an idempotent
   block that probes remote state before acting. It completes a release; it never
   starts one, and it says so when there was nothing to do.
+- **A refusal carries the diagnosis and the next command** — where the tree
+  state is non-obvious or a release may already be partly public, the message
+  states what was checked, what was exempt, and what to run. It ships with the
+  vendored tree, so it reaches consumers no memory store or `docs/` page does.
 - **The clean-tree check exempts `.claude/` and the gitlore memory gitlink** —
   an agent session moves both between commits by design, so their being ahead of
   HEAD is the resting state. The memory path is read from `.gitmodules` by

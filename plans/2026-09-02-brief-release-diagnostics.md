@@ -2,6 +2,10 @@
 
 2026-09-02
 
+> **Landed 2026-09-03.** Implemented in `toolkit/release.sh`; kept as the record
+> of what was decided, not as work to pick up. See
+> [../docs/changelog/2026-09-03-release-messages-carry-the-diagnosis.md](../docs/changelog/2026-09-03-release-messages-carry-the-diagnosis.md).
+
 Turn the operational lore around `release` and `resume-release` — currently held
 in ddaanet memory as `claude-plugin-dev-release` — into output the scripts emit
 at the moment of failure.

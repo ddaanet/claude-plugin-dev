@@ -9,6 +9,11 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-09-03 — Release refusals carry the diagnosis and the next command](changelog/2026-09-03-release-messages-carry-the-diagnosis.md)
+  — the lore about `uncommitted changes`, what is already public at the
+  marketplace step, and the `/add-dir` denial moved out of a ddaanet memory file
+  into the messages `release.sh` prints at each failure; paths are read
+  NUL-delimited and the exemptions named are the ones that copy applies
 - [2026-09-02 — The design doc became a hub, and docs got a gate](changelog/2026-09-02-design-hub-and-docs-gate.md)
   — `design.md` was 837 lines; its arguments moved into four `docs/references/`
   nodes and it kept one-line conclusions. `just format-docs` wraps `docs/` and

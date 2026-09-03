@@ -35,6 +35,14 @@ assert_contains() {
     fi
 }
 
+assert_not_contains() {
+    # $1=haystack $2=needle $3=label
+    if printf '%s' "$1" | grep -q -- "$2"; then
+        fail "$3: output contained '$2'"
+        printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
+    fi
+}
+
 sandboxes=()
 cleanup() {
     local s
@@ -286,6 +294,12 @@ assert_eq "$(git -C "$plugin" ls-remote origin refs/tags/v1.2.4 | wc -l | tr -d 
 assert_eq "$(market_version)" "1.2.4" "marketplace committed locally despite the failure"
 assert_eq "$(git -C "$marketplace" ls-remote origin refs/heads/main | cut -f1)" \
     "$(git -C "$marketplace" log -1 --format=%H HEAD^)" "marketplace origin not yet at the bumped commit"
+# The last outward step of the release, so a bare git error as the last word
+# would leave the operator to work out what is already public.
+assert_contains "$out" "push of the marketplace bump failed" "refused marketplace push names what failed"
+assert_contains "$out" "public through its GitHub release" "refused marketplace push says what already landed"
+assert_contains "$out" "just resume-release" "refused marketplace push names the recovery command"
+assert_contains "$out" "/add-dir $marketplace" "refused marketplace push names the classifier remedy"
 
 rm -f "$marketplace/.git/hooks/pre-push"
 run_in "$plugin" bash plugin-dev/release.sh --resume
@@ -467,7 +481,27 @@ mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
 run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "1" "dirty-plugin-root release exit code"
 assert_contains "$out" "uncommitted changes" "dirty-plugin-root release message"
+# A bare "uncommitted changes" is what made the operator suspect the checker
+# rather than the tree. The message names the path it refused on, and the
+# exemptions it did apply — here both of them, since a memory store is mounted.
+assert_contains "$out" ".claude-plugin/plugin.json" "dirty-plugin-root names the offending path"
+assert_contains "$out" "memory/ — the gitlore memory submodule" "dirty-plugin-root names the memory exemption"
+assert_contains "$out" ".claude/ — agent working state" "dirty-plugin-root names the .claude exemption"
+assert_contains "$out" ".claude-plugin/ is NOT exempt" "dirty-plugin-root rules out the near-miss reading"
 assert_eq "$(cat "$GH_LOG")" "" "dirty-plugin-root release must not call gh"
+
+# A word-split read of `git diff --name-only` reports one spaced path as two,
+# and both halves are then wrong: neither names a file the operator can act on.
+echo "=== release: the dirty-path report keeps a spaced path in one piece ==="
+new_sandbox "1.2.3"
+printf 'v1\n' > "$plugin/a tracked file.txt"
+git -C "$plugin" add -A
+git -C "$plugin" commit -qm "add a spaced path"
+printf 'v2\n' >> "$plugin/a tracked file.txt"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "spaced-path exit code"
+# The leading indent is the assertion: the whole path sits on one reported line.
+assert_contains "$out" "        a tracked file.txt$" "spaced path reported whole"
 
 echo "=== release: proceeds with a resting memory submodule in the marketplace repo ==="
 new_sandbox "1.2.3"
@@ -485,6 +519,11 @@ mv "$marketplace/.claude-plugin/marketplace.json.tmp" "$marketplace/.claude-plug
 run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "1" "dirty-marketplace release exit code"
 assert_contains "$out" "$MARKETPLACE_DIR has uncommitted changes" "dirty-marketplace release message"
+# This one can also fire on a release that is already public through its GitHub
+# release, with the bump staged and its commit refused — so it must name both
+# the path and the command that finishes such a release.
+assert_contains "$out" ".claude-plugin/marketplace.json" "dirty-marketplace names the offending path"
+assert_contains "$out" "just resume-release" "dirty-marketplace names the recovery command"
 assert_eq "$(cat "$GH_LOG")" "" "dirty-marketplace release must not call gh"
 
 # A space in the mount path is the case a word-split read of .gitmodules would
@@ -544,6 +583,10 @@ mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
 run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "1" "claude-plugin-decoy exit code"
 assert_contains "$out" "uncommitted changes" "claude-plugin-decoy message"
+# No memory store is mounted here, so the exemption list must not claim one:
+# the message reports the exclusions this copy of the script actually applied,
+# not a list written from memory.
+assert_not_contains "$out" "gitlore memory submodule" "claude-plugin-decoy claims no exemption it did not apply"
 assert_eq "$(cat "$GH_LOG")" "" "claude-plugin-decoy release must not call gh"
 
 echo "=== release: a first release publishes the manifest version verbatim ==="
@@ -572,6 +615,8 @@ for word in patch minor major; do
     assert_eq "$rc" "1" "first-release '$word' exit code"
     assert_contains "$out" "never been released" "first-release '$word' explains why"
     assert_contains "$out" "0.1.0" "first-release '$word' names the version it would publish"
+    assert_contains "$out" "set .version in .claude-plugin/plugin.json" \
+        "first-release '$word' names the remedy for wanting another version"
     assert_eq "$(git -C "$plugin" tag --list 'v*')" "" "first-release '$word' creates no tag"
     assert_eq "$(cat "$GH_LOG")" "" "first-release '$word' must not call gh"
     assert_eq "$(market_version)" "" "first-release '$word' must not touch the marketplace"
@@ -592,6 +637,22 @@ run_in "$plugin" bash plugin-dev/release.sh patch   # ...but the fixture's v1.2.
 assert_eq "$rc" "0" "tagged-unpublished exit code"
 assert_contains "$out" "Release v1.2.4 complete" "tagged-unpublished bumps forward"
 assert_eq "$(market_version)" "1.2.4" "tagged-unpublished marketplace entry created at the bumped version"
+
+# The marketplace entry is seeded at the hand-bumped version so check-version.sh
+# passes and the manifest-vs-tag check is the one that fires.
+echo "=== release: a manifest ahead of the newest tag names the invariant it broke ==="
+new_sandbox "1.3.0"
+jq '.version = "1.3.0"' "$plugin/.claude-plugin/plugin.json" > "$plugin/.claude-plugin/plugin.json.tmp"
+mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
+git -C "$plugin" commit -qam "hand-bump the manifest"
+git -C "$plugin" push -q origin main
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "version-drift exit code"
+assert_contains "$out" "does not match latest tag" "version-drift names the mismatch"
+assert_contains "$out" "LAST released version, never the next one" "version-drift states the invariant"
+assert_contains "$out" "git checkout HEAD -- .claude-plugin/plugin.json" "version-drift gives the revert command"
+assert_eq "$(git -C "$plugin" tag --list 'v1.3.1')" "" "version-drift creates no tag"
+assert_eq "$(cat "$GH_LOG")" "" "version-drift must not call gh"
 
 echo "=== release: a refused commit rolls the manifest back ==="
 new_sandbox "1.2.3"
@@ -622,6 +683,37 @@ run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "0" "re-run after a refused commit exit code"
 assert_contains "$out" "Release v1.2.4 complete" "re-run completes the release"
 assert_eq "$(market_version)" "1.2.4" "re-run bumped the marketplace"
+
+echo "=== release: a refused marketplace commit says what is already public ==="
+new_sandbox "1.2.3"
+# The mirror of the scenario above, one repo over and much later in the flow:
+# by the time the marketplace commit runs, the version commit, tag, branch
+# push and GitHub release are all public. The bump is left staged, which the
+# next run reads as an unrelated dirty tree — so this message has to name both.
+cat > "$marketplace/.git/hooks/pre-commit" <<'HOOK'
+#!/bin/sh
+echo "pre-commit: refusing" >&2
+exit 1
+HOOK
+chmod +x "$marketplace/.git/hooks/pre-commit"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "refused-marketplace-commit exit code"
+assert_contains "$out" "commit gate refused the marketplace bump" "refused-marketplace-commit names what failed"
+assert_contains "$out" "public through its GitHub release" "refused-marketplace-commit says what already landed"
+assert_contains "$out" "git -C $marketplace checkout HEAD -- .claude-plugin/marketplace.json" \
+    "refused-marketplace-commit gives the command that clears the leftover"
+assert_contains "$out" "just resume-release" "refused-marketplace-commit names the recovery command"
+assert_eq "$(git -C "$plugin" ls-remote origin refs/tags/v1.2.4 | wc -l | tr -d ' ')" \
+    "1" "refused-marketplace-commit left the plugin tag public"
+
+# The printed recovery is the whole recovery: run it verbatim and resume finishes.
+rm -f "$marketplace/.git/hooks/pre-commit"
+git -C "$marketplace" checkout HEAD -- .claude-plugin/marketplace.json
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "0" "resume after a refused marketplace commit exit code"
+assert_eq "$(market_version)" "1.2.4" "resume rewrote and committed the marketplace bump"
+assert_eq "$(git -C "$marketplace" ls-remote origin refs/heads/main | cut -f1)" \
+    "$(git -C "$marketplace" rev-parse HEAD)" "resume pushed the marketplace"
 
 echo "=== release: a non-v tag nearer than the release tag does not read as the latest release ==="
 new_sandbox "1.2.3"

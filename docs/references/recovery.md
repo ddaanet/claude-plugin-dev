@@ -110,6 +110,40 @@ and less close to the code. Folding it in would also make the toolkit consume
 its own consumer-shaped code, which the "don't run `release.just`'s recipes from
 this repo" rule exists to prevent.
 
+## The refusal is where the operational knowledge lives
+
+What to do when a release dies is knowledge that has to arrive at the moment it
+dies. Two places could have held it and neither reaches the reader in time. A
+ddaanet memory file is readable only from a machine that mounts the tier, and
+only when an index line matches the string the failure happened to print — while
+the consumer hitting the failure is often a plugin repo with no memory store at
+all. A `docs/` page is worse: nothing routes a reader to a document mid-failure,
+and the `dist-` tree ships no `docs/`. The script is in every consumer by
+construction, so the message is the one channel that cannot be missed, and the
+one that cannot drift from the check it guards.
+
+So every refusal on a path where the tree state is non-obvious, or where a
+release may already be partly public, states three things: what was checked,
+what was exempt from it, and the exact next command. The clean-tree checks print
+the offending paths and the exemptions that did not save them; the marketplace
+checks say what is already published before naming `just resume-release`; the
+first-release and version-drift refusals state the invariant they protect and
+give the command that satisfies it.
+
+Two constraints shape the wording. No message offers a way to skip a check — the
+same rule the version-guard hook's deny message follows, for the same reason: an
+agent reads a named bypass as authorisation to take it. And the exemptions a
+message lists are built in the same place as the pathspecs it reports on
+(`clean_pathspecs` returns both), so a consumer whose vendored `plugin-dev/`
+predates one of the exclusions is never told about an exclusion its own copy
+does not make. Its `tree_is_clean` is the authority on what it exempts, and the
+message is generated from it rather than written alongside it.
+
+Paths printed from a diff are read NUL-delimited: a spaced path reported as two
+words names two files that do not exist. A path containing a newline still
+prints across two lines, which no git quoting mode survives `-z` to fix, and the
+comment states that bound rather than implying full coverage.
+
 ## The clean-tree check excludes the agent's own working state
 
 `common_preflight` refuses to release from a dirty tree, in the plugin repo and
