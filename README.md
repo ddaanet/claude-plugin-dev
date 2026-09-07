@@ -126,8 +126,8 @@ git commit -m "add claude-plugin-dev toolkit"
 ## Updating in a plugin
 
 ```sh
-just update-plugin-dev                # newest dist tag on the remote
-just update-plugin-dev dist-vX.Y.Z   # or pin one
+just update-plugin-dev                 # newest dist tag on the remote
+just update-plugin-dev dist-vX.Y.Z     # or pin one
 ```
 
 To see what is available:
@@ -146,6 +146,18 @@ A release that needs a consumer-side step (say, a new required justfile
 recipe) ships a note at `plugin-dev/migrations/vX.Y.Z.md`. After the
 pull, every note in the crossed version range is printed. Apply them by
 hand: the update itself never edits files outside `plugin-dev/`.
+
+**Then run `just --list` before considering the pull done.** A toolkit
+version that requires a consumer-side change — the `prerelease` recipe
+was one — makes `just` refuse to compile *any* recipe, so nothing in
+your justfile works and nothing announces it. The breakage surfaces at
+the next unrelated recipe run, which may be days later and will look
+unrelated to the update. A note is optional per release, so this check
+stands whether or not one was printed.
+
+Land the consumer-side fix as its own commit, separate from the
+subtree-pull merge commit. The merge is toolkit content; the fix is your
+plugin's own.
 
 A plugin vendored before dist refs existed carries the toolkit's leaked
 working environment under `plugin-dev/` — most visibly a `plugin-dev/memory`

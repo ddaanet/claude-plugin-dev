@@ -427,19 +427,20 @@ bump_marketplace() {
         : # already at $V locally; still must check whether it reached origin
     else
         # A hook in the marketplace repo can refuse this, and by now everything
-        # before it is public. The bump stays staged, which is the state
-        # common_preflight then reads as an unrelated dirty tree — so say what is
-        # there before that message has to guess.
+        # before it is public. Leaving the bump staged strands it: common_preflight
+        # reads that as an unrelated dirty tree and refuses `resume-release`, the
+        # one command that would finish the release. Restore from HEAD for the
+        # same reason bump_commit_tag does — common_preflight established that
+        # tree clean, so this leaves it as this run found it, and resume can then
+        # write the bump again and push it with no manual repair in between.
         git -C "$MARKETPLACE_DIR" commit -m "release: $plugin_name $V" || {
+            git -C "$MARKETPLACE_DIR" checkout HEAD -- .claude-plugin/marketplace.json
             printf 'hint: %s is public through its GitHub release; only the\n' "$tag" >&2
-            printf '      marketplace entry is behind. the bump to %s is written and staged in\n' "$V" >&2
-            printf '      %s and left there.\n' "$MARKETPLACE_DIR" >&2
-            printf '      fix what the gate reported above, then clear the leftover with\n' >&2
-            printf '        git -C %s checkout HEAD -- .claude-plugin/marketplace.json\n' "$MARKETPLACE_DIR" >&2
+            printf '      marketplace entry is behind. the bump to %s was rolled back, so\n' "$V" >&2
+            printf '      %s is as this run found it.\n' "$MARKETPLACE_DIR" >&2
             # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
-            printf '      and run `just resume-release`, which writes the bump again and\n' >&2
-            printf '      pushes it. resume refuses to start while that tree is dirty, so the\n' >&2
-            printf '      checkout is not optional.\n' >&2
+            printf '      fix what the gate reported above, then run `just resume-release`,\n' >&2
+            printf '      which writes the bump again and pushes it.\n' >&2
             die "commit gate refused the marketplace bump"
         }
         committed=1
