@@ -58,7 +58,8 @@ or removing a shipped file means updating the list in
 - `README.md` — presents this repo and carries the consumer install and
   update instructions. Root-level, so it is not shipped: the vendored
   manual is `toolkit/README.md`, and a change to the install or update
-  flow has to land in both.
+  flow has to land in both — `tests/doc-sync-test.sh` enforces that over
+  the command blocks the two sections share.
 - `docs/design.md` — the design hub: motivation, requirements,
   limitations, and a one-line conclusion per decision. States what the
   toolkit *is*. Read it first and open only the node you need.
@@ -84,8 +85,11 @@ just precommit
 
 Runs `bash -n` and `shellcheck` on the shell scripts, a private
 `_import-check` that imports `release.just` into a stub consumer to
-catch justfile syntax errors, and `tests/docs-test.sh` (the 400-line cap
-over `docs/` and `plans/`, plus pointer resolution). It also runs
+catch justfile syntax errors, `tests/docs-test.sh` (the 400-line cap
+over `docs/` and `plans/`, plus pointer resolution) and
+`tests/doc-sync-test.sh` (the install/update command blocks shared by the
+two READMEs, and the Layout list below against `toolkit/`'s actual
+contents). It also runs
 `format-docs`, which needs rumdl: `uv sync` once, and the recipe finds
 `.venv/bin/rumdl` whether or not direnv has exported it. Must be green
 before committing.

@@ -132,6 +132,10 @@ the dated record of the reversal goes in the changelog.
   state is non-obvious or a release may already be partly public, the message
   states what was checked, what was exempt, and what to run. It ships with the
   vendored tree, so it reaches consumers no memory store or `docs/` page does.
+- **A commit a consumer's gate refuses is rolled back** — the manifest bump and
+  the marketplace bump alike are restored from HEAD, because the leftover is
+  what `common_preflight` then reads as an unrelated dirty tree, blocking both
+  `release` and the `resume-release` that would finish a partly-public one.
 - **The clean-tree check exempts `.claude/` and the gitlore memory gitlink** —
   an agent session moves both between commits by design, so their being ahead of
   HEAD is the resting state. The memory path is read from `.gitmodules` by

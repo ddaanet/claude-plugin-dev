@@ -121,6 +121,11 @@ plugin only when someone runs this. A release needing a consumer-side
 step ships a note at `plugin-dev/migrations/vX.Y.Z.md`, printed after the
 pull — the update itself never edits files outside `plugin-dev/`.
 
+Then run `just --list` before considering the pull done: a version that
+requires a consumer-side change makes `just` refuse to compile *any*
+recipe, and nothing else announces it until an unrelated recipe run days
+later. [toolkit/README.md](toolkit/README.md) has the full procedure.
+
 **Never hand-edit `plugin-dev/` in a consumer.** It is subtree-managed
 content owned by this repo; local edits diverge from every other consumer
 and conflict on the next pull. Change the source here, cut a release, and
@@ -159,7 +164,7 @@ environment and stays here. Adding or removing a shipped file means
 updating the list in `tests/dist-tree-test.sh`, which fails otherwise.
 
 ```sh
-just precommit    # shellcheck + bash -n + the four test scripts
+just precommit    # shellcheck + bash -n + the test scripts
 just release [patch|minor|major]
 ```
 

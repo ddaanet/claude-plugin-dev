@@ -9,6 +9,19 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-09-07 — The README absorbs the post-pull check, and memory shrinks](changelog/2026-09-07-readme-absorbs-the-post-pull-check.md)
+  — `toolkit/README.md`'s update section gains `just --list` as a verification
+  step and the separate-commit rule; the ddaanet memory entry drops from 4025
+  bytes to what the shipped manual cannot own, the routing line and the
+  changelog that is not in the dist tree
+- [2026-09-07 — Two CLAUDE.md rules became static checks](changelog/2026-09-07-doc-sync-static-checks.md)
+  — `tests/doc-sync-test.sh` compares the command blocks the two READMEs share
+  and CLAUDE.md's `toolkit/` paths against the shipped tree; it found the
+  `just update-plugin-dev` block already diverged
+- [2026-09-07 — A refused marketplace commit rolls the bump back too](changelog/2026-09-07-marketplace-refusal-rolls-back.md)
+  — the leftover staged bump blocked `resume-release` on `common_preflight`, the
+  one command that finishes a release already public through its GitHub release;
+  the printed two-command recovery is now `just resume-release` alone
 - [2026-09-05 — The bootstrap stops cloning the repo to get one file](changelog/2026-09-05-the-bootstrap-stops-cloning-the-repo.md)
 - [2026-09-03 — Release refusals carry the diagnosis and the next command](changelog/2026-09-03-release-messages-carry-the-diagnosis.md)
   — the lore about `uncommitted changes`, what is already public at the

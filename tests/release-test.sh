@@ -684,12 +684,13 @@ assert_eq "$rc" "0" "re-run after a refused commit exit code"
 assert_contains "$out" "Release v1.2.4 complete" "re-run completes the release"
 assert_eq "$(market_version)" "1.2.4" "re-run bumped the marketplace"
 
-echo "=== release: a refused marketplace commit says what is already public ==="
+echo "=== release: a refused marketplace commit rolls the bump back and says what is public ==="
 new_sandbox "1.2.3"
 # The mirror of the scenario above, one repo over and much later in the flow:
 # by the time the marketplace commit runs, the version commit, tag, branch
-# push and GitHub release are all public. The bump is left staged, which the
-# next run reads as an unrelated dirty tree — so this message has to name both.
+# push and GitHub release are all public. A staged leftover here would be read
+# by the next run as an unrelated dirty tree and refuse `resume-release` — the
+# one command that finishes the release — so the bump is rolled back instead.
 cat > "$marketplace/.git/hooks/pre-commit" <<'HOOK'
 #!/bin/sh
 echo "pre-commit: refusing" >&2
@@ -700,15 +701,17 @@ run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "1" "refused-marketplace-commit exit code"
 assert_contains "$out" "commit gate refused the marketplace bump" "refused-marketplace-commit names what failed"
 assert_contains "$out" "public through its GitHub release" "refused-marketplace-commit says what already landed"
-assert_contains "$out" "git -C $marketplace checkout HEAD -- .claude-plugin/marketplace.json" \
-    "refused-marketplace-commit gives the command that clears the leftover"
+assert_contains "$out" "was rolled back" "refused-marketplace-commit says the bump was rolled back"
 assert_contains "$out" "just resume-release" "refused-marketplace-commit names the recovery command"
+assert_eq "$(market_version)" "1.2.3" "refused-marketplace-commit rolled the marketplace back"
+run_in "$marketplace" git status --porcelain
+assert_eq "$out" "" "refused-marketplace-commit left a clean marketplace tree"
 assert_eq "$(git -C "$plugin" ls-remote origin refs/tags/v1.2.4 | wc -l | tr -d ' ')" \
     "1" "refused-marketplace-commit left the plugin tag public"
 
-# The printed recovery is the whole recovery: run it verbatim and resume finishes.
+# The rollback is what makes this the whole recovery: satisfy the gate and
+# resume finishes, with no manual checkout in between.
 rm -f "$marketplace/.git/hooks/pre-commit"
-git -C "$marketplace" checkout HEAD -- .claude-plugin/marketplace.json
 run_in "$plugin" bash plugin-dev/release.sh --resume
 assert_eq "$rc" "0" "resume after a refused marketplace commit exit code"
 assert_eq "$(market_version)" "1.2.4" "resume rewrote and committed the marketplace bump"

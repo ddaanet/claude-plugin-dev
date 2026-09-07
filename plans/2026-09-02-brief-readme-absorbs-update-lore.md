@@ -2,6 +2,14 @@
 
 2026-09-02
 
+> **Landed 2026-09-07.** Implemented in `toolkit/README.md` and `README.md`,
+> with the memory entry reduced; kept as the record of what was decided, not as
+> work to pick up. The "First install is out of scope" section below was settled
+> separately by
+> [2026-09-04-design-install-bootstrap-fetches-the-script.md](2026-09-04-design-install-bootstrap-fetches-the-script.md).
+> See
+> [../docs/changelog/2026-09-07-readme-absorbs-the-post-pull-check.md](../docs/changelog/2026-09-07-readme-absorbs-the-post-pull-check.md).
+
 The vendoring and update lore held in ddaanet memory as `claude-plugin-dev` is
 almost entirely already in `toolkit/README.md`. One item is not, and it is the
 one whose absence is silent.

@@ -67,6 +67,19 @@ from HEAD, returning the tree to what the run found: a refused commit means
 satisfy the gate and run the same command again, and recovery is not involved.
 Only the commit is guarded — a `pre-commit` hook cannot fail `git tag`.
 
+The marketplace commit is guarded the same way, and there the argument is one
+step stronger. It is the last step of a release and its only write outside the
+plugin repo, so a refusal leaves the version commit, tag, branch push and GitHub
+release already public: the release genuinely is partial and `resume-release` is
+what finishes it. A bump left staged in `MARKETPLACE_DIR` is precisely what
+`common_preflight` reads as an unrelated dirty tree, so the leftover blocks the
+one command that would help. The refusal used to print the
+`git -C … checkout HEAD -- .claude-plugin/marketplace.json` to run first, which
+made the recovery two commands and the first of them mandatory — the same
+argument that made the manifest rollback automatic. It is automatic here too:
+the tree is restored to the state `common_preflight` had already established was
+clean, and the whole printed recovery is `just resume-release`.
+
 A push refused by a consumer's `pre-push` hook is resume's ordinary case, and
 the release commit is never amended to chase it. gitlore's hook publishes every
 memory store before the parent push and refuses when one diverged, so the
