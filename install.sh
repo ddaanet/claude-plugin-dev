@@ -2,19 +2,23 @@
 # Install or re-wire the claude-plugin-dev toolkit in the current
 # Claude Code plugin repository.
 #
-# First-time install (toolkit not yet vendored):
+# First-time install (toolkit not yet vendored). A dist- tag's root tree
+# IS toolkit/, so the tag being vendored also serves this file:
 #
-#     git clone --depth 1 -b vX.Y.Z \
-#         git@github.com:ddaanet/claude-plugin-dev.git /tmp/cpd
+#     repo=ddaanet/claude-plugin-dev
 #     cd /path/to/plugin
-#     bash /tmp/cpd/toolkit/install.sh [dist-vX.Y.Z]
+#     tag=$(git ls-remote --tags --refs --sort=-v:refname \
+#             "https://github.com/$repo.git" 'dist-v*' \
+#             | head -1 | sed 's|.*/||')
+#     curl -fsSL "https://raw.githubusercontent.com/$repo/$tag/install.sh" \
+#         | bash -s -- "$tag"
 #
-# With no ref, the newest dist- tag on the remote is resolved and
-# vendored. Clone the SOURCE tag (vX.Y.Z) to get the script; vendor the
-# DIST tag (dist-vX.Y.Z), whose root tree is only the consumer-facing
-# files. A subtree add of the source tag would copy this repo's whole
-# working environment into the plugin -- see the toolkit repo's
-# docs/references/distribution.md, "Consumers vendor a split dist ref".
+# Passing the resolved tag pins fetched script and vendored tree to one
+# release; with no ref, the newest dist- tag is resolved here instead.
+# Only the DIST tag (dist-vX.Y.Z) is vendorable -- a subtree add of the
+# SOURCE tag (vX.Y.Z) copies this repo's whole working environment into
+# the plugin. See the toolkit repo's docs/references/distribution.md,
+# "Consumers vendor a split dist ref".
 #
 # The script will:
 #   1. git subtree add the toolkit at plugin-dev/ (skipped if present)
