@@ -45,22 +45,27 @@ reads day to day.
 
 ## Installing in a plugin
 
-Clone the toolkit at its newest **source** tag to get the script, then
-run it from the plugin's root directory. It resolves and vendors the
-newest **dist** tag itself:
+Resolve the newest **dist** tag, fetch that tag's `install.sh`, and run
+it from the plugin's root directory:
 
 ```sh
-url=git@github.com:ddaanet/claude-plugin-dev.git
-tag=$(git ls-remote --tags --refs --sort=-v:refname "$url" 'v*' \
-        | head -1 | sed 's|.*/||')
-git clone --depth 1 -b "$tag" "$url" /tmp/cpd
+repo=ddaanet/claude-plugin-dev
 cd /path/to/your/plugin
-bash /tmp/cpd/toolkit/install.sh
+tag=$(git ls-remote --tags --refs --sort=-v:refname \
+        "https://github.com/$repo.git" 'dist-v*' | head -1 | sed 's|.*/||')
+curl -fsSL "https://raw.githubusercontent.com/$repo/$tag/install.sh" \
+    | bash -s -- "$tag"
 ```
 
+A `dist-` tag's root tree *is* `toolkit/`, so that URL serves exactly the
+`install.sh` the plugin is about to vendor, at exactly the ref it vendors
+— there is no separate download channel to keep in step. Passing `$tag`
+on to the script makes the installer and the vendored tree one release by
+construction, instead of two independent lookups that normally agree.
+
 The block names no version, so it cannot go stale. To pin an older
-toolkit, pass its dist tag: `bash /tmp/cpd/toolkit/install.sh
-dist-vX.Y.Z`.
+toolkit, substitute its dist tag in both places. The first install needs
+`curl`; nothing else here does.
 
 `install.sh` reads `$PWD` as the target plugin and aborts unless it finds
 `.claude-plugin/plugin.json` there. It vendors the toolkit under

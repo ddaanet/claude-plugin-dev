@@ -83,6 +83,9 @@ the dated record of the reversal goes in the changelog.
 - **One `install.sh` bootstraps and wires in a single invocation** — subtree
   add, justfile import, hook into `.claude/settings.json`. It only ever adds to
   what the consumer owns, and re-running it is a no-op.
+- **The first install is `curl … | bash` at a dist tag** — a `dist-` ref's root
+  tree is `toolkit/`, so one tag serves the installer and the content it
+  vendors, and the resolved tag is passed through so the two are one release.
 - **`install.sh` takes its target from `$PWD`, not an argument** — the magic-cwd
   risk is contained by an early guard for `.claude-plugin/plugin.json`.
 - **The update flow lives in `update.sh`, not in the recipe body** — a justfile

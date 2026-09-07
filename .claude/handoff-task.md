@@ -1,20 +1,20 @@
 ## Current task
 
-One thread, not mid-flight.
+One thread. Two briefs in `plans/` supersede the two ddaanet memory entries
+about this toolkit by moving each fact to an artifact that already ships. The
+release-diagnostics one landed earlier; so has the first-install invocation,
+which is now a `curl` of the dist tag's root `install.sh` piped to
+`bash -s -- "$tag"`, replacing the clone of the source tag into `/tmp/cpd`. That
+one is recorded in both READMEs, in `install.sh`'s header comment, as its own
+section in `docs/references/distribution.md` (where the old anti-`curl | bash`
+rule is overturned, not narrowed, because its stated reason — inspectability —
+was never performed), as a hub conclusion line, and in a dated changelog entry.
+It was dogfooded end to end against a scratch plugin repo, not a fixture.
 
-The docs and memory work is settled: `docs/changelog/` stays inside `just
-format-docs` with the historical reflow grandfathered, and the
-`claude-plugin-dev` memory is split into a vendoring entry and a release entry,
-both now under the 4096-byte recall cap that the single 7.5KB file was
-truncating at 54%.
-
-What remains is the consequence of that split. Two briefs in `plans/` supersede
-both memory entries by moving each fact to an artifact that already ships — the
-release lore becomes diagnostic output `release.sh` emits at the failure, and
-the vendoring lore folds into `toolkit/README.md`, which the human's own
-install or update request routes an agent to. Neither brief is implemented, and
-the memory entries retire only when they land.
-
-Also live: how a first install should be invoked, which is the one moment
-`toolkit/README.md` cannot reach because the tree it lives in does not exist
-yet.
+What remains is the second brief,
+`plans/2026-09-02-brief-readme-absorbs-update-lore.md`: fold the vendoring and
+update lore into `toolkit/README.md`, which a human's own install or update
+request routes an agent to, then reduce `memory/ddaanet/claude-plugin-dev.md` to
+whatever the README does not own. That file sits ~70 bytes under the 4KB recall
+cap even after this session trimmed its install bullet, so the reduction is
+overdue rather than optional.

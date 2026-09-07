@@ -161,13 +161,31 @@ and a vendored "wire" step (`bash plugin-dev/install.sh` post-vendor). Rejected
 exists") is solved by making the script self-aware of which phase it's in. One
 step is worth more than the conceptual purity of separation.
 
-`curl … | bash` is *not* the recommended bootstrap path. The README points to a
-`git clone --depth 1` of the newest source tag (resolved by `ls-remote`, so the
-block never names a version and cannot go stale) followed by
-`bash /tmp/cpd/toolkit/install.sh`, so the script can be inspected before
-execution. A sibling-checkout shortcut was rejected for the docs: a local
-checkout is a local optimisation, and the instructions must work for someone who
-has only the plugin repo in front of them.
+## The bootstrap is `curl … | bash`, at a dist tag
+
+The README resolves the newest `dist-` tag with `ls-remote` (so the block never
+names a version and cannot go stale), fetches that tag's root `install.sh` over
+HTTPS, and pipes it to bash with the same tag as its argument. A `dist-` ref's
+root tree *is* `toolkit/`, so the URL serves the very file the plugin is about
+to vendor, at the ref it vendors: no second distribution channel exists to fall
+out of step with the dist lineage, and no release asset has to be uploaded and
+kept correct. Passing the tag through spares `install.sh` the `ls-remote` on its
+no-ref path and, more to the point, makes fetched script and vendored tree one
+release by construction — they are otherwise two independent queries, over HTTPS
+here and the SSH `TOOLKIT_URL` there.
+
+Fetching to a file and running that is rejected. Its usual justification — the
+script can be inspected before execution — describes nothing that happens: every
+form of this block fetches a remote script and immediately runs it, so the extra
+step performs the letter of the rule against `curl … | bash` while doing the
+same thing in spirit, and at a fixed `/tmp` path it adds a file someone else can
+pre-plant or swap between the fetch and the run. The one substantive property a
+file buys is atomicity — bash executes what it has read, so a dropped connection
+can run a truncated installer — and `install.sh` being idempotent covers it: a
+partial run is repaired by running it again, the same remedy as for any other
+interrupted install. A sibling-checkout shortcut is rejected for the docs too: a
+local checkout is a local optimisation, and the instructions must work for
+someone who has only the plugin repo in front of them.
 
 ## Run-in-target invocation pattern
 

@@ -53,22 +53,26 @@ content that was vendored at the time.
 
 ## Installing in a plugin
 
-Clone the toolkit at its newest **source** tag to get the script, then
-run `install.sh` from the plugin's root directory; it resolves and
-vendors the newest **dist** tag itself:
+Resolve the newest **dist** tag, fetch that tag's `install.sh`, and run
+it from the plugin's root directory:
 
 ```sh
-url=git@github.com:ddaanet/claude-plugin-dev.git
-tag=$(git ls-remote --tags --refs --sort=-v:refname "$url" 'v*' \
-        | head -1 | sed 's|.*/||')
-git clone --depth 1 -b "$tag" "$url" /tmp/cpd
+repo=ddaanet/claude-plugin-dev
 cd /path/to/your/plugin
-bash /tmp/cpd/toolkit/install.sh
+tag=$(git ls-remote --tags --refs --sort=-v:refname \
+        "https://github.com/$repo.git" 'dist-v*' | head -1 | sed 's|.*/||')
+curl -fsSL "https://raw.githubusercontent.com/$repo/$tag/install.sh" \
+    | bash -s -- "$tag"
 ```
 
+A `dist-` tag's root tree *is* `toolkit/`, so that URL serves the same
+`install.sh` the plugin is about to vendor, at the same ref. Handing the
+resolved tag to the script keeps the two in lockstep and saves it a
+second `ls-remote`.
+
 This block never names a version, so it cannot go stale. To pin an older
-version, pass its dist tag explicitly: `bash /tmp/cpd/toolkit/install.sh
-dist-vX.Y.Z`.
+version, substitute its dist tag in both places. The first install needs
+`curl`; nothing else here does.
 
 `install.sh` does three things:
 

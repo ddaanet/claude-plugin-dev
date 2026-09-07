@@ -9,6 +9,7 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-09-05 — The bootstrap stops cloning the repo to get one file](changelog/2026-09-05-the-bootstrap-stops-cloning-the-repo.md)
 - [2026-09-03 — Release refusals carry the diagnosis and the next command](changelog/2026-09-03-release-messages-carry-the-diagnosis.md)
   — the lore about `uncommitted changes`, what is already public at the
   marketplace step, and the `/add-dir` denial moved out of a ddaanet memory file
