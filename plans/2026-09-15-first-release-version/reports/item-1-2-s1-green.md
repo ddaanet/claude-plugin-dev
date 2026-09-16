@@ -10,17 +10,29 @@
 
   Exit-status reasoning: `git tag --list` essentially never fails, but
   `git ls-remote` reaches the network and fails routinely (unreachable origin,
-  no origin, auth). Piping it straight into `cut | sed | semver_tags` would be
-  the fail-open shape the dispatch warned against: `semver_tags` absorbs a
-  no-match `grep`'s status 1, so under `set -o pipefail` a failing `ls-remote`
-  followed by filters that see empty input would still report the *pipeline* as
-  succeeding — pipefail reports the last non-zero exit among the stages, and
-  every stage after a failed `ls-remote` here legitimately exits 0 on empty
-  input. So the function captures `git ls-remote`'s own output into a variable
-  first and reads *that* command's status directly
+  no origin, auth). So the function captures `git ls-remote`'s own output into a
+  variable first and reads *that* command's status directly
   (`listing=$(git ls-remote …) || return 1`), then filters the captured text.
   This is the same shape Item 1.1 used for `semver_tags` itself and the pattern
   the dispatch pointed at explicitly.
+
+  > **Corrected by the code review.** This paragraph originally claimed that
+  > piping `ls-remote` into `cut | sed | semver_tags` "would still report the
+  > *pipeline* as succeeding — pipefail reports the last non-zero exit among the
+  > stages, and every stage after a failed `ls-remote` here legitimately exits
+  > 0". That is false. Under `set -o pipefail` bash returns the
+  > **rightmost non-zero** stage status, so a failing `ls-remote` (128) followed
+  > by zero-exit filters yields 128, not 0 — measured directly (bash 5.2, git
+  > 2.47.3): piped form refuses with status 128 under pipefail. The capture is
+  > still the right choice, for the reason now written in the code:
+  > `semver_tags` absorbs a no-match grep's status 1, so the filter tail is
+  > status-transparent and `pipefail` is the *only* thing carrying a failed
+  > listing out of that pipeline. With pipefail off the piped form returns 0
+  > with empty output — the fail-open shape — while the captured form still
+  > refuses. The commit message of `3794941` carries the same false framing
+  > ("under pipefail's last-nonzero-status semantics" as the reason capture is
+  > needed); commit messages are not rewritten, so it stands with this record as
+  > its correction.
 
 - `release_preflight()` restructured:
   `release_tag_list=$(release_tags) || die …` now runs first, before
@@ -94,8 +106,17 @@ Green. `format-docs` reflowed both new report files (`item-1-2-s1-red.md`,
   version" because both scenarios use the same string. The implementation
   already reads any semver tag on origin (not just `v$manifest_version`), per
   the runbook, but slice 2 is what will pin that behaviorally.
-- **Slice 3**: no change to `resume_preflight`'s no-tag refusal or its hint
-  ladder. Untouched.
+- **Slice 3** (*corrected by the code review; this bullet originally described
+  `resume_preflight`'s no-tag refusal and its hint ladder, which is **Item
+  1.4**, not slice 3*): the origin listing being version-sorted is not pinned
+  here. `--sort=-v:refname` is implemented and its reason is in
+  `origin_release_tags`'s comment, but no fixture in slice 1 puts two semver
+  tags on origin, so nothing discriminates which end of the listing the hint
+  reads. Mutating `sed -n '1p'` to `sed -n '$p'` leaves the whole suite green
+  (measured). Slice 3's `v1.9.0`/`v1.10.0`/`v1.11.0` fixture closes both: with
+  the sort in place `1p` is `v1.11.0` and `$p` is `v1.2.3`, and without the sort
+  `ls-remote`'s lexicographic order makes both ends wrong. `resume_preflight` is
+  separately untouched, which remains true — it is just Item 1.4's concern.
 - **Slice 4**: the probe's placement *before* `check-version.sh` is implemented
   (see above) but not separately pinned by a drift fixture here; slice 4 owns
   that fixture (origin `v1.2.4`, manifest `1.2.4`, entry `1.2.3` → fetch hint,
