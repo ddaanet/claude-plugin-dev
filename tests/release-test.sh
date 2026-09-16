@@ -674,6 +674,70 @@ assert_eq "$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)" "$hea
     "entry-agrees-no-tags-bump did not advance origin main"
 assert_eq "$(market_version)" "1.2.3" "entry-agrees-no-tags-bump must not touch the marketplace"
 
+echo "=== release: an initial release whose entry disagrees with the manifest is still refused ==="
+new_sandbox "1.2.3"       # entry recorded at 1.2.3...
+make_virgin "0.1.0"       # ...but the plugin has never been tagged, locally or on origin: the
+                          # lost-tags probe finds nothing either way, so this state is verifiably
+                          # unpublished — decision 1's hint, not resume, is the one that must
+                          # fire here.
+head_before="$(git -C "$plugin" rev-parse HEAD)"
+run_in "$plugin" bash plugin-dev/release.sh
+assert_eq "$rc" "1" "initial-entry-disagrees exit code"
+# Asserting the two versions against "$out" whole would pass on check-version.sh's
+# own drift line alone (`plugin.json=0.1.0 marketplace.json=1.2.3`), which says
+# nothing about the hint. Decision 1 and the runbook both require the HINT to
+# name both versions, so drop that line first. `|| [ "$?" -eq 1 ]` absorbs a
+# no-match grep's status 1 and nothing else, so an empty result is a value while
+# a real grep error still aborts the suite.
+hint_only="$(printf '%s\n' "$out" | { grep -v '^check-version:' || [ "$?" -eq 1 ]; })"
+assert_contains "$hint_only" "0.1.0" "initial-entry-disagrees hint names the manifest version"
+assert_contains "$hint_only" "1.2.3" "initial-entry-disagrees hint names the marketplace entry version"
+assert_contains "$out" "no release is recorded at" \
+    "initial-entry-disagrees says neither version has a recorded release"
+assert_contains "$out" "correct the marketplace entry" \
+    "initial-entry-disagrees points at the marketplace entry as the one to correct"
+assert_contains "$out" "set .version in .claude-plugin/plugin.json" \
+    "initial-entry-disagrees offers editing the manifest instead, if 1.2.3 is the intended version"
+assert_not_contains "$out" "just resume-release" \
+    "initial-entry-disagrees must not offer resume — nothing was ever released to resume"
+assert_eq "$(git -C "$plugin" tag --list 'v*')" "" "initial-entry-disagrees created no tag"
+assert_eq "$(cat "$GH_LOG")" "" "initial-entry-disagrees must not call gh"
+# Decision 1's rejected alternative was to skip check-version.sh here and let
+# bump_marketplace overwrite the entry. These four pin the refusal as a refusal:
+# nothing published, and the disagreeing entry left standing for the maintainer
+# to resolve by hand.
+assert_eq "$(market_version)" "1.2.3" "initial-entry-disagrees must not overwrite the marketplace entry"
+assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "0.1.0" \
+    "initial-entry-disagrees left the manifest untouched"
+assert_eq "$(git -C "$plugin" rev-parse HEAD)" "$head_before" "initial-entry-disagrees makes no commit"
+assert_eq "$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)" "$head_before" \
+    "initial-entry-disagrees did not advance origin main"
+
+# The other side of the branch the scenario above opens. Decision 1 replaces the
+# drift hint only where the plugin is verifiably unpublished; a plugin that HAS
+# been released and drifts — tag and manifest at 1.2.4, entry still at 1.2.3,
+# exactly the half-landed release resume exists for — must still be told to
+# resume, because there the advice is correct. Nothing else in the suite pins
+# that: an implementation replacing the resume hint unconditionally passes every
+# other scenario, verified by mutation. Green today, so this is a
+# characterization guard, not part of slice 6's red.
+echo "=== release: version drift on a plugin that HAS been released still offers resume ==="
+new_sandbox "1.2.3"       # entry still at the previously released 1.2.3...
+jq '.version = "1.2.4"' "$plugin/.claude-plugin/plugin.json" > "$plugin/.claude-plugin/plugin.json.tmp"
+mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
+git -C "$plugin" commit -qam "release: 1.2.4"
+git -C "$plugin" tag -a v1.2.4 -m "Release 1.2.4"
+git -C "$plugin" push -q origin main
+git -C "$plugin" push -q origin v1.2.4    # ...but 1.2.4's commit and tag already landed
+run_in "$plugin" bash plugin-dev/release.sh
+assert_eq "$rc" "1" "released-drift exit code"
+assert_contains "$out" "version drift" "released-drift refuses as drift"
+assert_contains "$out" "just resume-release" \
+    "released-drift still offers resume — a release did land partially here"
+assert_eq "$(git -C "$plugin" tag --list 'v1.2.5')" "" "released-drift creates no tag"
+assert_eq "$(market_version)" "1.2.3" "released-drift must not touch the marketplace"
+assert_eq "$(cat "$GH_LOG")" "" "released-drift must not call gh"
+
 echo "=== release: an explicit bump on a lost local tag refuses as unverifiable, not as a first release ==="
 new_sandbox "1.2.3"
 lose_tag "$plugin"
