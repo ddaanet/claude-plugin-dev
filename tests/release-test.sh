@@ -694,6 +694,10 @@ new_sandbox "1.2.3"        # fixture keeps v1.2.3, entry at 1.2.3
 # whole publication and names the tag that was created.
 git -C "$plugin" tag vnext
 git -C "$plugin" tag v1.2
+# A second, older semver tag is what pins *which end* of the listing latest_tag
+# takes. With v1.2.3 alone the first and last lines are the same line, so a
+# `sed -n '$s/…'` taking the oldest release passes every scenario in the suite.
+git -C "$plugin" tag v1.0.0
 run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "0" "non-semver-latest-tag exit code"
 assert_contains "$out" "Release v1.2.4 complete" "non-semver-latest-tag summary"
