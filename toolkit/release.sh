@@ -11,7 +11,9 @@ set -euo pipefail
 # A plugin that has never been released is a special case: with no previous
 # release to bump forward from, `release.sh` with no bump argument publishes
 # the manifest version as it stands. Passing a bump there is refused. See
-# release_preflight.
+# release_preflight, which detects this by tag alone: no tag matching
+# `^v[0-9]+\.[0-9]+\.[0-9]+$` exists yet, and the plugin's marketplace entry
+# plays no part in that call.
 #
 # Run from the plugin root (the directory holding .claude-plugin/plugin.json);
 # `just release` does that for you. Requires bash, jq, git, gh, and
@@ -266,13 +268,16 @@ release_preflight() {
         return
     fi
 
-    # `git tag --list 'v*'` for the same reason as the first-release check
-    # above, plus one more: describe returns the nearest tag of ANY name,
-    # distance-ordered rather than version-ordered, so any unrelated tag on a
-    # later commit reads as the last release. --sort=-v:refname orders by
-    # version; sed -n '1s…p' takes the newest without exiting early, which
-    # under pipefail would surface as a SIGPIPE on a repo with many tags.
-    latest_tag=$(git tag --list 'v*' --sort=-v:refname | sed -n '1s/^v//p')
+    # release_tag_list is already release_tags's output: local semver tags,
+    # newest first, junk like `vnext` or `v1.2` already dropped by
+    # semver_tags. Reuse it instead of listing again, so a non-semver v-tag
+    # that sorts above the real release (`vnext` sorts above `v9.9` under
+    # --sort=-v:refname) can never be read as the latest release, while the
+    # newest real release tag still is. sed -n '1s…p' takes the newest line
+    # without exiting early, which under pipefail would surface as a SIGPIPE
+    # on a many-tag list; it cannot fail on the already-captured string, so
+    # nothing here needs a status check beyond release_tag_list's own above.
+    latest_tag=$(printf '%s\n' "$release_tag_list" | sed -n '1s/^v//p')
     if [ -n "$latest_tag" ] && [ "$manifest_version" != "$latest_tag" ]; then
         printf 'hint: plugin.json holds the LAST released version, never the next one.\n' >&2
         # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution

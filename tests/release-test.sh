@@ -681,6 +681,45 @@ assert_eq "$(git -C "$plugin" rev-parse HEAD)" "$head_before" \
 assert_eq "$(git -C "$plugin" rev-parse -q --verify 'refs/tags/v0.1.0^{commit}')" \
     "$head_before" "non-semver-tags tags HEAD"
 
+echo "=== release: a non-semver v tag above the release tag does not read as the latest ==="
+new_sandbox "1.2.3"        # fixture keeps v1.2.3, entry at 1.2.3
+# `vnext` sorts above v1.2.3 under --sort=-v:refname (verified, git 2.47.3), so
+# latest_tag must be routed through the same semver filter release_tags uses —
+# not merely consulted to decide first-release vs not. `v1.2` sorts below
+# v1.2.3 and is inert here: under a weaker `^v[0-9]` anchor this scenario still
+# passes. It is the scenario above that tells the full three-part anchor from
+# that one; v1.2 is carried here only to keep one fixture tag set across the
+# suites. The summary line is the last thing release.sh prints, after the tag
+# push, the GitHub release and the marketplace bump, so asserting it covers the
+# whole publication and names the tag that was created.
+git -C "$plugin" tag vnext
+git -C "$plugin" tag v1.2
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "0" "non-semver-latest-tag exit code"
+assert_contains "$out" "Release v1.2.4 complete" "non-semver-latest-tag summary"
+assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "1.2.4" \
+    "non-semver-latest-tag manifest bumped"
+
+echo "=== release: a non-semver v tag above the release tag does not suppress the drift check ==="
+new_sandbox "1.3.0"       # entry at the hand-bumped version, so check-version.sh passes
+# The other half of routing latest_tag through the filter: the junk tag must
+# not be picked, AND the newest real release tag must still be. Not proving
+# both leaves "skip the manifest-vs-tag check whenever the newest v* tag is
+# not semver" passing the whole suite (verified by mutation) — and under that
+# reading a hand-bumped manifest publishes a version past the intended one
+# exactly when some `vnext`-shaped tag happens to exist.
+jq '.version = "1.3.0"' "$plugin/.claude-plugin/plugin.json" > "$plugin/.claude-plugin/plugin.json.tmp"
+mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
+git -C "$plugin" commit -qam "hand-bump the manifest"
+git -C "$plugin" push -q origin main
+git -C "$plugin" tag vnext
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "non-semver-latest-drift exit code"
+assert_contains "$out" "does not match latest tag (v1.2.3)" \
+    "non-semver-latest-drift names the newest release tag, not the junk one"
+assert_eq "$(git -C "$plugin" tag --list 'v1.3.1')" "" "non-semver-latest-drift creates no tag"
+assert_eq "$(cat "$GH_LOG")" "" "non-semver-latest-drift must not call gh"
+
 echo "=== release: tags with no marketplace entry is not a first release ==="
 new_sandbox ""            # no entry...
 run_in "$plugin" bash plugin-dev/release.sh patch   # ...but the fixture's v1.2.3 tag stands
