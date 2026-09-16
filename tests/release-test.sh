@@ -212,6 +212,21 @@ make_virgin() {
     git -C "$plugin" push -q origin main
 }
 
+lose_tag() {
+    # $1=repo path, $2=tag (default v1.2.3). Deletes the tag from the local
+    # clone only, leaving origin's copy in place: the "lost tags" state Item
+    # 1.2's origin probe exists to catch — a clone whose local tag went missing
+    # while origin's release history did not. Contrast make_virgin, which drops
+    # origin's copy too: a plugin that was truly never released. Used by slices
+    # 1-4. $1 is required, not defaulted to $plugin: a default no call site may
+    # take (shellcheck SC2119 fires on the bare call) is a contract that reads
+    # as usable and is not. `git tag -d` on an absent tag exits non-zero and
+    # says so on stderr, which under this suite's `set -e` aborts the run —
+    # deleting a tag that is not there is a broken fixture, never a no-op.
+    local repo="$1" tag="${2:-v1.2.3}"
+    git -C "$repo" tag -d "$tag" >/dev/null
+}
+
 echo "=== release: happy path ==="
 new_sandbox "1.2.3"
 run_in "$plugin" bash plugin-dev/release.sh patch
@@ -658,6 +673,38 @@ assert_eq "$(git -C "$plugin" rev-parse HEAD)" "$head_before" "entry-agrees-no-t
 assert_eq "$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)" "$head_before" \
     "entry-agrees-no-tags-bump did not advance origin main"
 assert_eq "$(market_version)" "1.2.3" "entry-agrees-no-tags-bump must not touch the marketplace"
+
+echo "=== release: an explicit bump on a lost local tag refuses as unverifiable, not as a first release ==="
+new_sandbox "1.2.3"
+lose_tag "$plugin"
+git -C "$plugin" commit --allow-empty -qm "later work"
+origin_head_before="$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "lost-tag-bump exit code"
+assert_contains "$out" "v1.2.3" "lost-tag-bump names the lost tag"
+assert_contains "$out" "git fetch --tags" "lost-tag-bump names the fetch remedy"
+assert_not_contains "$out" "never been released" "lost-tag-bump must not read as a first release"
+assert_eq "$(git -C "$plugin" tag --list 'v*')" "" "lost-tag-bump created no local tag"
+assert_eq "$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)" "$origin_head_before" \
+    "lost-tag-bump did not advance origin main"
+assert_eq "$(cat "$GH_LOG")" "" "lost-tag-bump must not call gh"
+assert_eq "$(market_version)" "1.2.3" "lost-tag-bump must not touch the marketplace"
+
+echo "=== release: a lost local tag with no bump argument refuses as unverifiable, not published as a first release ==="
+new_sandbox ""
+lose_tag "$plugin"
+git -C "$plugin" commit --allow-empty -qm "later work"
+origin_head_before="$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)"
+run_in "$plugin" bash plugin-dev/release.sh
+assert_eq "$rc" "1" "lost-tag-no-bump exit code"
+assert_contains "$out" "v1.2.3" "lost-tag-no-bump names the lost tag"
+assert_contains "$out" "git fetch --tags" "lost-tag-no-bump names the fetch remedy"
+assert_not_contains "$out" "never been released" "lost-tag-no-bump must not read as a first release"
+assert_eq "$(git -C "$plugin" tag --list 'v*')" "" "lost-tag-no-bump created no local tag"
+assert_eq "$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)" "$origin_head_before" \
+    "lost-tag-no-bump did not advance origin main"
+assert_eq "$(cat "$GH_LOG")" "" "lost-tag-no-bump must not call gh"
+assert_eq "$(market_version)" "" "lost-tag-no-bump must not touch the marketplace"
 
 echo "=== release: non-semver v tags are not releases ==="
 new_sandbox ""            # no marketplace entry
