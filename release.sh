@@ -156,9 +156,15 @@ common_preflight() {
     git -C "$MARKETPLACE_DIR" symbolic-ref -q --short HEAD >/dev/null \
         || die "$MARKETPLACE_DIR is on a detached HEAD — check out its branch first"
     marketplace_dir=$(dirname "$marketplace_json")
-    # A release always bumps to a version the marketplace doesn't have yet, so
-    # the write is never a no-op — check fails fast here, before the tag and
-    # the GitHub release. A resume may find the marketplace already correct
+    # A release that bumps goes to a version the marketplace doesn't have yet,
+    # so the write is never a no-op — check fails fast here, before the tag and
+    # the GitHub release. One release does not: a first release whose entry
+    # already exists, since check-version.sh has by then required that entry to
+    # equal the manifest and a first release publishes the manifest version
+    # as-is, leaving bump_marketplace nothing to write. It is checked here all
+    # the same — which of the two applies is only settled in release_preflight,
+    # after this runs — so that state is refused for a writability it would not
+    # have used. A resume may likewise find the marketplace already correct
     # (a true no-op bump_marketplace can skip entirely); its own writability
     # need is checked there, only when a write actually happens.
     # Keep this off the last line of the function: a false `&&` list is exempt
