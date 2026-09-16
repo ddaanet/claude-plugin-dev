@@ -26,8 +26,9 @@ The changes are:
 - **Tag filter.** The `v*` glob becomes a semver filter, in the detection and in
   the `latest_tag` computation (`release.sh:250`).
 - **Lost-tags guard.** Dropping the marketplace conjunct makes a clone missing
-  its tags read as never released. A new origin probe refuses that case before
-  any side effect.
+  its tags read as never released. Rule 2 is therefore applied to origin too: a
+  new probe for any semver tag there refuses that case before any side effect
+  and before any drift advice.
 - **Wording.** The places that contradict the rules are fixed. That includes two
   refusals whose hints are wrong on an initial release: `resume_preflight`
   points at `just release <bump>` (`release.sh:286`), which rule 3 refuses, and
@@ -38,59 +39,81 @@ The changes are:
 
 ### `toolkit/release.sh` — tdd
 
-- One helper, `release_tags`, lists local tags matching
-  `^v[0-9]+\.[0-9]+\.[0-9]+$`, newest first:
-  `git tag --list 'v*' --sort=-v:refname` piped through `grep -E`. Both the
-  initial-release check and the `latest_tag` computation use it (the latter
-  takes the first line with the existing `sed -n '1s/^v//p'`). A stray `vnext`
-  or `v1.2` neither marks a plugin released nor reads as the newest release.
+- One filter, `semver_tags`, reads tag names on stdin and keeps those matching
+  `^v[0-9]+\.[0-9]+\.[0-9]+$`. Two listings feed it:
+  - `release_tags` — local, newest first:
+    `git tag --list 'v*' --sort=-v:refname | semver_tags`. Both the
+    initial-release check and the `latest_tag` computation use it (the latter
+    takes the first line with the existing `sed -n '1s/^v//p'`). A stray `vnext`
+    or `v1.2` neither marks a plugin released nor reads as the newest release.
+  - `origin_release_tags` — `git ls-remote --tags origin`, field 2 with the
+    `refs/tags/` prefix stripped, through the same filter. The anchor drops the
+    peeled `v1.2.3^{}` lines, `foo/v0.1.0` and `vnext` (verified, git 2.47.3).
+    The `ls-remote` status is checked inside an `if`, never a bare substitution
+    under errexit: `128` (no `origin`, or an unreachable one, verified) must
+    reach the caller as "could not check", not kill the script silently.
   - `grep` exits 1 when nothing matches, which is exactly the initial-release
     case. Under `set -euo pipefail` a `tags=$(release_tags)` assignment then
-    kills the script with no message. The helper absorbs status 1 only —
+    kills the script with no message. The filter absorbs status 1 only —
     `{ grep -E '…' || [ $? -eq 1 ]; }` — so an empty result exits 0 and a real
     grep error (2) still fails. The existing verbatim first-release scenario
-    (`release-test.sh:592`, no tags at all) catches a helper that does not.
+    (`release-test.sh:592`, no tags at all) catches a filter that does not.
   - `vnext` sorts *above* `v9.9` and `v1.2.3` under `-v:refname`; `v1.2` sorts
     below `v1.2.3` (verified, git 2.47.3). Tests pick tags by that order.
 - `release_preflight`:
-  - Initial release when `release_tags` is empty. Drop the
-    `marketplace_entry_exists` conjunct and the comment arguing it is
-    load-bearing (`release.sh:215-221`).
-  - The bump refusal stays. Its hint about publishing another version also says
-    to commit the edit: `.claude-plugin/` is not exempt from the clean-tree
-    check (`release.sh:130-131`).
-  - `check-version.sh` still runs first (`release.sh:202-206`). Its failure hint
-    becomes initial-release aware per Open question 1, so detection is computed
-    before that branch rather than after it.
-- **New guard for the lost-tags case**, in `release_preflight`'s initial-release
-  branch, after the bump refusal and before `return`. That is before
-  `bump_commit_tag` creates the local tag and before `push_branch` pushes
-  anything.
-  - Probe the exact ref: `git ls-remote --exit-code origin "refs/tags/$tag"`. A
-    bare `v$V` pattern is tail-matched and also hits `refs/tags/foo/v0.1.0`
-    (verified).
-  - Branch on the status inside an `if`/`case`, never a bare substitution under
-    errexit, so a git fatal is never the last word:
-    - `0` — `v$V` is published: refuse, with a `git fetch --tags` hint.
-    - `2` — no such ref: proceed.
-    - anything else (`128` for no `origin` remote or an unreachable one,
-      verified) — refuse, saying the initial release could not be checked
+  - **Lost-tags guard first.** When `release_tags` is empty, probe
+    `origin_release_tags` before `check-version.sh` runs (`release.sh:202-206`),
+    and so before `bump_commit_tag` tags or `push_branch` pushes anything:
+    - any semver tag on origin — refuse, naming the newest, with a
+      `git fetch --tags` hint. The plugin is released; this clone lacks the
+      history. Any tag, not only `v$V`: a tagless clone whose manifest and entry
+      were hand-advanced to `1.3.0` over a published `v1.2.3` finds no `v1.3.0`
+      and would otherwise publish the hand-written version, skipping the
+      manifest-versus-latest-tag check (`release.sh:250-264`) that a fetch would
+      trigger.
+    - no semver tag on origin — initial release; continue.
+    - listing failed — refuse, saying the initial release could not be checked
       against origin and nothing was done. Fail closed: `push_branch` and
       `push_tag` need origin anyway (`release.sh:327,342,355`), so proceeding
       only moves the failure past the local tag.
+  - Why before `check-version.sh`. A tagless clone of a release whose tag and
+    GitHub release landed but whose marketplace bump did not (manifest `1.2.4`,
+    entry `1.2.3`) otherwise gets drift advice first. Open question 1's hint to
+    reconcile the entry or the manifest could then commit `1.2.3` over a public
+    `v1.2.4`. The recovery is fetching tags and resuming. With the probe first,
+    the drift hint is reached on an initial release only when origin is verified
+    tagless.
+  - Why before the side effects. Without it, the lost-tags case with no entry
+    tags `HEAD` locally, pushes the branch, and only then dies in `push_tag`
+    (`release.sh:360-361`): a re-created annotated tag is a new tag object, so
+    its sha never matches origin's. The stray local tag then makes a re-run read
+    as released, and `git fetch --tags` refuses to clobber it. With an entry,
+    today's code never reaches that far; after the change it would.
+    `gh release view` (`release.sh:371`) only skips the create.
   - `common_preflight` validates `origin` only when there is no marketplace
     entry (`release.sh:176-177`), so an initial release with an entry reaches
     this probe with origin unverified.
-  - Why it must precede the side effects. Without it, the lost-tags case with no
-    entry tags `HEAD` locally, pushes the branch, and only then dies in
-    `push_tag` (`release.sh:360-361`): a re-created annotated tag is a new tag
-    object, so its sha never matches origin's. The stray local tag then makes a
-    re-run read as released, and `git fetch --tags` refuses to clobber it. With
-    an entry, today's code never reaches that far; after the change it would.
-    `gh release view` (`release.sh:371`) only skips the create.
-- `resume_preflight`'s no-tag hint (`release.sh:284-287`): when `release_tags`
-  is empty, name `just release` with no argument; otherwise keep
-  `just release <bump>`.
+  - Initial release when `release_tags` is empty and the probe passed. Drop the
+    `marketplace_entry_exists` conjunct and the comment arguing it is
+    load-bearing (`release.sh:215-221`).
+  - `check-version.sh` still runs before the bump refusal. On an initial release
+    its failure hint follows Open question 1.
+  - The bump refusal stays. Its hint about publishing another version also says
+    to commit the edit: `.claude-plugin/` is not exempt from the clean-tree
+    check (`release.sh:130-131`).
+- `resume_preflight`'s no-tag refusal (`release.sh:284-287`) picks its hint:
+  - `v$V` in `origin_release_tags` — `git fetch --tags`, then
+    `just resume-release`. The release started elsewhere or in a clone whose
+    tags were lost.
+  - otherwise, `release_tags` empty — `just release` with no argument.
+  - otherwise — `just release <bump>`, as today.
+  - A failed listing falls through to the local hints: the refusal has no side
+    effect, so the probe only improves the advice.
+- **Origin routing, accepted bound** (Open question 3). `ls-remote origin` reads
+  origin's fetch URL, as `push_tag`'s existing published-tag check already does
+  (`release.sh:355`). A `remote.origin.pushurl` elsewhere hides the published
+  tags from both (verified), and an unqualified `git push` (`release.sh:342`)
+  follows `branch.<name>.pushRemote`. Stated in a comment beside the probe.
 - `bump_commit_tag`'s initial-release branch (tag `HEAD`, no commit) and
   `marketplace_entry_exists` (create vs bump the entry) stay as they are.
 - Header comment (`release.sh:11-14`): restate detection per rule 2.
@@ -164,6 +187,14 @@ The changes are:
     today's code already exits 1, in `push_tag`, after tagging and pushing the
     branch. The fetch hint, the absent local tag and the unadvanced origin
     `main` are what fail.
+  - Lost tags, hand-advanced version: origin keeps `v1.2.3`, local tags dropped,
+    manifest and entry committed at `1.3.0`, no argument. Refused with the fetch
+    hint naming `v1.2.3`; no local `v1.3.0`, origin `main` not advanced, `gh`
+    not called, marketplace untouched. Red: today it bumps to `1.3.1`. It also
+    fails an implementation that probes only `v$V`.
+  - Lost tags over a half-landed release: origin has `v1.2.4`, manifest `1.2.4`,
+    entry `1.2.3`, local tags dropped. `release` refuses with the fetch hint and
+    not the drift hint. Red: today it gives the drift hint.
   - Origin unreachable: virgin, `git remote set-url origin` to a missing path.
     Refused naming the unverifiable probe; no local tag; `gh` not called. Red
     via the message and the absent tag.
@@ -175,7 +206,13 @@ The changes are:
   - `vnext` beside `v1.2.3` (`new_sandbox "1.2.3"`): `patch` releases `v1.2.4`.
     Red: today `vnext` is `latest_tag`. Not `v1.2`, which sorts below.
   - `--resume` on a virgin repo: the hint names `just release` with no argument
-    and not `<bump>`. Red. `:367` keeps the tagged-repo hint.
+    and not `<bump>`. Red.
+  - "resume: refuses when no tag exists for the manifest version" (`:361-367`)
+    deletes the tag locally only, so origin keeps `v1.2.3`. It becomes the
+    missing-local-tags case: the hint names `git fetch --tags` and
+    `just resume-release`, not `<bump>`. Red.
+  - The `<bump>` hint moves to a new fixture: local `v1.2.3` kept, manifest
+    committed at `1.2.4`, no `v1.2.4` anywhere. Green today; a regression guard.
   - The bump-refusal loop (`:610-623`) also asserts the commit instruction. Red.
   - Initial release with the entry at a different version than the manifest: per
     Open question 1.
@@ -219,7 +256,9 @@ The changes are:
   - "Recovery" (`:51-54`): the no-tag refusal points at `just release <bump>`,
     or at `just release` on an initial release.
   - "The refusal is where the operational knowledge lives" (`:138-144`): the
-    lost-tags refusal joins the first-release and version-drift refusals.
+    lost-tags refusal joins the first-release and version-drift refusals, with
+    why it runs before the drift check and the origin-routing bound.
+  - Resume's no-tag refusal on a clone missing tags: fetch, then resume.
   - "`check-version.sh`" (`:19-32`): its behaviour on an initial release, per
     Open question 1.
 - `docs/design.md`: rewrite the release-flow conclusion line (`:105-107`), and
@@ -238,8 +277,8 @@ The changes are:
   tags, checked. Unreleased plugins behave as before, except that a marketplace
   entry no longer disqualifies them. The residual: a plugin released only under
   non-semver or non-`v` tags, with an entry, would now republish its manifest
-  version. The origin probe does not catch it, since it checks `v$V` only. No
-  known consumer is in that state.
+  version. The origin probe does not catch it, since it filters for semver `v`
+  tags. No known consumer is in that state.
 
 ## Scope
 
@@ -263,17 +302,26 @@ the `release.just` header, both test suites, and the docs listed.
    release.** `check-version.sh` refuses it as drift (`release.sh:202-206`) and
    hints `just resume-release`. Resume finds no tag and points back at
    `just release` (`release.sh:283-288`), which refuses on drift again: a loop
-   with no exit but a hand edit. Rule 2 settles detection, not this gate.
-   **Default:** keep the refusal. On an initial release its hint names both
-   versions and says the maintainer reconciles the entry or the manifest, since
-   resume cannot help without a tag; add a red scenario for that hint.
-   Alternative: skip `check-version.sh` when no semver tag exists, and let
+   with no exit but a hand edit. Rule 2 settles detection, not this gate. The
+   lost-tags guard runs first, so this state is reached only when origin has no
+   semver tag either: the release is verified unpublished. **Default:** keep the
+   refusal. On an initial release its hint names both versions and says the
+   maintainer reconciles the entry or the manifest, since resume cannot help
+   without a tag; add a red scenario for that hint. Alternative: skip
+   `check-version.sh` when no semver tag exists locally or on origin, and let
    `bump_marketplace` overwrite the entry to the manifest version.
 2. **The hook's message when the tag listing fails** (git absent, not a repo).
    The deny is unaffected either way. **Default:** the steady-state message,
    which is today's behaviour and keeps the existing non-repo scenarios valid.
    Alternative: the initial-release wording, or a third wording true in both
    states.
+3. **Origin fetched from one place and pushed to another.** With
+   `remote.origin.pushurl` or `branch.<name>.pushRemote` pointing away from
+   origin's fetch URL, the probe reads a repository the release does not publish
+   to. `push_tag`'s published-tag check has the same blind spot today.
+   **Default:** an accepted bound, stated beside the probe and in `recovery.md`;
+   no test. Alternative: refuse in `common_preflight` when either is set, with a
+   red scenario per setting.
 
 ## Dependencies
 
