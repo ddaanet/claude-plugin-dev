@@ -266,7 +266,7 @@ origin_release_tags() {
 }
 
 release_preflight() {
-    local manifest_version latest_tag release_tag_list
+    local manifest_version latest_tag release_tag_list verifiably_unpublished=0
     # Capture the listing rather than substituting it inline: a `git tag` that
     # fails, or a real grep error in the filter, prints nothing, and
     # `[ -z "$(release_tags)" ]` would discard that status and read the
@@ -311,16 +311,51 @@ release_preflight() {
             printf '      then run the same command again.\n' >&2
             die "local release tags are missing — refusing to guess whether $origin_newest was published"
         fi
+        # Reached only when the probe above found nothing either: no semver
+        # tag locally and none on origin. This plugin is verifiably
+        # unpublished — read below, at the check-version.sh failure point,
+        # so drift there gets decision 1's wording instead of the ordinary
+        # resume hint. Captured as a flag rather than re-running the probe: a
+        # second `git ls-remote` is a second network call that can fail on
+        # its own, and the whole point of the probe is that its status is
+        # read exactly once.
+        verifiably_unpublished=1
     fi
+
+    # manifest_version is needed below regardless of which branch fires: the
+    # ordinary resume hint doesn't read it, but decision 1's hint names it, so
+    # read it once here rather than only in the first-release branch further
+    # down (which also uses it).
+    manifest_version=$(jq -r .version "$manifest")
 
     # Catch a previous release that didn't fully complete (tag/manifest bumped,
     # marketplace bump never landed) before starting a new one on top of it.
     bash "$here/check-version.sh" || {
+        if [ "$verifiably_unpublished" = 1 ]; then
+            # Decision 1: a marketplace entry that disagrees with the manifest
+            # while no release is recorded anywhere is an anomaly, not a
+            # partial release — there is nothing to resume. Point at the
+            # entry as the default fix (a successful first release would
+            # write $manifest_version there anyway via bump_marketplace), but
+            # name the manifest edit too, for the case where the entry's
+            # version was the one actually intended.
+            local market_version
+            market_version=$(jq -r --arg n "$plugin_name" \
+                '.plugins[] | select(.name==$n) | .version' "$marketplace_json")
+            printf 'hint: no release is recorded at %s or %s — this plugin has never been\n' \
+                "$manifest_version" "$market_version" >&2
+            printf '      published under either version, so there is nothing to resume.\n' >&2
+            printf '      correct the marketplace entry to match plugin.json (a successful\n' >&2
+            printf '      first release would write %s there anyway), or if %s was the\n' \
+                "$manifest_version" "$market_version" >&2
+            printf '      intended version, set .version in %s\n' "$manifest" >&2
+            printf '      to it and commit that edit, then re-run.\n' >&2
+            die "fix the version drift above before releasing"
+        fi
         # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
         printf 'hint: `just resume-release` completes a release that landed partially.\n' >&2
         die "fix the version drift above before releasing"
     }
-    manifest_version=$(jq -r .version "$manifest")
 
     # A plugin that has never been released has no last-released version to bump
     # forward from: its manifest holds the version it wants to publish FIRST.
