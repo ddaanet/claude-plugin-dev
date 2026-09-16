@@ -1,12 +1,11 @@
 ## Open decisions
 
-- Outline Open question 1: a marketplace entry that disagrees with the manifest on an initial release loops between the `check-version.sh` drift refusal and resume's no-tag refusal. Default: keep the refusal, make its hint initial-release aware. Alternative: skip `check-version.sh` when no semver tag exists.
-- Outline Open question 2: the version-guard deny message when the tag listing fails (git absent, not a repo). Default: the steady-state message.
+- Which `/runbook` pipeline steps run besides the decomposition itself. My human partner said to skip `/proof`; the corrector and the simplifier were not addressed. The simplifier has a real target — several `release-test.sh` scenarios are the same shape with different fixture data. Absent a further answer: run the simplifier, skip the corrector, since the proof pass just covered requirements and design alignment item by item with my human partner in the loop.
 
 ## Remaining
 
-- Run the Codex review of the outline and fold its findings in.
-- /proof the outline, then route to /runbook per /edify:design's Moderate path.
-- Item B from the brief — README note on `sandbox.excludedCommands` for the marketplace push — stays a separate change and needs checking against current Claude Code first.
-- After the toolkit release, drop a note (not an edit) for `plugin-craft:toolkit-release`, whose first-release wording will change.
-- Root `memory/MEMORY.md` is over Claude Code's loader cap — the gitlore hook reports 103% of its 25600-byte budget — so entries past the cutoff never reach a session. Parked deliberately; `/gitlore:index-audit` is the pass that addresses it. Raise it only if asked.
+- Write `plans/2026-09-15-first-release-version/runbook.md`, slicing into red/green cycles. `release.sh` carries five separable changes — the semver filter with both sorts; detection without the marketplace conjunct; the lost-tags origin probe; resume's hint ladder; `common_preflight`'s push-route refusal — and `version-guard.sh` is its own slice. Map each of the outline's test scenarios to the slice it is red for.
+- Stop after the runbook. Do not orchestrate.
+- Item B from the brief: a README note on `sandbox.excludedCommands` for the marketplace push. A separate change, and it needs checking against current Claude Code first.
+- After the toolkit release, drop a note — not an edit — for `plugin-craft:toolkit-release`, whose first-release wording will change.
+- Root `memory/MEMORY.md` is over Claude Code's loader cap (the gitlore hook reports it against a 25600-byte budget), so entries past the cutoff never reach a session. Parked deliberately; `/gitlore:index-audit` is the pass that addresses it. Raise it only if asked.
