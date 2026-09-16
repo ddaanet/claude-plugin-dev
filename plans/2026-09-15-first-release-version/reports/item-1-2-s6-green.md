@@ -82,7 +82,7 @@ Staged: `tests/release-test.sh`, `toolkit/release.sh`,
 `plans/2026-09-15-first-release-version/reports/item-1-2-s6-test-review.md`,
 `plans/2026-09-15-first-release-version/reports/item-1-2-s6-green.md`.
 
-Commit: `<filled in after commit>`.
+Commit: `6ed1206`.
 
 ## Tree state after commit
 
