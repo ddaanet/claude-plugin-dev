@@ -13,7 +13,7 @@ set -euo pipefail
 # the manifest version as it stands. Passing a bump there is refused. See
 # release_preflight, which detects this by tag alone: no tag matching
 # `^v[0-9]+\.[0-9]+\.[0-9]+$` exists yet, and the plugin's marketplace entry
-# plays no part in that call.
+# plays no part in that decision.
 #
 # Run from the plugin root (the directory holding .claude-plugin/plugin.json);
 # `just release` does that for you. Requires bash, jq, git, gh, and
@@ -218,6 +218,12 @@ release_tags() {
     # Local semver release tags, newest first — the order is part of the
     # contract, since a caller naming a release takes the first line. Fixed
     # here rather than at each call site so no caller can forget it.
+    #
+    # `git tag --list` and not `git describe`, for both callers. describe only
+    # sees tags reachable from HEAD, so a release tagged on a since-abandoned
+    # branch would read as no tags at all; and it returns the NEAREST tag of
+    # ANY name, distance-ordered rather than version-ordered, so an unrelated
+    # tag on a later commit would read as the last release.
     git tag --list 'v*' --sort=-v:refname | semver_tags
 }
 
@@ -237,10 +243,6 @@ release_preflight() {
     # Plugins scaffolded by the unrelated official `plugin-dev` marketplace
     # plugin arrive seeded at 0.1.0 exactly this way, and bumping past it
     # publishes a version nobody asked for. So publish the manifest verbatim.
-    #
-    # `git tag --list 'v*'` and not `git describe`: describe only sees tags
-    # reachable from HEAD, so a release tagged on a since-abandoned branch would
-    # read as no tags at all.
     #
     # Capture the listing rather than substituting it inline: a `git tag` that
     # fails, or a real grep error in the filter, prints nothing, and
@@ -273,10 +275,13 @@ release_preflight() {
     # semver_tags. Reuse it instead of listing again, so a non-semver v-tag
     # that sorts above the real release (`vnext` sorts above `v9.9` under
     # --sort=-v:refname) can never be read as the latest release, while the
-    # newest real release tag still is. sed -n '1s…p' takes the newest line
-    # without exiting early, which under pipefail would surface as a SIGPIPE
-    # on a many-tag list; it cannot fail on the already-captured string, so
-    # nothing here needs a status check beyond release_tag_list's own above.
+    # newest real release tag still is. sed -n '1s…p' and not `head -1`: head
+    # exits after the line it wants, which under pipefail would surface as a
+    # SIGPIPE on a long list. Neither printf nor sed can fail on the
+    # already-captured string, so release_tag_list's own status check above is
+    # the only one this needs. The listing is non-empty here (the branch above
+    # returned), and its first line matched the semver anchor, so latest_tag
+    # is always set; the -n test below is belt and braces.
     latest_tag=$(printf '%s\n' "$release_tag_list" | sed -n '1s/^v//p')
     if [ -n "$latest_tag" ] && [ "$manifest_version" != "$latest_tag" ]; then
         printf 'hint: plugin.json holds the LAST released version, never the next one.\n' >&2
