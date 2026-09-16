@@ -212,26 +212,19 @@ release_preflight() {
     # plugin arrive seeded at 0.1.0 exactly this way, and bumping past it
     # publishes a version nobody asked for. So publish the manifest verbatim.
     #
-    # Both conjuncts are load-bearing. No-tags alone would misread a repo whose
-    # tags were lost or never fetched as never-released, and republish a version
-    # already out there. No-entry alone would misread a plugin that is tagged but
-    # not yet in the marketplace — check-version.sh treats that as the ordinary
-    # pre-first-publication state. Only a repo with neither has demonstrably
-    # never been through this script.
-    #
     # `git tag --list 'v*'` and not `git describe`: describe only sees tags
     # reachable from HEAD, so a release tagged on a since-abandoned branch would
     # read as no tags at all.
-    if [ -z "$(git tag --list 'v*')" ] && [ "$marketplace_entry_exists" = 0 ]; then
+    if [ -z "$(git tag --list 'v*')" ]; then
         first_release=1
         if [ -n "$bump_arg" ]; then
             printf 'hint: a first release publishes the manifest version as-is — there is no\n' >&2
             printf '      previous release to bump forward from. Re-run with no bump argument\n' >&2
             printf '      to publish v%s.\n' "$manifest_version" >&2
             printf '      to publish some other version instead, set .version in %s\n' "$manifest" >&2
-            printf '      to it first and then re-run with no bump argument. That edit is the\n' >&2
-            printf '      one the version-guard hook refuses from an agent: it is the\n' >&2
-            printf '      maintainer who decides what a plugin first ships as.\n' >&2
+            printf '      to it and commit that edit, then re-run with no bump argument. That\n' >&2
+            printf '      edit is the one the version-guard hook refuses from an agent: it is\n' >&2
+            printf '      the maintainer who decides what a plugin first ships as.\n' >&2
             die "'$bump_arg' bump refused: this plugin has never been released"
         fi
         V="$manifest_version"

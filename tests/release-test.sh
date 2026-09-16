@@ -196,8 +196,8 @@ make_virgin() {
     # has never been released: no v* tags locally or on origin, and the manifest
     # seeded at $1. Paired with new_sandbox "" (no marketplace entry) this is
     # the state a plugin scaffolded by the external plugin-dev marketplace
-    # plugin arrives in; paired with new_sandbox "1.2.3" it isolates the
-    # no-tags half of the conjunct.
+    # plugin arrives in; paired with new_sandbox "1.2.3" the entry already
+    # agrees with $1, on a plugin that has still never been tagged.
     git -C "$plugin" tag -d v1.2.3 >/dev/null
     git -C "$plugin" push -q origin :refs/tags/v1.2.3
     jq --arg v "$1" '.version = $v' "$plugin/.claude-plugin/plugin.json" \
@@ -617,19 +617,47 @@ for word in patch minor major; do
     assert_contains "$out" "0.1.0" "first-release '$word' names the version it would publish"
     assert_contains "$out" "set .version in .claude-plugin/plugin.json" \
         "first-release '$word' names the remedy for wanting another version"
+    assert_contains "$out" "commit that edit" \
+        "first-release '$word' names committing the version edit"
     assert_eq "$(git -C "$plugin" tag --list 'v*')" "" "first-release '$word' creates no tag"
     assert_eq "$(cat "$GH_LOG")" "" "first-release '$word' must not call gh"
     assert_eq "$(market_version)" "" "first-release '$word' must not touch the marketplace"
 done
 
-echo "=== release: a marketplace entry with no tags is not a first release ==="
-new_sandbox "1.2.3"       # entry exists — this plugin HAS been published
-make_virgin "1.2.3"       # ...but its tags are gone
+echo "=== release: a marketplace entry does not disqualify a first release ==="
+new_sandbox "1.2.3"       # entry exists at 1.2.3...
+make_virgin "1.2.3"       # ...but the plugin has never been tagged, locally or on origin
+head_before="$(git -C "$plugin" rev-parse HEAD)"
+marketplace_head_before="$(git -C "$marketplace" rev-parse HEAD)"
+run_in "$plugin" bash plugin-dev/release.sh
+assert_eq "$rc" "0" "entry-agrees-no-tags exit code"
+assert_contains "$out" "Release v1.2.3 complete" "entry-agrees-no-tags publishes the manifest version verbatim"
+assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "1.2.3" "entry-agrees-no-tags manifest untouched"
+assert_eq "$(git -C "$plugin" rev-parse HEAD)" "$head_before" "entry-agrees-no-tags makes no commit"
+assert_eq "$(git -C "$plugin" rev-parse -q --verify 'refs/tags/v1.2.3^{commit}')" \
+    "$head_before" "entry-agrees-no-tags tags HEAD"
+assert_eq "$(market_version)" "1.2.3" "entry-agrees-no-tags marketplace untouched"
+assert_eq "$(git -C "$marketplace" rev-parse HEAD)" "$marketplace_head_before" \
+    "entry-agrees-no-tags marketplace HEAD unmoved"
+
+echo "=== release: a marketplace entry does not exempt a first release from refusing a bump ==="
+new_sandbox "1.2.3"
+make_virgin "1.2.3"
+head_before="$(git -C "$plugin" rev-parse HEAD)"
 run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "0" "lost-tags exit code"
-assert_contains "$out" "Release v1.2.4 complete" "lost-tags bumps forward instead of republishing"
-assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "1.2.4" "lost-tags manifest bumped"
-assert_eq "$(market_version)" "1.2.4" "lost-tags marketplace bumped"
+assert_eq "$rc" "1" "entry-agrees-no-tags-bump exit code"
+assert_contains "$out" "never been released" "entry-agrees-no-tags-bump explains why"
+assert_eq "$(git -C "$plugin" tag --list 'v*')" "" "entry-agrees-no-tags-bump creates no tag"
+assert_eq "$(cat "$GH_LOG")" "" "entry-agrees-no-tags-bump must not call gh"
+# The tag and gh assertions alone would still pass a refusal raised after the
+# version commit and branch push — the two irreversible steps that precede
+# them. The refusal belongs in preflight, so nothing at all may have landed.
+assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "1.2.3" \
+    "entry-agrees-no-tags-bump left the manifest untouched"
+assert_eq "$(git -C "$plugin" rev-parse HEAD)" "$head_before" "entry-agrees-no-tags-bump makes no commit"
+assert_eq "$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)" "$head_before" \
+    "entry-agrees-no-tags-bump did not advance origin main"
+assert_eq "$(market_version)" "1.2.3" "entry-agrees-no-tags-bump must not touch the marketplace"
 
 echo "=== release: tags with no marketplace entry is not a first release ==="
 new_sandbox ""            # no entry...
