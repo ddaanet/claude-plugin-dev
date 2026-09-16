@@ -201,6 +201,21 @@ common_preflight() {
     }
 }
 
+semver_tags() {
+    # Filter: stdin to stdout, keeping only full `vX.Y.Z` lines. A no-match
+    # grep exits 1, which under `set -euo pipefail` would kill the script at
+    # the caller's assignment — absorb exactly that status, so an empty
+    # result is a value (no matching tags) and a real grep error (status 2)
+    # still fails the script.
+    { grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || [ "$?" -eq 1 ]; }
+}
+
+release_tags() {
+    # Local semver release tags, newest first. Every caller names the newest
+    # tag, so the order is load-bearing.
+    git tag --list 'v*' --sort=-v:refname | semver_tags
+}
+
 release_preflight() {
     local manifest_version latest_tag
     # Catch a previous release that didn't fully complete (tag/manifest bumped,
@@ -221,7 +236,7 @@ release_preflight() {
     # `git tag --list 'v*'` and not `git describe`: describe only sees tags
     # reachable from HEAD, so a release tagged on a since-abandoned branch would
     # read as no tags at all.
-    if [ -z "$(git tag --list 'v*')" ]; then
+    if [ -z "$(release_tags)" ]; then
         first_release=1
         if [ -n "$bump_arg" ]; then
             printf 'hint: a first release publishes the manifest version as-is — there is no\n' >&2

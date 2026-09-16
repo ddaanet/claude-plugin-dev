@@ -659,6 +659,28 @@ assert_eq "$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)" "$hea
     "entry-agrees-no-tags-bump did not advance origin main"
 assert_eq "$(market_version)" "1.2.3" "entry-agrees-no-tags-bump must not touch the marketplace"
 
+echo "=== release: non-semver v tags are not releases ==="
+new_sandbox ""            # no marketplace entry
+make_virgin "0.1.0"       # manifest seeded by an external scaffold, no v* tags
+# The only v* tags this plugin then carries are not versions, so it is still at
+# its first release. Both are load-bearing and neither is redundant: `vnext`
+# is what `git tag --list 'v*'` matches and no version filter should, while
+# `v1.2` is what tells the full three-part anchor from a `^v[0-9]` one — under
+# that weaker anchor v1.2 survives, the plugin reads as released, and the run
+# refuses on manifest-versus-latest-tag instead.
+git -C "$plugin" tag vnext
+git -C "$plugin" tag v1.2
+head_before="$(git -C "$plugin" rev-parse HEAD)"
+run_in "$plugin" bash plugin-dev/release.sh
+assert_eq "$rc" "0" "non-semver-tags exit code"
+assert_contains "$out" "Release v0.1.0 complete" "non-semver-tags summary"
+assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "0.1.0" \
+    "non-semver-tags manifest untouched"
+assert_eq "$(git -C "$plugin" rev-parse HEAD)" "$head_before" \
+    "non-semver-tags makes no commit"
+assert_eq "$(git -C "$plugin" rev-parse -q --verify 'refs/tags/v0.1.0^{commit}')" \
+    "$head_before" "non-semver-tags tags HEAD"
+
 echo "=== release: tags with no marketplace entry is not a first release ==="
 new_sandbox ""            # no entry...
 run_in "$plugin" bash plugin-dev/release.sh patch   # ...but the fixture's v1.2.3 tag stands
