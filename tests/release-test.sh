@@ -706,6 +706,86 @@ assert_eq "$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)" "$ori
 assert_eq "$(cat "$GH_LOG")" "" "lost-tag-no-bump must not call gh"
 assert_eq "$(market_version)" "" "lost-tag-no-bump must not touch the marketplace"
 
+echo "=== release: a lost local tag refuses even when the manifest was hand-advanced past a different real origin release ==="
+# The manifest/entry version (1.3.0) and the lost origin tag (v1.2.3) are
+# different strings here — unlike the two lost-tag scenarios above, where the
+# manifest and the origin tag agree. That is what lets this scenario tell
+# apart "the hint names the origin tag" from "the hint names the manifest
+# version": only the former can pass here.
+new_sandbox "1.3.0"
+jq '.version = "1.3.0"' "$plugin/.claude-plugin/plugin.json" > "$plugin/.claude-plugin/plugin.json.tmp"
+mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
+git -C "$plugin" add -A
+git -C "$plugin" commit -qm "hand-advance to 1.3.0"
+git -C "$plugin" push -q origin main
+lose_tag "$plugin"
+origin_head_before="$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)"
+run_in "$plugin" bash plugin-dev/release.sh
+assert_eq "$rc" "1" "hand-advanced-lost-tag exit code"
+assert_contains "$out" "v1.2.3" "hand-advanced-lost-tag names the lost origin tag, not the manifest version"
+assert_contains "$out" "git fetch --tags" "hand-advanced-lost-tag names the fetch remedy"
+assert_not_contains "$out" "never been released" "hand-advanced-lost-tag must not read as a first release"
+assert_eq "$(git -C "$plugin" tag --list 'v*')" "" "hand-advanced-lost-tag created no local tag"
+assert_eq "$(git -C "$plugin" ls-remote origin refs/tags/v1.3.0 | wc -l | tr -d ' ')" "0" \
+    "hand-advanced-lost-tag did not push v1.3.0 to origin"
+assert_eq "$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)" "$origin_head_before" \
+    "hand-advanced-lost-tag did not advance origin main further"
+assert_eq "$(cat "$GH_LOG")" "" "hand-advanced-lost-tag must not call gh"
+assert_eq "$(market_version)" "1.3.0" "hand-advanced-lost-tag must not touch the marketplace"
+
+echo "=== release: origin's listing is read version-sorted, not lexicographically ==="
+new_sandbox "1.2.3"
+lose_tag "$plugin"
+for t in v1.9.0 v1.10.0 v1.11.0; do
+    git -C "$plugin" tag "$t"
+    git -C "$plugin" push -q origin "$t"
+    lose_tag "$plugin" "$t"
+done
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "origin-sort exit code"
+assert_contains "$out" "v1.11.0" "origin-sort names the newest origin tag"
+assert_not_contains "$out" "v1.10.0" "origin-sort does not name the second-newest origin tag"
+assert_not_contains "$out" "v1.9.0" "origin-sort does not name the third-newest origin tag"
+
+echo "=== release: the lost-tag probe runs before the version-drift check ==="
+new_sandbox "1.2.3"
+make_virgin "1.2.3"
+jq '.version = "1.2.4"' "$plugin/.claude-plugin/plugin.json" > "$plugin/.claude-plugin/plugin.json.tmp"
+mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
+git -C "$plugin" commit -qam "hand-advance to 1.2.4"
+git -C "$plugin" push -q origin main
+git -C "$plugin" tag v1.2.4
+git -C "$plugin" push -q origin v1.2.4
+lose_tag "$plugin" v1.2.4
+run_in "$plugin" bash plugin-dev/release.sh
+assert_eq "$rc" "1" "probe-before-drift exit code"
+assert_contains "$out" "v1.2.4" "probe-before-drift names the lost origin tag"
+assert_contains "$out" "git fetch --tags" "probe-before-drift names the fetch remedy"
+assert_not_contains "$out" "version drift" "probe-before-drift must not read as a drift refusal"
+assert_not_contains "$out" "just resume-release" "probe-before-drift must not offer the drift recovery command"
+
+echo "=== release: a listing that fails on an unreachable origin URL refuses, saying nothing was done ==="
+new_sandbox "1.2.3"
+make_virgin "1.2.3"
+git -C "$plugin" remote set-url origin "$sandbox/does-not-exist"
+run_in "$plugin" bash plugin-dev/release.sh
+assert_eq "$rc" "1" "unreachable-origin exit code"
+assert_contains "$out" "could not verify this plugin's release history on origin" \
+    "unreachable-origin names the unverifiable probe"
+assert_eq "$(git -C "$plugin" tag --list 'v*')" "" "unreachable-origin created no local tag"
+assert_eq "$(cat "$GH_LOG")" "" "unreachable-origin must not call gh"
+
+echo "=== release: a listing that fails with no origin remote at all refuses, saying nothing was done ==="
+new_sandbox "1.2.3"
+make_virgin "1.2.3"
+git -C "$plugin" remote remove origin
+run_in "$plugin" bash plugin-dev/release.sh
+assert_eq "$rc" "1" "no-origin exit code"
+assert_contains "$out" "could not verify this plugin's release history on origin" \
+    "no-origin names the unverifiable probe"
+assert_eq "$(git -C "$plugin" tag --list 'v*')" "" "no-origin created no local tag"
+assert_eq "$(cat "$GH_LOG")" "" "no-origin must not call gh"
+
 echo "=== release: non-semver v tags are not releases ==="
 new_sandbox ""            # no marketplace entry
 make_virgin "0.1.0"       # manifest seeded by an external scaffold, no v* tags
