@@ -227,8 +227,75 @@ release_tags() {
     git tag --list 'v*' --sort=-v:refname | semver_tags
 }
 
+origin_release_tags() {
+    # Origin's semver release tags, newest first — same contract as
+    # release_tags, read from origin instead of the local clone. Evidence for
+    # the lost-tags guard in release_preflight: a local tag can go missing
+    # (deleted, a clone that never fetched it) while origin's copy — the
+    # actual release record — is untouched.
+    #
+    # ls-remote's default order is lexicographic on the ref name, not semver
+    # (v1.10.0 sorts before v1.2.3 sorts before v1.9.0 as strings), so
+    # --sort=-v:refname is load-bearing: without it a refusal could name a tag
+    # that is not actually the newest once a plugin reaches a two-digit minor
+    # or patch.
+    #
+    # `git ls-remote` reaches the network and fails routinely (unreachable
+    # origin, no origin, auth) — unlike `git tag --list`, which essentially
+    # never fails. Capture its own output into a variable and check ITS
+    # status directly, rather than piping straight into cut/sed/semver_tags:
+    # semver_tags absorbs a no-match grep's status 1, so under `set -o
+    # pipefail` a failing `ls-remote` followed by filters that legitimately
+    # see empty input would report the pipeline as a whole succeeding —
+    # exactly the fail-open shape this function's caller must not see.
+    local listing
+    listing=$(git ls-remote --tags --sort=-v:refname origin) || return 1
+    printf '%s\n' "$listing" | cut -f2 | sed 's|^refs/tags/||' | semver_tags
+}
+
 release_preflight() {
     local manifest_version latest_tag release_tag_list
+    # Capture the listing rather than substituting it inline: a `git tag` that
+    # fails, or a real grep error in the filter, prints nothing, and
+    # `[ -z "$(release_tags)" ]` would discard that status and read the
+    # silence as "never released" — then tag HEAD and publish the manifest
+    # version of a plugin whose history it could not read.
+    release_tag_list=$(release_tags) \
+        || die "could not list this plugin's release tags — nothing was done"
+
+    # Lost-tags guard, before check-version.sh and so before any side effect
+    # (bump_commit_tag tagging, push_branch pushing): an empty LOCAL tag list
+    # is not by itself evidence this plugin was never released — a clone can
+    # lose a tag it once had while origin still carries it. Only origin
+    # silence, not local silence, may say "never released" and continue.
+    #
+    # Read as any semver tag on origin, not only v$manifest_version: a
+    # tagless clone whose manifest was hand-advanced past a real release
+    # (e.g. to 1.3.0 over a published v1.2.3) would otherwise find no
+    # v1.3.0, read as first release, and publish the hand-written version
+    # without ever consulting the release it is actually ahead of.
+    #
+    # Capture rule applies here exactly as above: never
+    # `[ -n "$(origin_release_tags)" ]`, which would discard a broken
+    # listing's status and let a network failure read as "origin has no
+    # tags either" — a fail-open path into publishing a duplicate release.
+    # A failed listing refuses instead: push_branch and push_tag need origin
+    # anyway, so proceeding would only move the failure past the point a
+    # local tag could still have caught it.
+    if [ -z "$release_tag_list" ]; then
+        local origin_tag_list origin_newest
+        origin_tag_list=$(origin_release_tags) \
+            || die "could not verify this plugin's release history on origin — nothing was done"
+        if [ -n "$origin_tag_list" ]; then
+            origin_newest=$(printf '%s\n' "$origin_tag_list" | sed -n '1p')
+            printf 'hint: origin already has release tags for this plugin — the newest is\n' >&2
+            # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
+            printf '      %s, missing from this clone. Run `git fetch --tags` to catch up,\n' "$origin_newest" >&2
+            printf '      then run the same command again.\n' >&2
+            die "local release tags are missing — refusing to guess whether $origin_newest was published"
+        fi
+    fi
+
     # Catch a previous release that didn't fully complete (tag/manifest bumped,
     # marketplace bump never landed) before starting a new one on top of it.
     bash "$here/check-version.sh" || {
@@ -243,14 +310,6 @@ release_preflight() {
     # Plugins scaffolded by the unrelated official `plugin-dev` marketplace
     # plugin arrive seeded at 0.1.0 exactly this way, and bumping past it
     # publishes a version nobody asked for. So publish the manifest verbatim.
-    #
-    # Capture the listing rather than substituting it inline: a `git tag` that
-    # fails, or a real grep error in the filter, prints nothing, and
-    # `[ -z "$(release_tags)" ]` would discard that status and read the
-    # silence as "never released" — then tag HEAD and publish the manifest
-    # version of a plugin whose history it could not read.
-    release_tag_list=$(release_tags) \
-        || die "could not list this plugin's release tags — nothing was done"
     if [ -z "$release_tag_list" ]; then
         first_release=1
         if [ -n "$bump_arg" ]; then
