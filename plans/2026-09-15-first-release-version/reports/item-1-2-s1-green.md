@@ -123,7 +123,7 @@ Staged and committed: `tests/release-test.sh`, `toolkit/release.sh`,
 `plans/2026-09-15-first-release-version/reports/item-1-2-s1-red.md`,
 `plans/2026-09-15-first-release-version/reports/item-1-2-s1-test-review.md`.
 
-Commit: `9d4b9f1` — "✨ Item 1.2/1 — lost-tags origin probe refuses an
+Commit: `3794941` — "✨ Item 1.2/1 — lost-tags origin probe refuses an
 unverifiable local tag list"
 
 ## Tree state after commit
