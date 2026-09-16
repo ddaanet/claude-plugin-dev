@@ -131,3 +131,8 @@ unverifiable local tag list"
 Clean except pre-existing staged `.claude/handoff-task.md` and
 `.claude/handoff-todo.md`, which were already staged before this dispatch
 started and are out of this slice's scope — left untouched.
+
+A follow-up commit `299a1e8` ("📝 Item 1.2/1 — correct commit hash in GREEN
+report") fixed a placeholder commit hash this report was drafted with before the
+implementation commit landed. Tree is clean again after it, same pre-existing
+staged exception.
