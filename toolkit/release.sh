@@ -205,19 +205,22 @@ semver_tags() {
     # Filter: stdin to stdout, keeping only full `vX.Y.Z` lines. A no-match
     # grep exits 1, which under `set -euo pipefail` would kill the script at
     # the caller's assignment — absorb exactly that status, so an empty
-    # result is a value (no matching tags) and a real grep error (status 2)
-    # still fails the script.
+    # result is a value (no matching tags) and a real grep error still exits
+    # non-zero. That distinction only reaches the caller if the caller reads
+    # the status: capture into a variable, never `[ -z "$(…)" ]`, which
+    # discards it and makes a failed listing look like an empty one.
     { grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || [ "$?" -eq 1 ]; }
 }
 
 release_tags() {
-    # Local semver release tags, newest first. Every caller names the newest
-    # tag, so the order is load-bearing.
+    # Local semver release tags, newest first — the order is part of the
+    # contract, since a caller naming a release takes the first line. Fixed
+    # here rather than at each call site so no caller can forget it.
     git tag --list 'v*' --sort=-v:refname | semver_tags
 }
 
 release_preflight() {
-    local manifest_version latest_tag
+    local manifest_version latest_tag release_tag_list
     # Catch a previous release that didn't fully complete (tag/manifest bumped,
     # marketplace bump never landed) before starting a new one on top of it.
     bash "$here/check-version.sh" || {
@@ -236,7 +239,15 @@ release_preflight() {
     # `git tag --list 'v*'` and not `git describe`: describe only sees tags
     # reachable from HEAD, so a release tagged on a since-abandoned branch would
     # read as no tags at all.
-    if [ -z "$(release_tags)" ]; then
+    #
+    # Capture the listing rather than substituting it inline: a `git tag` that
+    # fails, or a real grep error in the filter, prints nothing, and
+    # `[ -z "$(release_tags)" ]` would discard that status and read the
+    # silence as "never released" — then tag HEAD and publish the manifest
+    # version of a plugin whose history it could not read.
+    release_tag_list=$(release_tags) \
+        || die "could not list this plugin's release tags — nothing was done"
+    if [ -z "$release_tag_list" ]; then
         first_release=1
         if [ -n "$bump_arg" ]; then
             printf 'hint: a first release publishes the manifest version as-is — there is no\n' >&2
