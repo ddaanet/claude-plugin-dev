@@ -339,17 +339,39 @@ release_preflight() {
             # write $manifest_version there anyway via bump_marketplace), but
             # name the manifest edit too, for the case where the entry's
             # version was the one actually intended.
+            # Capture rule, and it bites here: `set -e` IS in force inside
+            # this `|| { … }` group (measured, bash 5.2 — errexit is suppressed
+            # for an AND-OR list's non-final elements, not for the commands
+            # inside its final one), so an unread failure would abort the run
+            # with jq's own status and no `error:` line at all. Reachable:
+            # check-version.sh exits non-zero on a malformed or
+            # non-marketplace-shaped marketplace.json as well as on drift, and
+            # this jq then fails the same way.
             local market_version
             market_version=$(jq -r --arg n "$plugin_name" \
-                '.plugins[] | select(.name==$n) | .version' "$marketplace_json")
-            printf 'hint: no release is recorded at %s or %s — this plugin has never been\n' \
+                '.plugins[] | select(.name==$n) | .version' "$marketplace_json") \
+                || die "could not read $plugin_name's entry in $marketplace_json — nothing was done"
+            # Empty rather than failed: jq matched no entry. check-version.sh
+            # skips (exit 0) when the entry is absent, so on its exit-1 drift
+            # path the entry is always present — this only obtains if the two
+            # scripts resolved different manifests, which they do when
+            # release.sh is run from a plugin root other than the one vendoring
+            # it ($manifest is relative to the CWD, check-version.sh's default
+            # to the toolkit's own parent).
+            [ -n "$market_version" ] \
+                || die "no $plugin_name entry in $marketplace_json to compare against — nothing was done"
+            # "no release tag at all", not "never published": what the probe
+            # established is that no `vX.Y.Z` tag exists here or on origin. A
+            # plugin released only under some other tag scheme is the residual
+            # the outline records, and this message must not deny it.
+            printf 'hint: no release is recorded at %s or %s — this plugin has no\n' \
                 "$manifest_version" "$market_version" >&2
-            printf '      published under either version, so there is nothing to resume.\n' >&2
+            printf '      release tag at all, here or on origin, so there is nothing to resume.\n' >&2
             printf '      correct the marketplace entry to match plugin.json (a successful\n' >&2
             printf '      first release would write %s there anyway), or if %s was the\n' \
                 "$manifest_version" "$market_version" >&2
             printf '      intended version, set .version in %s\n' "$manifest" >&2
-            printf '      to it and commit that edit, then re-run.\n' >&2
+            printf '      to %s and commit that edit, then re-run.\n' "$market_version" >&2
             die "fix the version drift above before releasing"
         fi
         # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
