@@ -242,14 +242,26 @@ origin_release_tags() {
     #
     # `git ls-remote` reaches the network and fails routinely (unreachable
     # origin, no origin, auth) — unlike `git tag --list`, which essentially
-    # never fails. Capture its own output into a variable and check ITS
-    # status directly, rather than piping straight into cut/sed/semver_tags:
-    # semver_tags absorbs a no-match grep's status 1, so under `set -o
-    # pipefail` a failing `ls-remote` followed by filters that legitimately
-    # see empty input would report the pipeline as a whole succeeding —
-    # exactly the fail-open shape this function's caller must not see.
+    # never fails. So capture its output and read ITS status, rather than
+    # piping it straight into cut/sed/semver_tags. Piping is not wrong today:
+    # `set -o pipefail` yields the RIGHTMOST non-zero stage status, so
+    # ls-remote's 128 does reach the caller past filters that exit 0. But
+    # pipefail is the only thing that carries it — semver_tags deliberately
+    # absorbs a no-match grep's status 1, so the filter tail reports success
+    # on empty input, and with pipefail off the pipeline returns 0 and the
+    # caller reads "origin has no tags either": the fail-open path into
+    # publishing over a release it could not see. That would leave this
+    # function's safety resting on one word of the `set` line 250 lines up.
+    # Verified both ways (bash 5.2, git 2.47.3): piped refuses under pipefail
+    # and succeeds with it off; captured refuses either way.
     local listing
     listing=$(git ls-remote --tags --sort=-v:refname origin) || return 1
+    # cut -f2 splits on TAB, and ls-remote emits exactly `<oid><TAB><ref>`.
+    # A ref name can hold neither space, tab nor newline (git refuses all
+    # three — verified), so the split is total for anything reaching here.
+    # The residual is a line with no TAB, which cut passes through whole;
+    # semver_tags's anchored pattern drops it, as it drops the `^{}` peeled
+    # rows annotated tags add beside their own.
     printf '%s\n' "$listing" | cut -f2 | sed 's|^refs/tags/||' | semver_tags
 }
 
@@ -287,6 +299,11 @@ release_preflight() {
         origin_tag_list=$(origin_release_tags) \
             || die "could not verify this plugin's release history on origin — nothing was done"
         if [ -n "$origin_tag_list" ]; then
+            # First line, because origin_release_tags sorts newest first; sed
+            # and not `head -1`, for the SIGPIPE reason spelled out at the
+            # latest_tag read below. Neither printf nor sed can fail on an
+            # already-captured non-empty string, so the status check on
+            # origin_tag_list above is the only one this needs.
             origin_newest=$(printf '%s\n' "$origin_tag_list" | sed -n '1p')
             printf 'hint: origin already has release tags for this plugin — the newest is\n' >&2
             # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
