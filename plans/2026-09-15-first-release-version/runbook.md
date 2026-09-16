@@ -95,41 +95,39 @@ origin: that is what lets Item 1.1 land before Item 1.2, green at each boundary.
   and bumping the entry. Only the detection conjunct goes. `bump_commit_tag`'s
   initial-release branch is unchanged.
 
-  Requirements: FR-1, FR-2, FR-3.
+  - Requirements: FR-1, FR-2, FR-3.
+  - Slices:
 
-  Slices:
+    1. External contract: the scenario at `tests/release-test.sh:625` inverts
+       and is renamed — a marketplace entry no longer disqualifies a first
+       release. `new_sandbox "1.2.3"` + `make_virgin "1.2.3"` (no tag locally or
+       on origin), no argument: asserts `Release v1.2.3 complete`, the manifest
+       still `1.2.3`, `HEAD` unchanged from before the run,
+       `refs/tags/v1.2.3^{commit}` equal to that `HEAD`, the marketplace still
+       `1.2.3` and its `HEAD` unmoved. Second test, same fixture with `patch`:
+       exit 1, output contains `never been released`, `git tag --list 'v*'`
+       empty, `$GH_LOG` empty. Third, in the existing bump-refusal loop at
+       `:610-623`: the hint contains `commit that edit` beside the existing
+       `set .version in .claude-plugin/plugin.json`, because `.claude-plugin/`
+       is not exempt from the clean-tree check. `make_virgin`'s comment
+       (`:194-200`) loses "isolates the no-tags half of the conjunct".
 
-  1. External contract: the scenario at `tests/release-test.sh:625` inverts and
-     is renamed — a marketplace entry no longer disqualifies a first release.
-     `new_sandbox "1.2.3"` + `make_virgin "1.2.3"` (no tag locally or on
-     origin), no argument: asserts `Release v1.2.3 complete`, the manifest still
-     `1.2.3`, `HEAD` unchanged from before the run, `refs/tags/v1.2.3^{commit}`
-     equal to that `HEAD`, the marketplace still `1.2.3` and its `HEAD` unmoved.
-     Second test, same fixture with `patch`: exit 1, output contains
-     `never been released`, `git tag --list 'v*'` empty, `$GH_LOG` empty. Third,
-     in the existing bump-refusal loop at `:610-623`: the hint contains
-     `commit that edit` beside the existing
-     `set .version in .claude-plugin/plugin.json`, because `.claude-plugin/` is
-     not exempt from the clean-tree check. `make_virgin`'s comment (`:194-200`)
-     loses "isolates the no-tags half of the conjunct".
+    2. Non-semver `v` tags are not releases: new scenario, `new_sandbox ""` +
+       `make_virgin "0.1.0"` then `git tag vnext` and `git tag v1.2` on `HEAD`,
+       no argument: asserts `Release v0.1.0 complete` and that
+       `refs/tags/v0.1.0` exists. Red: today the manifest-versus-latest-tag
+       check refuses with `does not match latest tag (vnext)`.
+    3. `latest_tag` skips a non-semver tag that sorts above the newest release:
+       `new_sandbox "1.2.3"` (the fixture keeps `v1.2.3`), add `vnext` and
+       `v1.2`, run `patch`: asserts `Release v1.2.4 complete` and the manifest
+       at `1.2.4`. Red: today `vnext` is `latest_tag` and the run refuses.
+  - Interfaces:
 
-  2. Non-semver `v` tags are not releases: new scenario, `new_sandbox ""` +
-     `make_virgin "0.1.0"` then `git tag vnext` and `git tag v1.2` on `HEAD`, no
-     argument: asserts `Release v0.1.0 complete` and that `refs/tags/v0.1.0`
-     exists. Red: today the manifest-versus-latest-tag check refuses with
-     `does not match latest tag (vnext)`.
-  3. `latest_tag` skips a non-semver tag that sorts above the newest release:
-     `new_sandbox "1.2.3"` (the fixture keeps `v1.2.3`), add `vnext` and `v1.2`,
-     run `patch`: asserts `Release v1.2.4 complete` and the manifest at `1.2.4`.
-     Red: today `vnext` is `latest_tag` and the run refuses.
-
-  Interfaces:
-
-  - `semver_tags()` — stdin to stdout filter, keeps lines matching
-    `^v[0-9]+\.[0-9]+\.[0-9]+$`, exits 0 on no match
-  - `release_tags()` — no arguments, prints local semver tags newest first
-    (`git tag --list 'v*' --sort=-v:refname | semver_tags`)
-  - global `first_release` (0|1), `V` (version, no `v`), `tag` (`v$V`)
+    - `semver_tags()` — stdin to stdout filter, keeps lines matching
+      `^v[0-9]+\.[0-9]+\.[0-9]+$`, exits 0 on no match
+    - `release_tags()` — no arguments, prints local semver tags newest first
+      (`git tag --list 'v*' --sort=-v:refname | semver_tags`)
+    - global `first_release` (0|1), `V` (version, no `v`), `tag` (`v$V`)
 
 - Item 1.2: toolkit/release.sh — the lost-tags origin probe, first in
   `release_preflight`, before `check-version.sh` (`:202-206`) and so before
@@ -140,133 +138,135 @@ origin: that is what lets Item 1.1 land before Item 1.2, green at each boundary.
   6). `tests/release-test.sh` gains a helper that deletes a tag locally while
   leaving origin's in place, used by slices 1-4.
 
-  Requirements: FR-4, FR-8. Depends on: Item 1.1
+  - Requirements: FR-4, FR-8.
+  - Depends on: Item 1.1
+  - Slices:
 
-  Slices:
+    1. External contract: `new_sandbox "1.2.3"`, `v1.2.3` dropped locally only,
+       one unpushed commit on `main`, run `patch`: exit 1, output names `v1.2.3`
+       and `git fetch --tags` and does **not** name `never been released`,
+       `git tag --list 'v*'` empty, origin's `refs/heads/main` still at the
+       pre-run sha, `$GH_LOG` empty, marketplace still `1.2.3`. That absence is
+       load-bearing: with Item 1.1 landed the bump refusal also exits 1 naming
+       `v1.2.3`, so it is what pins the probe ahead of it. Second test,
+       `new_sandbox ""` with the same local-only drop and no argument: same
+       hint, and the same absent-tag and unadvanced-origin assertions — exit 1
+       alone is not red, since today's code already exits 1 in `push_tag` after
+       tagging and pushing.
+    2. Any semver tag on origin refuses, not only `v$V`: `new_sandbox "1.3.0"`,
+       manifest hand-advanced to `1.3.0`, committed and pushed, `v1.2.3` dropped
+       locally only, no argument: exit 1, hint names `v1.2.3` and
+       `git fetch --tags`, no `v1.3.0` tag locally or on origin, `$GH_LOG`
+       empty, marketplace still `1.3.0`. Red: with Item 1.1 landed and no probe
+       yet, this state reads as a first release and *publishes* `v1.3.0` — tag
+       pushed, `gh release create` called — which is the outcome the probe
+       exists to stop. (Unchanged code bumped to `1.3.1` instead; the danger
+       arrives with Item 1.1.) Also fails an implementation probing only for
+       `v$V`.
+    3. The origin listing is version-sorted: `new_sandbox "1.2.3"`, `v1.2.3`
+       dropped locally only, then `v1.9.0`, `v1.10.0` and `v1.11.0` created,
+       pushed and dropped locally — run `patch`: the hint names `v1.11.0` and
+       neither `v1.10.0` nor `v1.9.0`. Red without `--sort=-v:refname`:
+       `ls-remote`'s own order is lexicographic by refname —
+       `v1.10.0 v1.11.0 v1.9.0` (verified, git 2.47.3) — so the first line and
+       the last are both the wrong tag. A `v1.2.3`/`v1.10.0` pair would not be
+       red at all: there the lexicographically first line is already the newest.
+       Nothing else tests the sort.
+    4. The probe precedes the drift check: `new_sandbox "1.2.3"`, `v1.2.3`
+       deleted locally and on origin, manifest hand-advanced to `1.2.4` and
+       committed, `v1.2.4` created, pushed and dropped locally — entry still
+       `1.2.3`, no argument: exit 1 with the fetch hint naming `v1.2.4`, and the
+       output contains neither `version drift` nor `just resume-release`. Red:
+       today `check-version.sh` gives drift advice whose remedy would commit
+       `1.2.3` over a public `v1.2.4`.
+    5. A listing that failed refuses, saying nothing was done: two tests, each
+       asserting exit 1, a message naming the unverifiable probe,
+       `git tag --list 'v*'` empty and `$GH_LOG` empty — (a)
+       `new_sandbox "1.2.3"` + `make_virgin "1.2.3"` with origin's URL pointed
+       at a path that does not exist; (b) the same fixture with
+       `git remote remove origin`. Both breakages come after `make_virgin`,
+       which pushes. The entry is what lets (b) reach the probe: with none,
+       `common_preflight` refuses first at `:176-177`.
+    6. Decision 1 — an initial release whose entry disagrees with the manifest
+       is still refused: `new_sandbox "1.2.3"` + `make_virgin "0.1.0"`, no
+       argument: exit 1, the hint names both `0.1.0` and `1.2.3`, says no
+       release is recorded at either, points at the marketplace entry as the one
+       to correct, mentions setting the manifest instead if that version is the
+       intended one, and does not contain `just resume-release`. No tag created,
+       `$GH_LOG` empty. Red: today the hint offers resume.
+  - Interfaces:
 
-  1. External contract: `new_sandbox "1.2.3"`, `v1.2.3` dropped locally only,
-     one unpushed commit on `main`, run `patch`: exit 1, output names `v1.2.3`
-     and `git fetch --tags` and does **not** name `never been released`,
-     `git tag --list 'v*'` empty, origin's `refs/heads/main` still at the
-     pre-run sha, `$GH_LOG` empty, marketplace still `1.2.3`. That absence is
-     load-bearing: with Item 1.1 landed the bump refusal also exits 1 naming
-     `v1.2.3`, so it is what pins the probe ahead of it. Second test,
-     `new_sandbox ""` with the same local-only drop and no argument: same hint,
-     and the same absent-tag and unadvanced-origin assertions — exit 1 alone is
-     not red, since today's code already exits 1 in `push_tag` after tagging and
-     pushing.
-  2. Any semver tag on origin refuses, not only `v$V`: `new_sandbox "1.3.0"`,
-     manifest hand-advanced to `1.3.0`, committed and pushed, `v1.2.3` dropped
-     locally only, no argument: exit 1, hint names `v1.2.3` and
-     `git fetch --tags`, no `v1.3.0` tag locally or on origin, `$GH_LOG` empty,
-     marketplace still `1.3.0`. Red: with Item 1.1 landed and no probe yet, this
-     state reads as a first release and *publishes* `v1.3.0` — tag pushed,
-     `gh release create` called — which is the outcome the probe exists to stop.
-     (Unchanged code bumped to `1.3.1` instead; the danger arrives with Item
-     1.1.) Also fails an implementation probing only for `v$V`.
-  3. The origin listing is version-sorted: `new_sandbox "1.2.3"`, `v1.2.3`
-     dropped locally only, then `v1.9.0`, `v1.10.0` and `v1.11.0` created,
-     pushed and dropped locally — run `patch`: the hint names `v1.11.0` and
-     neither `v1.10.0` nor `v1.9.0`. Red without `--sort=-v:refname`:
-     `ls-remote`'s own order is lexicographic by refname —
-     `v1.10.0 v1.11.0 v1.9.0` (verified, git 2.47.3) — so the first line and the
-     last are both the wrong tag. A `v1.2.3`/`v1.10.0` pair would not be red at
-     all: there the lexicographically first line is already the newest. Nothing
-     else tests the sort.
-  4. The probe precedes the drift check: `new_sandbox "1.2.3"`, `v1.2.3` deleted
-     locally and on origin, manifest hand-advanced to `1.2.4` and committed,
-     `v1.2.4` created, pushed and dropped locally — entry still `1.2.3`, no
-     argument: exit 1 with the fetch hint naming `v1.2.4`, and the output
-     contains neither `version drift` nor `just resume-release`. Red: today
-     `check-version.sh` gives drift advice whose remedy would commit `1.2.3`
-     over a public `v1.2.4`.
-  5. A listing that failed refuses, saying nothing was done: two tests, each
-     asserting exit 1, a message naming the unverifiable probe,
-     `git tag --list 'v*'` empty and `$GH_LOG` empty — (a)
-     `new_sandbox "1.2.3"` + `make_virgin "1.2.3"` with origin's URL pointed at
-     a path that does not exist; (b) the same fixture with
-     `git remote remove origin`. Both breakages come after `make_virgin`, which
-     pushes. The entry is what lets (b) reach the probe: with none,
-     `common_preflight` refuses first at `:176-177`.
-  6. Decision 1 — an initial release whose entry disagrees with the manifest is
-     still refused: `new_sandbox "1.2.3"` + `make_virgin "0.1.0"`, no argument:
-     exit 1, the hint names both `0.1.0` and `1.2.3`, says no release is
-     recorded at either, points at the marketplace entry as the one to correct,
-     mentions setting the manifest instead if that version is the intended one,
-     and does not contain `just resume-release`. No tag created, `$GH_LOG`
-     empty. Red: today the hint offers resume.
-
-  Interfaces:
-
-  - `origin_release_tags()` — no arguments, prints origin's semver tags newest
-    first from `git ls-remote --tags --sort=-v:refname origin`, field 2 with
-    `refs/tags/` stripped; exits non-zero when `ls-remote` failed, and that
-    status is read by an `if`, never by a bare substitution
+    - `origin_release_tags()` — no arguments, prints origin's semver tags newest
+      first from `git ls-remote --tags --sort=-v:refname origin` — the sort's
+    reason (lexicographic refname order is not version order) belongs in its
+    code comment, as the other shell constraints do — field 2 with `refs/tags/`
+    stripped; exits non-zero when `ls-remote` failed, and that status is read by
+    an `if`, never by a bare substitution
 
 - Item 1.3: toolkit/release.sh — `common_preflight` refuses a diverged push
   route, before any side effect and in both modes. Each `git config --get` exits
   1 when unset, so each read absorbs that status.
 
-  Requirements: FR-6.
+  - Requirements: FR-6.
+  - Slices:
 
-  Slices:
-
-  1. External contract, one test per setting in a loop over
-     `remote.origin.pushurl`, `branch.main.pushRemote` and `remote.pushDefault`,
-     each redirecting the push to a second bare repo. The two forms differ:
-     `pushurl` takes that repo's path, while `pushRemote` and `pushDefault` take
-     a remote *name*, so the fixture adds `git remote add other <that repo>`
-     first and sets them to `other`. Fresh `new_sandbox "1.2.3"` per setting,
-     `release.sh patch` — exit 1, output contains the setting's key and the
-     value it was set to (the path, or `other`), no `v1.2.4` tag, `$GH_LOG`
-     empty, marketplace still `1.2.3`. Red: none of the three is consulted
-     today.
-  2. The same refusal on resume: healthy fixture with `remote.origin.pushurl`
-     set, `release.sh --resume` — exit 1, output names the key, `$GH_LOG` empty.
+    1. External contract, one test per setting in a loop over
+       `remote.origin.pushurl`, `branch.main.pushRemote` and
+       `remote.pushDefault`, each redirecting the push to a second bare repo.
+       The two forms differ: `pushurl` takes that repo's path, while
+       `pushRemote` and `pushDefault` take a remote *name*, so the fixture adds
+       `git remote add other <that repo>` first and sets them to `other`. Fresh
+       `new_sandbox "1.2.3"` per setting, `release.sh patch` — exit 1, output
+       contains the setting's key and the value it was set to (the path, or
+       `other`), no `v1.2.4` tag, `$GH_LOG` empty, marketplace still `1.2.3`.
+       Red: none of the three is consulted today.
+    2. The same refusal on resume: healthy fixture with `remote.origin.pushurl`
+       set, `release.sh --resume` — exit 1, output names the key, `$GH_LOG`
+       empty.
 
 - Item 1.4: toolkit/release.sh — `resume_preflight`'s no-tag refusal
   (`:284-287`) picks its hint from one `origin_release_tags` listing. A failed
   listing falls through to the two local hints: the refusal has no side effect,
   so the probe only improves the advice.
 
-  Requirements: FR-5. Depends on: Item 1.2
+  - Requirements: FR-5.
+  - Depends on: Item 1.2
+  - Slices:
 
-  Slices:
-
-  1. External contract, a virgin repo: `new_sandbox ""` + `make_virgin "0.1.0"`,
-     `--resume` — exit 1, output contains
-     `no tag v0.1.0 for plugin.json version 0.1.0` and a hint naming
-     `just release` with no bump argument, and does not contain
-     `just release <bump>`. Red: today it advises the bump form, which a first
-     release refuses on sight.
-  2. `v$V` on origin: this is the existing scenario at `:361-367`, whose fixture
-     (`new_sandbox "1.2.3"`, `v1.2.3` deleted locally, origin's kept) already
-     matches. Its assertions are rewritten in place, not duplicated beside it —
-     its current `just release <bump>` assertion fails the moment this slice's
-     branch lands, so leaving it would break the suite at this slice's green.
-     `no tag v1.2.3 for plugin.json version 1.2.3` stays; the hint now names
-     `git fetch --tags` and then `just resume-release`, and not
-     `just release <bump>`. Slice 4 re-establishes the `<bump>` coverage this
-     removes.
-  3. A different semver tag on origin: `new_sandbox "1.3.0"`, manifest
-     hand-advanced to `1.3.0` and committed, `v1.2.3` dropped locally only,
-     `--resume` — the hint names `git fetch --tags` and then
-     `just release <bump>`. Red: without this branch `release_tags` emptiness
-     sends this state to slice 1's no-argument hint, which the release guard
-     then refuses — two refusals to reach advice the first one had.
-  4. The local hints survive: a new scenario re-establishes the `<bump>` hint
-     slice 2 rewrote away — `new_sandbox "1.2.3"` keeping `v1.2.3` locally and
-     deleting it from origin, manifest hand-advanced to `1.2.4` and committed —
-     `--resume` gives `just release <bump>` and no `git fetch --tags`. Deleting
-     origin's copy is what makes branch 4 fire rather than branch 2, and the
-     kept local tag is what skips branch 3 (verified against both). Guard.
-     Second test, `new_sandbox "1.2.3"` + `make_virgin "1.2.3"` +
-     `git remote remove origin`, `--resume`: exit 1,
-     `no tag v1.2.3 for plugin.json version 1.2.3`, the hint names
-     `just release` with no argument, and the output carries no probe-failure
-     wording. Guard against an implementation reading the listing in a bare
-     substitution — errexit kills the script there — or refusing outright when
-     it fails.
+    1. External contract, a virgin repo: `new_sandbox ""` +
+       `make_virgin "0.1.0"`, `--resume` — exit 1, output contains
+       `no tag v0.1.0 for plugin.json version 0.1.0` and a hint naming
+       `just release` with no bump argument, and does not contain
+       `just release <bump>`. Red: today it advises the bump form, which a first
+       release refuses on sight.
+    2. `v$V` on origin: this is the existing scenario at `:361-367`, whose
+       fixture (`new_sandbox "1.2.3"`, `v1.2.3` deleted locally, origin's kept)
+       already matches. Its assertions are rewritten in place, not duplicated
+       beside it — its current `just release <bump>` assertion fails the moment
+       this slice's branch lands, so leaving it would break the suite at this
+       slice's green. `no tag v1.2.3 for plugin.json version 1.2.3` stays; the
+       hint now names `git fetch --tags` and then `just resume-release`, and not
+       `just release <bump>`. Slice 4 re-establishes the `<bump>` coverage this
+       removes.
+    3. A different semver tag on origin: `new_sandbox "1.3.0"`, manifest
+       hand-advanced to `1.3.0` and committed, `v1.2.3` dropped locally only,
+       `--resume` — the hint names `git fetch --tags` and then
+       `just release <bump>`. Red: without this branch `release_tags` emptiness
+       sends this state to slice 1's no-argument hint, which the release guard
+       then refuses — two refusals to reach advice the first one had.
+    4. The local hints survive: a new scenario re-establishes the `<bump>` hint
+       slice 2 rewrote away — `new_sandbox "1.2.3"` keeping `v1.2.3` locally and
+       deleting it from origin, manifest hand-advanced to `1.2.4` and committed
+       — `--resume` gives `just release <bump>` and no `git fetch --tags`.
+       Deleting origin's copy is what makes branch 4 fire rather than branch 2,
+       and the kept local tag is what skips branch 3 (verified against both).
+       Guard. Second test, `new_sandbox "1.2.3"` + `make_virgin "1.2.3"` +
+       `git remote remove origin`, `--resume`: exit 1,
+       `no tag v1.2.3 for plugin.json version 1.2.3`, the hint names
+       `just release` with no argument, and the output carries no probe-failure
+       wording. Guard against an implementation reading the listing in a bare
+       substitution — errexit kills the script there — or refusing outright when
+       it fails.
 
 ## Phase 2: version-guard.sh (type: tdd)
 
@@ -292,40 +292,39 @@ sourced, and a shared helper would be a new shipped path for one `grep -E` line.
   variables. The existing `$proj` scenarios exercise the listing-failure
   fallback and must pass unchanged.
 
-  Requirements: FR-2, FR-7.
+  - Requirements: FR-2, FR-7.
+  - Slices:
 
-  Slices:
-
-  1. External contract: a `git init` fixture with a manifest at `1.2.3` and no
-     tags, Edit payload `1.2.3` -> `9.9.9` — `assert_deny` (exit 0, deny JSON on
-     stdout, `systemMessage` present, stderr empty), and the
-     `permissionDecisionReason` contains `never been released` and
-     `will publish`, and does not contain `last released version` — today's
-     opening sentence, and the one claim that is false on a plugin with no
-     releases. Red: the steady-state message is the only one there is today.
-  2. The message offers no route to the proposed version: same scenario,
-     `$proposed` (`9.9.9`) appears nowhere in the reason after its first line,
-     the opening `1.2.3 -> 9.9.9` being the one legitimate mention. Guard —
-     green against a slice-1 branch that named no version, failing one that
-     offers the recipe as the route to `$proposed`.
-  3. Only the agent channel branches: the `systemMessage` string from the
-     tagless fixture is byte-identical to the one from a fixture tagged
-     `v1.2.3`, for the same payload. Guard, on a branch that spread to
-     `systemMessage`.
-  4. The predicate, not the tag count: the same fixture tagged only `vnext` (and
-     `v1.2`) gives the initial-release wording, while tagged `v1.2.3` it gives
-     the steady-state wording. Red against an implementation keyed on
-     `git tag --list 'v*'` emptiness rather than the semver filter — slice 1's
-     tagless fixture cannot tell the two apart; the `v1.2.3` half is a guard.
-  5. The guard clears leaked `GIT_*`: tagless fixture invoked with `GIT_DIR`
-     pointed at a second fixture carrying `v1.2.3` — initial-release wording.
-     Red: without the clearing the listing discovers the tagged repo. Tests the
-     guard's own clearing, as distinct from the harness hygiene above.
-  6. A failed listing is not an empty one: `git` stubbed to exit 127 through
-     `guard_path`, against the tagless repo fixture — still denies, with the
-     steady-state wording and empty stderr. It is the tagless fixture that
-     discriminates: an implementation folding failure into emptiness answers
-     initial-release here.
+    1. External contract: a `git init` fixture with a manifest at `1.2.3` and no
+       tags, Edit payload `1.2.3` -> `9.9.9` — `assert_deny` (exit 0, deny JSON
+       on stdout, `systemMessage` present, stderr empty), and the
+       `permissionDecisionReason` contains `never been released` and
+       `will publish`, and does not contain `last released version` — today's
+       opening sentence, and the one claim that is false on a plugin with no
+       releases. Red: the steady-state message is the only one there is today.
+    2. The message offers no route to the proposed version: same scenario,
+       `$proposed` (`9.9.9`) appears nowhere in the reason after its first line,
+       the opening `1.2.3 -> 9.9.9` being the one legitimate mention. Guard —
+       green against a slice-1 branch that named no version, failing one that
+       offers the recipe as the route to `$proposed`.
+    3. Only the agent channel branches: the `systemMessage` string from the
+       tagless fixture is byte-identical to the one from a fixture tagged
+       `v1.2.3`, for the same payload. Guard, on a branch that spread to
+       `systemMessage`.
+    4. The predicate, not the tag count: the same fixture tagged only `vnext`
+       (and `v1.2`) gives the initial-release wording, while tagged `v1.2.3` it
+       gives the steady-state wording. Red against an implementation keyed on
+       `git tag --list 'v*'` emptiness rather than the semver filter — slice 1's
+       tagless fixture cannot tell the two apart; the `v1.2.3` half is a guard.
+    5. The guard clears leaked `GIT_*`: tagless fixture invoked with `GIT_DIR`
+       pointed at a second fixture carrying `v1.2.3` — initial-release wording.
+       Red: without the clearing the listing discovers the tagged repo. Tests
+       the guard's own clearing, as distinct from the harness hygiene above.
+    6. A failed listing is not an empty one: `git` stubbed to exit 127 through
+       `guard_path`, against the tagless repo fixture — still denies, with the
+       steady-state wording and empty stderr. It is the tagless fixture that
+       discriminates: an implementation folding failure into emptiness answers
+       initial-release here.
 
 ## Phase 3: docs (type: inline)
 
@@ -343,7 +342,10 @@ list, `tests/dist-tree-test.sh` and `tests/doc-sync-test.sh` need no change.
   scaffold paragraph (`:33-38`) restated as FR-1; the brief's three mechanisms
   recorded as rejected alternatives with their reasons (a guard that allows the
   edit, `--initial`, a baseline tag). The `0.0.0` seeding rejection (`:73-79`)
-  stays. Requirements: FR-9, FR-1, FR-2, FR-4. Depends on: Item 1.2
+  stays. Also why both listings carry `--sort=-v:refname`: refname order is
+  lexicographic, where `v1.10.0` precedes `v1.2.3`, so the newest-first contract
+  every caller reads them under is not free. Requirements: FR-9, FR-1, FR-2,
+  FR-4. Depends on: Item 1.2
 - Item 3.2: docs/references/version-guard.md — the initial-release message
   branch, why it names no recipe as a route to the proposed version, why only
   the agent channel branches, and why the listing can never turn a deny into an
@@ -352,10 +354,12 @@ list, `tests/dist-tree-test.sh` and `tests/doc-sync-test.sh` need no change.
   (`:51-54`); the lost-tags and diverged-push-route refusals joining the list at
   `:138-144`, with why the probe runs before the drift check; resume on a clone
   missing tags; `check-version.sh` on an initial release (`:19-32`) per FR-8.
-  Requirements: FR-9, FR-4, FR-5, FR-6, FR-8. Depends on: Item 1.4
+  - Requirements: FR-9, FR-4, FR-5, FR-6, FR-8.
+  - Depends on: Item 1.4
 - Item 3.4: docs/design.md — rewrite the release-flow conclusion (`:105-107`)
   and add the message branch to the version-guard conclusion (`:146-150`).
-  Requirements: FR-9. Depends on: Items 3.1, 3.2
+  - Requirements: FR-9.
+  - Depends on: Items 3.1, 3.2
 - Item 3.5: toolkit/release.just and toolkit/README.md — the two consumer-facing
   statements of the predicate. The `release.just` header (`:23-29`) already
   states FR-1, FR-3 and the scaffold source; it gains one sentence naming the
@@ -363,7 +367,7 @@ list, `tests/dist-tree-test.sh` and `tests/doc-sync-test.sh` need no change.
   unchanged. The README Conventions bullet (`:175-179`) states detection by
   semver tag, the initial version coming from `/plugin-dev:create-plugin`'s
   manifest, and a different version being the maintainer's committed edit.
-  Requirements: FR-9, FR-2.
+  - Requirements: FR-9, FR-2.
 - Item 3.6: docs/changelog/2026-MM-DD-first-release-is-the-manifest-version.md
   plus its index line in docs/changelog.md — dated the day it is written, newest
   first. The index line says outright that detection semantics change: a
