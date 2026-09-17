@@ -1236,7 +1236,31 @@ run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "1" "version-drift exit code"
 assert_contains "$out" "does not match latest tag" "version-drift names the mismatch"
 assert_contains "$out" "LAST released version, never the next one" "version-drift states the invariant"
-assert_contains "$out" "git checkout HEAD -- .claude-plugin/plugin.json" "version-drift gives the revert command"
+assert_contains "$out" "set .version in .claude-plugin/plugin.json back to 1.2.3" \
+    "version-drift gives the remedy that works: revert the committed bump"
+assert_contains "$out" "bump that produces the version you want" \
+    "version-drift says which bump to re-run with"
+# The two remedies this hint used to offer are dead on every path that reaches
+# it, and a reader who does not know that will put them back. Both negatives
+# are load-bearing:
+#
+# `git checkout HEAD -- <manifest>` is always a no-op here. common_preflight
+# refuses a dirty tree (release.sh:138) before release_preflight runs, and
+# clean_pathspecs exempts only `.claude/` and the gitlore submodule — never
+# `.claude-plugin/` — so the hand-written bump has always been committed
+# already by the time this fires. This scenario's own fixture commits it.
+#
+# `git fetch --tags` can never have anything to fetch. latest_tag comes from
+# release_tag_list, the LOCAL semver tags, and the lost-tag probe upstream has
+# already established that local and origin agree on the newest one (an origin
+# tag ahead fires the probe's own fetch hint first; an unreachable origin dies
+# there). The probe-before-drift scenario above pins that ordering. Worse than
+# useless: the probe's hint is what sends an operator to fetch, so they reach
+# this refusal having just run the command it used to advise.
+assert_not_contains "$out" "git checkout HEAD --" \
+    "version-drift must not offer the checkout — the tree is provably clean here"
+assert_not_contains "$out" "git fetch --tags" \
+    "version-drift must not offer a fetch — the lost-tag probe already cleared origin"
 assert_eq "$(git -C "$plugin" tag --list 'v1.3.1')" "" "version-drift creates no tag"
 assert_eq "$(cat "$GH_LOG")" "" "version-drift must not call gh"
 
