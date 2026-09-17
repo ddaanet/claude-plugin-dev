@@ -174,9 +174,17 @@ of it in the same commit.
   and the release recipe's own pre-flight check.
 - A plugin that has never been released has nothing to bump from, so
   its **first** `just release` — with no bump argument — publishes the
-  version `plugin.json` already holds. Set that version before the
-  first release; passing a bump there is refused. Afterwards the
-  last-released rule above applies as normal.
+  version `plugin.json` already holds. That state is detected by tag
+  alone: no `vX.Y.Z` tag exists here or on origin. The marketplace
+  entry plays no part, so a plugin already listed there can still take
+  its first release. The version published is usually whatever
+  `/plugin-dev:create-plugin` seeded into the manifest; to ship a
+  different one, set `.version` and **commit** that edit before
+  releasing — `.claude-plugin/` is not exempt from the clean-tree
+  check. That edit is the maintainer's to make, and the one the
+  version-guard hook refuses from an agent. Passing a bump on a first
+  release is refused. Afterwards the last-released rule above applies
+  as normal.
 - Default branch is auto-detected from `origin/HEAD`; recipes don't
   hardcode `main`.
 - The version-guard hook fires on Write/Edit events targeting

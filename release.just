@@ -27,6 +27,10 @@
 # version the manifest already holds. That is what makes a first release work
 # straight out of a scaffold, whatever version the scaffold seeded. Passing an
 # explicit bump on a first release is refused rather than silently ignored.
+# "Never been released" is decided by tag alone: no tag matching `vX.Y.Z`
+# exists, here or on origin. The plugin's marketplace entry plays no part in
+# that decision, so a plugin already listed there can still take a first
+# release.
 #
 # The `patch` default lives in release.sh, not in the recipe signature: the
 # recipe passes its argument through even when empty, so release.sh can tell an
