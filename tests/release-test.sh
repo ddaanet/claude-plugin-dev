@@ -850,6 +850,75 @@ assert_contains "$out" "could not verify this plugin's release history on origin
 assert_eq "$(git -C "$plugin" tag --list 'v*')" "" "no-origin created no local tag"
 assert_eq "$(cat "$GH_LOG")" "" "no-origin must not call gh"
 
+echo "=== release: common_preflight refuses a diverged push route ==="
+# `git config --get` exits 1 when the key is unset; a GREEN implementation
+# must read that status and treat it as "not diverged", not fail closed on
+# every unset key — none of the three keys below is set in a healthy fixture,
+# so a naive implementation that failed on ANY non-zero status would also
+# break the happy-path scenario above, not just this one. Residual bound:
+# this loop does not tell "absorbs status 1 only" from "absorbs every
+# non-zero status", and nothing else can either — the only way to make
+# `git config --get` fail with anything but 1 is a config file git cannot
+# parse, and that makes EVERY git call exit 128 (verified: symbolic-ref,
+# status and diff all die identically), so the run refuses whatever the
+# push-route read does with the status. The discipline is a code-review
+# check on the GREEN, not a scenario.
+#
+# The redirect target's path carries a space deliberately: `pushurl` stores a
+# filesystem path as its value, and the value is asserted verbatim against
+# `$out` — `assert_contains`'s BRE read of that value must not choke on the
+# space.
+#
+# The remote is named `pushtarget` and NOT `other`: for pushRemote and
+# pushDefault the config value IS the remote name, so that name is the needle
+# the "names the value" assertion greps for. `other` is a substring of
+# `another`, and a refusal saying "pushes to another repository" — naming the
+# key and not the value — passed that assertion. Verified: with `other`, a
+# key-only GREEN using that wording failed 1 of 3 value assertions; with
+# `pushtarget` it fails all 3. The needle must be a token no English refusal
+# message can contain. The directory keeps a hyphen (`push-target repo.git`)
+# so the pushurl path is not itself a match for the pushRemote needle.
+for setting in pushurl pushRemote pushDefault; do
+    new_sandbox "1.2.3"
+    other="$sandbox/push-target repo.git"
+    git init -q --bare -b main "$other"
+    # Sentinels, not empty strings: a `case` arm added later without setting
+    # these must fail loudly. An empty needle would make `grep -q` match
+    # anything and the assertion would pass on a stale value from the
+    # previous iteration.
+    key="NO-CASE-ARM-SET-key"
+    value="NO-CASE-ARM-SET-value"
+    case "$setting" in
+        pushurl)
+            git -C "$plugin" config remote.origin.pushurl "$other"
+            key="remote.origin.pushurl"
+            value="$other"
+            ;;
+        pushRemote)
+            # pushRemote and pushDefault take a remote *name*, not a path —
+            # the redirect target must exist as a named remote first.
+            git -C "$plugin" remote add pushtarget "$other"
+            git -C "$plugin" config branch.main.pushRemote pushtarget
+            key="branch.main.pushRemote"
+            value="pushtarget"
+            ;;
+        pushDefault)
+            git -C "$plugin" remote add pushtarget "$other"
+            git -C "$plugin" config remote.pushDefault pushtarget
+            key="remote.pushDefault"
+            value="pushtarget"
+            ;;
+    esac
+    run_in "$plugin" bash plugin-dev/release.sh patch
+    assert_eq "$rc" "1" "diverged-push-route ($setting) exit code"
+    assert_contains "$out" "$key" "diverged-push-route ($setting) names the setting"
+    assert_contains "$out" "$value" "diverged-push-route ($setting) names the value"
+    assert_eq "$(git -C "$plugin" rev-parse --verify -q refs/tags/v1.2.4 >/dev/null && echo yes || echo no)" \
+        "no" "diverged-push-route ($setting) created no v1.2.4 tag"
+    assert_eq "$(cat "$GH_LOG")" "" "diverged-push-route ($setting) must not call gh"
+    assert_eq "$(market_version)" "1.2.3" "diverged-push-route ($setting) marketplace untouched"
+done
+
 echo "=== release: non-semver v tags are not releases ==="
 new_sandbox ""            # no marketplace entry
 make_virgin "0.1.0"       # manifest seeded by an external scaffold, no v* tags
