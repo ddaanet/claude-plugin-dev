@@ -373,14 +373,149 @@ assert_contains "$out" "refusing to move a published tag" "moved-tag resume mess
 assert_eq "$(cat "$GH_LOG")" "" "moved-tag resume must not call gh"
 assert_eq "$(market_version)" "1.2.3" "moved-tag resume must not touch the marketplace"
 
+echo "=== resume: on a virgin repo, the hint has no bump argument ==="
+# Branch selected: the ladder's third branch (release_tags empty, origin
+# probe empty too — origin_release_tags succeeds and returns nothing, since
+# make_virgin drops the tag from origin as well as locally). Selected rather
+# than the second branch because origin carries no semver tag at all to name,
+# and rather than the fourth (today's default) because release_tags is empty:
+# nothing local for that branch to point at.
+new_sandbox ""
+make_virgin "0.1.0"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "1" "virgin resume exit code"
+assert_contains "$out" "no tag v0.1.0 for plugin.json version 0.1.0" "virgin resume message"
+# The needle is the backtick immediately after "release", with nothing
+# between: `just release <bump>` has " <bump>" there instead, so this cannot
+# match the bump form — see the substring-collision note in the report.
+assert_contains "$out" 'just release`' "virgin resume hint names just release with no bump argument"
+assert_not_contains "$out" "just release <bump>" "virgin resume hint must not advise the bump form"
+assert_eq "$(cat "$GH_LOG")" "" "virgin resume must not call gh"
+
 echo "=== resume: refuses when no tag exists for the manifest version ==="
+# Branch selected: the ladder's first branch (v$V present on origin) — origin
+# still holds v1.2.3, the tag lost only from this clone, and v1.2.3 IS $V
+# here. Selected rather than the second branch (which fires only when origin's
+# tag is some OTHER semver value than $V) and rather than the third or fourth
+# (both local-only) because the origin probe has direct evidence for this
+# exact version.
 new_sandbox "1.2.3"
 git -C "$plugin" tag -d v1.2.3 >/dev/null
 run_in "$plugin" bash plugin-dev/release.sh --resume
 assert_eq "$rc" "1" "no-tag resume exit code"
 assert_contains "$out" "no tag v1.2.3 for plugin.json version 1.2.3" "no-tag resume message"
-assert_contains "$out" "run \`just release <bump>\` instead" "no-tag resume hint"
+assert_contains "$out" "git fetch --tags" "no-tag resume hint names the fetch remedy"
+assert_contains "$out" "just resume-release" "no-tag resume hint names resume-release, not a fresh release"
+assert_not_contains "$out" "just release <bump>" "no-tag resume hint must not advise the bump form"
 assert_eq "$(cat "$GH_LOG")" "" "no-tag resume must not call gh"
+
+echo "=== resume: a different semver tag on origin than v\$V names the bump hint ==="
+# Branch selected: the ladder's second branch — origin carries v1.2.3, which
+# is a real semver tag but not $V ($V is 1.3.0 here). Selected rather than
+# the first branch because origin's tag disagrees with $V, and rather than
+# the third or fourth because origin DOES have evidence (unlike the virgin
+# case above, where origin has nothing at all).
+new_sandbox "1.3.0"
+jq '.version = "1.3.0"' "$plugin/.claude-plugin/plugin.json" \
+    > "$plugin/.claude-plugin/plugin.json.tmp"
+mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
+git -C "$plugin" add -A
+git -C "$plugin" commit -qm "hand-advance to 1.3.0"
+git -C "$plugin" push -q origin main
+lose_tag "$plugin"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "1" "other-origin-tag resume exit code"
+assert_contains "$out" "no tag v1.3.0 for plugin.json version 1.3.0" "other-origin-tag resume message"
+assert_contains "$out" "git fetch --tags" "other-origin-tag resume hint names the fetch remedy"
+assert_contains "$out" "just release <bump>" "other-origin-tag resume hint names the bump form"
+assert_eq "$(cat "$GH_LOG")" "" "other-origin-tag resume must not call gh"
+
+echo "=== resume: keeping the local tag while origin drops it still advises the bump form ==="
+# Branch selected: the ladder's fourth branch (today's default, unchanged).
+# Deleting origin's copy of v1.2.3 is what keeps this off the second branch —
+# origin has no semver tag at all to name, exactly as in the virgin scenario
+# above. What keeps it off the third branch (and so distinguishes it from
+# that same virgin scenario) is that release_tags is NOT empty: v1.2.3 is
+# still the local clone's own tag, kept rather than dropped.
+new_sandbox "1.2.3"
+git -C "$plugin" push -q origin :refs/tags/v1.2.3
+jq '.version = "1.2.4"' "$plugin/.claude-plugin/plugin.json" \
+    > "$plugin/.claude-plugin/plugin.json.tmp"
+mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
+git -C "$plugin" add -A
+git -C "$plugin" commit -qm "hand-advance to 1.2.4"
+git -C "$plugin" push -q origin main
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "1" "local-tag-survives resume exit code"
+assert_contains "$out" "no tag v1.2.4 for plugin.json version 1.2.4" "local-tag-survives resume message"
+assert_contains "$out" "just release <bump>" "local-tag-survives resume hint names the bump form"
+assert_not_contains "$out" "git fetch --tags" \
+    "local-tag-survives resume hint must not advise a fetch — origin has no evidence to fetch"
+assert_eq "$(cat "$GH_LOG")" "" "local-tag-survives resume must not call gh"
+
+echo "=== resume: refuses cleanly, with the local no-argument hint, when origin has no remote to probe ==="
+# Branch selected: the ladder's third branch, reached the same way as the
+# virgin scenario above (release_tags empty) but via a failed origin probe
+# instead of a successful empty one — no "origin" remote exists at all, so
+# origin_release_tags returns non-zero rather than an empty listing. Guards
+# against an implementation that reads that listing in a bare substitution
+# (errexit would kill the run before the die/hint ever print) or that treats
+# a failed listing as fatal the way release_preflight's origin probe does —
+# resume's probe only degrades advice, per the outline, it has no side effect
+# to protect.
+new_sandbox "1.2.3"
+make_virgin "1.2.3"
+git -C "$plugin" remote remove origin
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "1" "no-origin resume exit code"
+assert_contains "$out" "no tag v1.2.3 for plugin.json version 1.2.3" "no-origin resume message"
+assert_contains "$out" 'just release`' "no-origin resume hint names just release with no bump argument"
+assert_not_contains "$out" "could not verify this plugin's release history on origin" \
+    "no-origin resume output carries no probe-failure wording"
+assert_eq "$(cat "$GH_LOG")" "" "no-origin resume must not call gh"
+
+echo "=== resume: origin's copy of v\$V outranks a local tag this clone still has ==="
+# Pins the ORDER of the ladder, which the four scenarios above do not: every
+# one of them has release_tags empty whenever origin carries evidence, so a
+# ladder that tests "local tags present" FIRST and only then consults origin
+# satisfies all four (measured — that permutation passes the four-scenario
+# suite whole). Here the two disagree: v1.1.0 is still this clone's own tag,
+# so release_tags is non-empty, while origin holds v1.2.3, which IS $V. The
+# origin branch must win — advising a fresh bump release here would publish
+# over the very tag origin already has.
+new_sandbox "1.2.3"
+git -C "$plugin" tag -a v1.1.0 -m "Release 1.1.0"
+lose_tag "$plugin"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "1" "origin-outranks-local resume exit code"
+assert_contains "$out" "no tag v1.2.3 for plugin.json version 1.2.3" "origin-outranks-local resume message"
+assert_contains "$out" "git fetch --tags" "origin-outranks-local resume hint names the fetch remedy"
+assert_contains "$out" "just resume-release" "origin-outranks-local resume hint names resume-release"
+assert_not_contains "$out" "just release <bump>" \
+    "origin-outranks-local resume hint must not advise the bump form over origin's own v1.2.3"
+assert_eq "$(cat "$GH_LOG")" "" "origin-outranks-local resume must not call gh"
+
+echo "=== resume: v\$V among origin's tags counts even when a newer tag sorts above it ==="
+# Pins that the first branch tests MEMBERSHIP of v$V in origin's listing, not
+# equality against its newest line. In every scenario above, origin's listing
+# is one tag long, so "contains v$V" and "newest is v$V" are the same
+# predicate and a newest-only implementation passes them all (measured).
+# Here origin carries v1.3.0 above v1.2.3 while $V is 1.2.3: a newest-only
+# read sees "some other tag" and advises a bump release, over a v1.2.3 that
+# origin demonstrably already has.
+new_sandbox "1.2.3"
+git -C "$plugin" tag -a v1.3.0 -m "Release 1.3.0"
+git -C "$plugin" push -q origin v1.3.0
+lose_tag "$plugin" v1.3.0
+lose_tag "$plugin"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "1" "origin-newer-tag resume exit code"
+assert_contains "$out" "no tag v1.2.3 for plugin.json version 1.2.3" "origin-newer-tag resume message"
+assert_contains "$out" "git fetch --tags" "origin-newer-tag resume hint names the fetch remedy"
+assert_contains "$out" "just resume-release" "origin-newer-tag resume hint names resume-release"
+assert_not_contains "$out" "just release <bump>" \
+    "origin-newer-tag resume hint must not advise the bump form when origin holds v1.2.3 itself"
+assert_eq "$(cat "$GH_LOG")" "" "origin-newer-tag resume must not call gh"
 
 echo "=== resume: no-op on a healthy repo ==="
 new_sandbox "1.2.3"

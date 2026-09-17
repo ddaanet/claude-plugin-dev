@@ -504,9 +504,49 @@ resume_preflight() {
     # locally. No tag means no release was started at this version, and tagging
     # HEAD on a guess would tag whatever work landed since.
     git rev-parse -q --verify "refs/tags/$tag" >/dev/null || {
-        printf 'hint: no release was started at this version.\n' >&2
-        # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
-        printf '      run `just release <bump>` instead.\n' >&2
+        # The refusal above is already decided — everything below only picks
+        # which hint explains it, so a failed probe must never turn this into
+        # a harder refusal. Capture rule as in release_preflight: read the
+        # listing's status here, once, rather than in a bare substitution —
+        # but unlike release_preflight, a failed read is absorbed into the
+        # empty case instead of dying, since there is no side effect left to
+        # protect and the probe only improves the advice.
+        local origin_tag_list release_tag_list
+        origin_tag_list=$(origin_release_tags) || origin_tag_list=""
+        release_tag_list=$(release_tags)
+        if printf '%s\n' "$origin_tag_list" | grep -qx -- "$tag"; then
+            # Origin already has the tag this clone is missing: the release
+            # was published, and this clone just never fetched it. Resuming
+            # after the fetch picks it up; starting a new release would try
+            # to recreate a tag that already exists.
+            printf 'hint: origin already has %s — this clone is just missing it.\n' "$tag" >&2
+            # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
+            printf '      run `git fetch --tags`, then run `just resume-release`.\n' >&2
+        elif [ -n "$origin_tag_list" ]; then
+            # Origin holds some other semver release, but not this one — any
+            # tag counts, not only $tag, for the same reason as the lost-tags
+            # guard above: an empty local tag set says nothing about what is
+            # published. Naming the bump form rather than falling through to
+            # the no-argument hint below: once the fetch lands, origin has a
+            # real release to bump from, and a bare `just release` would be
+            # refused on sight.
+            printf 'hint: origin has release tags, but none matching %s.\n' "$tag" >&2
+            # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
+            printf '      run `git fetch --tags`, then run `just release <bump>`.\n' >&2
+        elif [ -z "$release_tag_list" ]; then
+            # No local semver tag and no origin evidence either: this plugin
+            # has never been released, so there is no previous version to
+            # bump forward from.
+            printf 'hint: no release was started at this version.\n' >&2
+            # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
+            printf '      run `just release` instead.\n' >&2
+        else
+            # Local tags exist, just not this one, and origin has nothing to
+            # say about it — today's default.
+            printf 'hint: no release was started at this version.\n' >&2
+            # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
+            printf '      run `just release <bump>` instead.\n' >&2
+        fi
         die "no tag $tag for plugin.json version $V"
     }
 }
