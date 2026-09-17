@@ -232,8 +232,22 @@ common_preflight() {
     # A missing entry is not an error: on first publication we create one from
     # plugin.json. Synthesising its `source` needs an `origin` remote to derive
     # owner/repo from, so validate that here, before any destructive op.
+    #
+    # `jq -e` returns 1 for a clean no-match and non-1 (5, measured against
+    # jq 1.7) for a parse error — the `elif` is what tells them apart. The old
+    # two-branch `if` read a parse error as "no entry" the same as a genuine
+    # absence, which in `release` mode was only ever caught downstream, by
+    # check-version.sh, with an unrelated "version drift" message. In
+    # `--resume` mode nothing downstream reads this file at all until
+    # bump_marketplace: release_preflight never runs on resume
+    # (release.sh:780-785), so the misread survived common_preflight
+    # untouched and the run reached create_github_release — a GitHub release
+    # made public — before bump_marketplace's own jq call finally aborted the
+    # script with a raw parse error instead of a `die`.
     if jq -e --arg n "$plugin_name" 'any(.plugins[]; .name == $n)' "$marketplace_json" >/dev/null; then
         marketplace_entry_exists=1
+    elif [ "$?" -ne 1 ]; then
+        die "could not read $marketplace_json — nothing was done"
     else
         marketplace_entry_exists=0
         git remote get-url origin >/dev/null 2>&1 \
