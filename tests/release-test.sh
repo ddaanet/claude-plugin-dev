@@ -1424,6 +1424,29 @@ assert_eq "$(git -C "$plugin-origin.git" tag --list)" "$plugin_origin_tags_befor
 assert_eq "$(git -C "$marketplace-origin.git" rev-parse main)" "$market_origin_head_before" \
     "malformed-marketplace release pushed nothing to the marketplace origin"
 
+echo "=== the origin probes fail closed with pipefail stripped ==="
+# The three `git ls-remote origin <ref>` reads are captured whole and trimmed
+# with a parameter expansion rather than piped into `cut`, because cut succeeds
+# on the empty input a failed ls-remote hands it — so the failure would read as
+# "the ref is not on origin", which is the answer every caller treats as licence
+# to act. push_tag is the sharp one: absence there is what lets it push, so a
+# misread walks past the refusal that keeps a published tag from being moved.
+# `set -o pipefail` covers all three today, which is exactly why this runs a
+# pipefail-stripped copy: a `set -o` line is easy to lose, and nothing else in
+# the suite would notice.
+new_sandbox "1.2.3"
+nopipefail="$plugin/plugin-dev/release-nopipefail.sh"
+sed '/^set -euo pipefail$/s//set -eu/' "$repo_root/toolkit/release.sh" > "$nopipefail"
+grep -qx 'set -eu' "$nopipefail" || fail "pipefail-stripped copy: the set line was not rewritten"
+git -C "$plugin" remote set-url origin "$sandbox/unreachable.git"
+run_in "$plugin" bash plugin-dev/release-nopipefail.sh --resume
+assert_eq "$rc" "1" "no-pipefail probe exit code"
+assert_contains "$out" "git ls-remote origin refs/heads/main failed" \
+    "no-pipefail probe reports the probe's own failure"
+assert_not_contains "$out" "push of main failed" \
+    "no-pipefail probe refused before attempting the push"
+assert_eq "$(cat "$GH_LOG")" "" "no-pipefail probe must not call gh"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1

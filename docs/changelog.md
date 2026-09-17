@@ -9,6 +9,12 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-09-17 — Probes that fail closed on their own, and a pointer a consumer cannot follow](changelog/2026-09-17-probes-that-fail-closed-on-their-own.md)
+  — `release.sh`'s three `ls-remote | cut` captures become one `ls_remote_sha`
+  helper, so a failed probe can no longer be read as "the ref is not on origin"
+  if `set -o pipefail` ever lapses, pinned by a test that runs a
+  pipefail-stripped copy; and a shipped comment drops a citation of a `plans/`
+  document a consumer has no way to open
 - [2026-09-17 — The self-release gets the recovery it had been shipping to consumers](changelog/2026-09-17-self-release-gets-a-resume.md)
   — the root `justfile`'s unguarded release tail moves to
   `scripts/self-release.sh` with an idempotent tail and a `resume-release`
