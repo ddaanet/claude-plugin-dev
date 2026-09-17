@@ -94,14 +94,18 @@ just precommit
 Runs `bash -n` and `shellcheck` on the shell scripts, a private
 `_import-check` that imports `release.just` into a stub consumer to
 catch justfile syntax errors, and then **every test under `tests/`** —
-`hook-test.sh`, `release-test.sh`, `update-plugin-dev-test.sh`,
+`version-guard-test.sh`, `check-version-test.sh`, `release-test.sh`,
+`self-release-test.sh`, `update-plugin-dev-test.sh`,
 `dist-tree-test.sh` (the shipped-file list), `docs-test.sh` (the
 400-line cap over `docs/` and `plans/`, plus pointer resolution) and
 `doc-sync-test.sh` (the install/update command blocks shared by the two
 READMEs, and the Layout list above against `toolkit/`'s actual
 contents). A green `precommit` — including the one a pre-commit hook
 runs — is therefore evidence the whole release suite passed, not just
-the linters. It also runs `whitespace` and
+the linters. **One script under test per suite file**, each carrying its
+own copy of the small assertion harness rather than sourcing a shared
+one: a suite that can be read and run alone is worth more than the
+duplicated six lines. It also runs `whitespace` and
 `format-docs`, which needs rumdl: `uv sync` once, and the recipe finds
 `.venv/bin/rumdl` whether or not direnv has exported it. Must be green
 before committing.

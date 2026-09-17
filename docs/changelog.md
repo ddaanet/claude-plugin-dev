@@ -9,6 +9,12 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-09-17 — One script under test per suite file](changelog/2026-09-17-one-script-under-test-per-suite.md)
+  — `tests/hook-test.sh` covered two unrelated scripts under a name that fit
+  one; split into `version-guard-test.sh` and `check-version-test.sh`, each
+  carrying its own assertion harness rather than sourcing a shared one. The
+  version-guard half stays over the line guideline, and the argument for leaving
+  it there is recorded rather than the number fixed
 - [2026-09-17 — `recovery.md` splits off this repo's own release](changelog/2026-09-17-recovery-splits-off-the-self-release.md)
   — the node was at 389 of 400 lines with two audiences in it; consumer recovery
   stays and the self-release moves to `docs/references/self-release.md`, with

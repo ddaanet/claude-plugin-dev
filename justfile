@@ -6,9 +6,10 @@ _default:
 # Run all syntax + style checks on the toolkit's own scripts.
 precommit: whitespace format-docs
     shellcheck toolkit/install.sh toolkit/version-guard.sh toolkit/check-version.sh toolkit/release.sh toolkit/update.sh scripts/self-release.sh
-    bash -n tests/hook-test.sh tests/release-test.sh tests/self-release-test.sh tests/update-plugin-dev-test.sh tests/dist-tree-test.sh tests/docs-test.sh tests/doc-sync-test.sh
+    bash -n tests/version-guard-test.sh tests/check-version-test.sh tests/release-test.sh tests/self-release-test.sh tests/update-plugin-dev-test.sh tests/dist-tree-test.sh tests/docs-test.sh tests/doc-sync-test.sh
     just _import-check
-    bash tests/hook-test.sh
+    bash tests/version-guard-test.sh
+    bash tests/check-version-test.sh
     bash tests/release-test.sh
     bash tests/self-release-test.sh
     bash tests/update-plugin-dev-test.sh
