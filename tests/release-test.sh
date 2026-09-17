@@ -1335,6 +1335,71 @@ assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" \
 assert_eq "$(git -C "$plugin" tag --list 'v1.2.4')" "" "detached-HEAD refusal created no tag"
 assert_eq "$(cat "$GH_LOG")" "" "detached-HEAD refusal must not call gh"
 
+echo "=== resume: a malformed marketplace.json refuses before anything is public ==="
+# Item A1. common_preflight's marketplace-entry check (`jq -e ... any(...)`)
+# reads ANY non-zero jq exit as "no entry" — it cannot distinguish a clean
+# "not found" (exit 1) from a parse error on malformed JSON (exit 5,
+# measured against jq 1.7). In `release` mode that misread is caught
+# downstream by check-version.sh before anything is public. In `--resume`
+# mode release_preflight never runs, so the misread survives common_preflight
+# and the run proceeds through push_branch, push_tag and
+# create_github_release — the GitHub release goes public — before
+# bump_marketplace's own jq call, reading the same malformed file, finally
+# aborts the script with a raw parse error.
+new_sandbox "1.2.3"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "0" "setup release exit code"
+: > "$GH_LOG"
+# Corrupt marketplace.json in place and commit the corruption, so the
+# marketplace repo's tree is clean (tree_is_clean must not be what refuses
+# this run — a dirty-tree refusal would fire in common_preflight for an
+# unrelated reason) while its content fails to parse.
+printf '{"plugins":[' > "$marketplace/.claude-plugin/marketplace.json"
+git -C "$marketplace" add -A
+git -C "$marketplace" commit -qm "corrupt marketplace.json"
+market_before="$(cat "$marketplace/.claude-plugin/marketplace.json")"
+plugin_origin_tags_before="$(git -C "$plugin-origin.git" tag --list)"
+market_origin_head_before="$(git -C "$marketplace-origin.git" rev-parse main)"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "1" "malformed-marketplace resume exit code"
+assert_contains "$out" "could not read" "malformed-marketplace resume names the failure mode"
+assert_contains "$out" "marketplace.json" "malformed-marketplace resume names the file"
+assert_eq "$(cat "$GH_LOG")" "" "malformed-marketplace resume must not call gh"
+assert_eq "$(cat "$marketplace/.claude-plugin/marketplace.json")" "$market_before" \
+    "malformed-marketplace resume left marketplace.json exactly as it found it"
+assert_eq "$(git -C "$plugin-origin.git" tag --list)" "$plugin_origin_tags_before" \
+    "malformed-marketplace resume pushed no new plugin tag"
+assert_eq "$(git -C "$marketplace-origin.git" rev-parse main)" "$market_origin_head_before" \
+    "malformed-marketplace resume pushed nothing to the marketplace origin"
+
+echo "=== release: a malformed marketplace.json refuses before anything is public ==="
+# Item A1, release-mode side. Today the same misread in common_preflight's
+# entry check survives it (as above), but in `release` mode the run then
+# hits release_preflight's own check-version.sh call, which fails on the
+# same malformed file for an unrelated reason (version-drift wording, not
+# "could not read"). After the fix, common_preflight refuses first, here
+# too, before release_preflight ever runs.
+new_sandbox "1.2.3"
+printf '{"plugins":[' > "$marketplace/.claude-plugin/marketplace.json"
+git -C "$marketplace" add -A
+git -C "$marketplace" commit -qm "corrupt marketplace.json"
+market_before="$(cat "$marketplace/.claude-plugin/marketplace.json")"
+plugin_origin_tags_before="$(git -C "$plugin-origin.git" tag --list)"
+market_origin_head_before="$(git -C "$marketplace-origin.git" rev-parse main)"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "malformed-marketplace release exit code"
+assert_contains "$out" "could not read" "malformed-marketplace release names the failure mode"
+assert_contains "$out" "marketplace.json" "malformed-marketplace release names the file"
+assert_eq "$(cat "$GH_LOG")" "" "malformed-marketplace release must not call gh"
+assert_eq "$(cat "$marketplace/.claude-plugin/marketplace.json")" "$market_before" \
+    "malformed-marketplace release left marketplace.json exactly as it found it"
+assert_eq "$(git -C "$plugin" tag --list 'v1.2.4')" "" \
+    "malformed-marketplace release created no local tag"
+assert_eq "$(git -C "$plugin-origin.git" tag --list)" "$plugin_origin_tags_before" \
+    "malformed-marketplace release pushed no new plugin tag"
+assert_eq "$(git -C "$marketplace-origin.git" rev-parse main)" "$market_origin_head_before" \
+    "malformed-marketplace release pushed nothing to the marketplace origin"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
