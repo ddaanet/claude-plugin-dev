@@ -149,7 +149,7 @@ common_preflight() {
     [ "$branch" = "$main_branch" ] || die "must be on $main_branch (currently $branch)"
 
     # A push redirected away from origin (decision 3, outline.md) makes
-    # push_branch's unqualified `git push` (:342-ish) and/or push_tag's
+    # push_branch's unqualified `git push` and/or push_tag's
     # `git push origin <tag>` — redirected only by pushurl — land somewhere the
     # origin-tag probes below never inspect. Refuse before any side effect,
     # here, in both `release` and `--resume` modes (common_preflight runs in
@@ -165,16 +165,39 @@ common_preflight() {
     # `$branch` (not a hardcoded "main"): a master- or trunk-default plugin is
     # supported above, and this must protect it too.
     #
-    # `git config --get` exits 1 when the key is unset, which every healthy
-    # fixture leaves true for all three — absorb exactly that status. Using
-    # the assignment as the `if` condition (rather than `cmd || { ... }`) keeps
-    # this outside errexit's suppression natively: an `if` condition's status
-    # is never fatal under set -e, so no group-body pitfall applies here, and
-    # `$?` right after a failed `if` condition is still that command's status
-    # (nothing else has run in between).
+    # `--get-all`, not `--get`. remote.<name>.pushurl is genuinely multi-valued
+    # — pushing to several mirrors is a supported arrangement — and `--get` on
+    # such a key prints only the LAST value and still exits 0 (measured, git
+    # 2.47.3; it does not fail). The refusal would then name one of two URLs
+    # and advise `--unset`, which refuses a multi-valued key with status 5: a
+    # correct refusal handing back a recovery that does not work. The other two
+    # keys are last-one-wins for git, but a config file can still hold several
+    # lines of them and `--unset` refuses those identically, so all three are
+    # read the same way. `--get-all` still exits 1 when the key is unset —
+    # the status every healthy fixture produces, and the only one absorbed.
+    #
+    # Values are listed one per line instead of interpolated into the `die`:
+    # a pushurl holding a space must not read as two. A value holding a
+    # newline still prints across two lines — the same residual bound
+    # report_dirty records, and `git config` has no quoting mode that avoids
+    # it.
+    #
+    # Using the assignment as the `if` condition (rather than `cmd || { ... }`)
+    # keeps this outside errexit's suppression natively: an `if` condition's
+    # status is never fatal under set -e, so no group-body pitfall applies.
+    # `$?` in the `elif` condition is still the failed `if` condition's status
+    # — measured, not assumed: exit 2 and exit 128 both reach the `elif` body,
+    # exit 1 does not.
+    local push_key push_values push_value
     for push_key in remote.origin.pushurl "branch.$branch.pushRemote" remote.pushDefault; do
-        if push_value=$(git config --get "$push_key"); then
-            die "push route diverges from origin: $push_key is set to $push_value; unset it or point it at origin"
+        if push_values=$(git config --get-all "$push_key"); then
+            printf 'hint: %s is set to:\n' "$push_key" >&2
+            while IFS= read -r push_value; do
+                printf '        %s\n' "$push_value" >&2
+            done <<<"$push_values"
+            printf '      unset it (git config --unset-all %s) or point it at\n' "$push_key" >&2
+            printf '      origin, then run the same command again.\n' >&2
+            die "push route diverges from origin: $push_key is set"
         elif [ "$?" -ne 1 ]; then
             die "could not read git config $push_key"
         fi
