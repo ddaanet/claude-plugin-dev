@@ -93,7 +93,7 @@ Staged: `tests/release-test.sh`, `toolkit/release.sh`,
 `plans/2026-09-15-first-release-version/reports/item-1-3-s1-red.md`,
 `plans/2026-09-15-first-release-version/reports/item-1-3-s1-test-review.md`.
 
-Commit hash: **RECORDED BELOW AFTER COMMIT**
+Commit hash: `5fa9e0d`
 
 ## Tree state after commit
 
