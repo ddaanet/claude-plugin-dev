@@ -167,8 +167,13 @@ above), `bash tests/release-test.sh` (all scenarios, unaffected by this change),
 
 ## Commit
 
-`c8c2f4e` —
-`feat: Item 2.1/5-6 — clear leaked GIT_* and tell a failed listing from an empty one`
+`68f6007` —
+`✨ Item 2.1/5-6 — clear leaked GIT_* and tell a failed listing from an empty one`
+
+(The report first recorded `c8c2f4e`, the hash before gitmoji's commit-msg hook
+rewrote the `feat:` prefix to the emoji. Rewriting the message rewrites the
+commit, so that id never existed in this repo's history. Corrected by the
+orchestrator.)
 
 Staged: `toolkit/version-guard.sh`, `tests/hook-test.sh`, this report. Not
 staged: the two untracked reports already sitting in the tree from the
