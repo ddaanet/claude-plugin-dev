@@ -89,11 +89,18 @@ esac
 # below, never the deny decision already established above. Same semver
 # filter release.sh's semver_tags uses, duplicated rather than sourced:
 # release.sh runs its flow at top level and isn't written to be sourced.
-# The trailing `|| true` absorbs a failed `git -C` (not a repository at
-# all): pipefail propagates that failure through the grep stage even
-# though the grep stage itself already turned "no match" into success, so
-# without it `set -e` would abort the script here instead of falling
-# through to the empty-listing branch below.
+# The trailing `|| true` absorbs this capture's status wholesale, and has
+# to: the deny is already decided above, and a hook that exits non-zero for
+# any reason other than 2 is a non-blocking error, so the refused edit then
+# proceeds. Aborting here is a silent, total bypass rather than a loud
+# failure, and only the wording is at stake. Both statuses that reach it do
+# abort without it, measured: a `git -C` on a non-repository exits 128 and
+# pipefail carries that past the filter stage even though the filter has
+# already turned its own "no match" into success; a real `grep` error
+# (status 2) leaves the pipeline at 1. Neither is 2, so either would let
+# the edit through. The inner `|| [ "$?" -eq 1 ]` is release.sh's filter
+# verbatim; the outer absorber subsumes it here, and it is kept so the two
+# copies stay the same text.
 release_tags="$(git -C "$project" tag --list 'v*' --sort=-v:refname 2>/dev/null \
   | { grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || [ "$?" -eq 1 ]; })" || true
 
@@ -101,10 +108,10 @@ if [[ -z "$release_tags" ]]; then
 read -r -d '' agent_reason <<EOF || true
 plugin.json version edit refused: $current -> $proposed.
 
-This plugin has never been released -- no vX.Y.Z tag exists yet. The first
-release will publish whatever plugin.json holds when
-'just release {patch|minor|major}' runs; that recipe validates state,
-bumps, commits, tags, and pushes in one step.
+This plugin has never been released -- no vX.Y.Z tag exists yet, so the
+manifest is not tracking a previous release. It holds $current, which is
+what the initial release will publish, verbatim. Which version a plugin
+first ships as is the maintainer's call and their edit to make.
 
 Do not bypass this guard, modify the recipe, or alter version state by
 other means.
