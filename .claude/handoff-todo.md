@@ -1,8 +1,8 @@
 ## Open decisions
 
-Three findings were referred up by the **Phase 1** checkpoint and put to my
-human partner, who has not yet answered. None blocks Phase 3. My stated
-recommendations:
+Three findings referred up by the **Phase 1** checkpoint and put to my human
+partner, who has not answered. Decisions 2 and 3 are Phase 3 content; decision 1
+is a code change that fits no remaining phase. My stated recommendations:
 
 1. **`release.sh:235` — a live latent fail-open, outside the runbook's scope.**
    `if jq -e --arg n "$plugin_name" 'any(.plugins[]; .name == $n)'
@@ -22,42 +22,24 @@ recommendations:
    fourth** the refusal's wording implies is covered and isn't.
    **Recommended: record as a known bound in Phase 3's docs.**
 
-From the Item 2.1 slice 5-6 code review, both minor and both mine to call:
-
-4. **Restructure the filter's status capture** to
-   `release_tags="$(grep … <<<"$listing")" || grep_status=$?` with
-   `grep_status=0` initialised above it, replacing the `if`/`else` form. It
-   binds the capture to the status in one statement, so no later insertion can
-   separate them — today a single `[[ … ]]` inserted above `grep_status=$?`
-   both clobbers `$?` and kills the hook (measured: rc 1, no stdout, bypass).
-   Currently a comment guards it instead. Rewrites control flow three reports
-   document by shape, for no present behaviour change.
-5. **Whether to split `tests/hook-test.sh`** (439 lines, past CLAUDE.md's
-   400-line guidance; `tests/docs-test.sh` caps only `docs/` and `plans/`, so
-   no gate fails). A clean seam exists: version-guard scenarios vs
-   check-version ones, sharing only `$proj`, `$market` and three generic assert
-   helpers.
-
 ## Remaining
 
-- **Close the M1 coverage gap (major, test-side).** No scenario covers a
-  failing *filter*. Dropping
-  `[[ "$grep_status" -eq 1 ]] || listing_failed=1` from
-  `toolkit/version-guard.sh` leaves the suite green, and under that mutation a
-  plugin that **has** released gets the permissive initial-release wording —
-  the exact failure Item 2.1 exists to prevent. Fix: a scenario prepending a
-  `grep` stub that exits 2 to `guard_path` (same mechanism the existing 127
-  `git` stub uses), asserting steady-state wording against
-  `$git_tagged_proj`. Detail in
-  `plans/2026-09-15-first-release-version/reports/item-2-1-s5-s6-code-review.md`
-  §2.
-- **Phase 2 boundary:** `just precommit`, `git diff --name-only`, then an
-  `edify:corrector` checkpoint (`phase-2-corrector`) with non-empty IN/OUT and
-  a changed-files list. The Phase 1 checkpoint found two real defects the
-  per-slice reviews could not see — do not skip it.
 - **Phase 3 (inline, orchestrator executes, no dispatch):** Items 3.1-3.6 docs.
   3.4 edits `docs/design.md`; 3.6 is the changelog record plus its index line.
   Also carries open decisions 2 and 3 above if approved.
+- **Phase 3 records these settled bounds rather than reopening them:**
+  `toolkit/release.sh` is not split (791 lines = 380 code / 381 comment / 30
+  blank; the executable artifact is under the cap, the overage is argument prose
+  CLAUDE.md forbids shaving, and a second file is a new *shipped* path); the
+  marketplace-writability false refusal stays (fails closed, recovery works,
+  code and comment agree it is deliberate); the steady-state deny wording
+  doubles as the "don't know" answer and ships unqualified (argued in
+  `reports/item-2-1-s5-s6-code-review.md` §6 — a qualifier turns a directive
+  into a conditional the agent can only resolve by doing the git work the hook
+  just failed at); the hardcoded eight-name `GIT_*` `unset` list is right over
+  `unset $(git rev-parse --local-env-vars)`, because that discovery call is
+  itself a `git` invocation and would clear nothing in exactly the runs where
+  the listing is unreliable.
 - **Phase 4:** Item 4.1, toolkit self-release at `minor` — **outward-facing and
   irreversible. Stop at the end of Phase 3 and ask explicitly. Never an
   autonomous dispatch.**
@@ -75,30 +57,19 @@ From the Item 2.1 slice 5-6 code review, both minor and both mine to call:
   instead. Carry it into the run summary.
 - **`toolkit/release.sh:151` cites `outline.md` from shipped code.** `toolkit/`
   is the dist boundary; a consumer vendors the file and reads a pointer at a
-  document they do not have. The same issue was fixed in
-  `toolkit/version-guard.sh`. Worth a sweep.
+  document they do not have. The Phase 2 sweep confirms it is now the only
+  remaining such citation anywhere under `toolkit/`.
 - **Three pre-existing `ls-remote | cut` captures** at
   `release.sh:438,466,562` — measured to fail closed, but only via `pipefail`.
   `:466` would skip the "refusing to move a published tag" guard if that ever
   lapsed. Out of scope throughout Phases 1-2; still open.
+- **Split `tests/hook-test.sh` (498 lines) by script under test, as its own item
+  after this plan.** Decided not to do it inside Phase 2: the `check-version`
+  scenarios are self-contained apart from `$proj` and `assert_eq`, but removing
+  them still leaves ~440, and a second cut inside the version-guard half needs a
+  sourced helper file plus renaming what `justfile:9,11` invokes by name — a
+  refactor, not a checkpoint. Evidence in `reports/phase-2-corrector.md` §(b).
 - Root `memory/MEMORY.md` is over Claude Code's loader cap, so entries past the
-  cutoff never reach a session. `/gitlore:index-audit` addresses it. Parked;
-  raise only if asked.
-
-**Settled — do not relitigate:**
-
-- **`toolkit/release.sh` is NOT split.** 791 lines = 380 code / 381 comment /
-  30 blank. The executable artifact is under the cap; the overage is argument
-  prose CLAUDE.md forbids shaving. A second file is a new *shipped* path.
-- **The marketplace-writability false refusal stays.** Fails closed, recovery
-  works, code and comment agree it is deliberate. Phase 3 records the bound.
-- **The steady-state wording doubling as the "don't know" answer ships
-  unqualified.** Two of its sentences can be false when the listing failed, but
-  both push the agent toward the recipe and away from editing; a qualifier
-  converts a directive into a conditional the agent can only resolve by doing
-  the git work the hook just failed at. Argued in the slice 5-6 code review §6.
-- **The hardcoded eight-name `GIT_*` list** is right over
-  `unset $(git rev-parse --local-env-vars)`: that discovery call is itself a
-  `git` invocation, and it would clear nothing in exactly the runs where the
-  listing is unreliable. Measured: `GIT_DIR` is the only variable of any kind
-  that redirects the listing, and it is cleared.
+  cutoff never reach a session; `/gitlore:index-audit` addresses it. Parked —
+  raise only if asked. The durable lesson this run produced (mutation-test a
+  refusal's *prose*, not just its decision) is unwritten for that reason.
