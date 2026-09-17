@@ -148,7 +148,7 @@ common_preflight() {
     main_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || echo "main")
     [ "$branch" = "$main_branch" ] || die "must be on $main_branch (currently $branch)"
 
-    # A push redirected away from origin (decision 3, outline.md) makes
+    # A push redirected away from origin makes
     # push_branch's unqualified `git push` and/or push_tag's
     # `git push origin <tag>` — redirected only by pushurl — land somewhere the
     # origin-tag probes below never inspect. Refuse before any side effect,
@@ -163,7 +163,8 @@ common_preflight() {
     # a same-repo pushurl on a different protocol too.
     #
     # url.<base>.pushInsteadOf is a fourth route and is NOT checked — a stated
-    # bound, recorded in docs/references/recovery.md. Set, it sends the push to
+    # bound, recorded in the toolkit repo's docs/references/recovery.md. Set, it
+    # sends the push to
     # the rewritten repository while ls-remote still reads the original
     # (measured). "Refuse when set" is what fails to carry over: the rewrite
     # fires only when its base prefixes origin's URL, a non-matching base is
@@ -646,9 +647,28 @@ bump_commit_tag() {
     note "manifest + tag: $tag created locally"
 }
 
+ls_remote_sha() {
+    # $1 = a repo directory, $2 = a full ref name. Prints that ref's sha on the
+    # repo's origin, and nothing when origin does not have it.
+    #
+    # Captured whole and trimmed with a parameter expansion rather than piped
+    # into `cut`: a pipeline reports cut's status, and cut succeeds on the empty
+    # input a failed `ls-remote` hands it — so without `set -o pipefail` a
+    # network or auth failure would read as "the ref is not on origin", which is
+    # the answer each caller below treats as licence to act. push_tag is the
+    # sharp one: absence there is what lets it push, so a misread would walk
+    # straight past the refusal that keeps a published tag from being moved.
+    # pipefail does cover this today. Not depending on that is the point; a
+    # `set -o` line is easy to lose and nothing here would say so.
+    local line
+    line=$(git -C "$1" ls-remote origin "$2") \
+        || die "git ls-remote origin $2 failed in $1"
+    printf '%s' "${line%%$'\t'*}"
+}
+
 push_branch() {
     local remote_head
-    remote_head=$(git ls-remote origin "refs/heads/$branch" | cut -f1)
+    remote_head=$(ls_remote_sha . "refs/heads/$branch")
     if [ -n "$remote_head" ] && [ "$remote_head" = "$(git rev-parse HEAD)" ]; then
         note "branch $branch: already pushed"
         return
@@ -676,7 +696,7 @@ push_branch() {
 
 push_tag() {
     local remote_tag local_tag
-    remote_tag=$(git ls-remote origin "refs/tags/$tag" | cut -f1)
+    remote_tag=$(ls_remote_sha . "refs/tags/$tag")
     local_tag=$(git rev-parse "$tag")
     if [ -n "$remote_tag" ]; then
         # Never move a published tag: a mismatch means it was reused, which no
@@ -772,7 +792,7 @@ bump_marketplace() {
     fi
 
     mp_branch=$(git -C "$MARKETPLACE_DIR" symbolic-ref -q --short HEAD || echo "")
-    mp_remote_head=$(git -C "$MARKETPLACE_DIR" ls-remote origin "refs/heads/$mp_branch" | cut -f1)
+    mp_remote_head=$(ls_remote_sha "$MARKETPLACE_DIR" "refs/heads/$mp_branch")
     mp_local_head=$(git -C "$MARKETPLACE_DIR" rev-parse HEAD)
     if [ "$mp_remote_head" = "$mp_local_head" ]; then
         if [ "$committed" = 1 ]; then
