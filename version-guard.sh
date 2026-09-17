@@ -113,13 +113,14 @@ unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE \
 # non-blocking error to Claude Code, so the just-refused edit proceeds.
 # Absorbing a status after the deny is fail-closed -- the worst outcome is
 # the wrong wording on a refusal that still refuses; propagating one is
-# fail-open, exiting non-2 with no stdout so the edit goes through. So both
-# the listing and the filter are read inside an `if` condition, where
-# errexit is suspended, and every outcome -- listing failure, filter
-# no-match, and any other filter exit -- is turned into a plain variable
-# rather than a status left on the table. No pipe is used for either, which
-# also sidesteps pipefail entirely instead of reasoning through it (the
-# older piped form's `|| true` did have to).
+# fail-open, exiting non-2 with no stdout so the edit goes through. So the
+# listing is read inside an `if` condition and the filter's status is bound
+# to its own capture with `||`, both places where errexit is suspended;
+# every outcome -- listing failure, filter no-match, and any other filter
+# exit -- is turned into a plain variable rather than a status left on the
+# table. No pipe is used for either, which also sidesteps pipefail entirely
+# instead of reasoning through it (the older piped form's `|| true` did
+# have to).
 if listing="$(git -C "$project" tag --list 'v*' --sort=-v:refname 2>/dev/null)"; then
   listing_failed=0
 else
@@ -128,20 +129,19 @@ fi
 
 release_tags=""
 if [[ "$listing_failed" -eq 0 ]]; then
-  if release_tags="$(grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' <<<"$listing")"; then
-    :  # at least one semver tag matched; release_tags holds the filtered list
-  else
-    # Must stay the first statement in this branch. A branch body, unlike
-    # the `if` condition above it, is errexit-live: anything inserted here
-    # both clobbers $? and can itself exit the hook non-2 with no stdout --
-    # measured, a bare `[[ -n "$listing" ]]` on an empty listing does both.
-    grep_status=$?
-    # 1 == no match, a value (an empty-but-successful listing). Anything
-    # else is a real filter failure, folded into "listing failed" so it
-    # takes the same restrictive wording rather than a third, untested path.
-    [[ "$grep_status" -eq 1 ]] || listing_failed=1
-    release_tags=""
-  fi
+  # The `||` keeps the status bound to the capture it belongs to, in one
+  # statement: grep_status is assigned on every path and there is no `$?`
+  # for a later edit to displace. The earlier `if`/`else` form read `$?` as
+  # the first statement of an errexit-live branch body, where inserting a
+  # single line above it both clobbered the status and exited the hook
+  # non-2 with no stdout -- measured, and a total bypass of the refusal.
+  grep_status=0
+  release_tags="$(grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' <<<"$listing")" || grep_status=$?
+  # 0 == matched, 1 == no match (an empty-but-successful listing); both are
+  # answers. Anything else is a real filter failure, folded into "listing
+  # failed" so it takes the same restrictive wording rather than a third,
+  # untested path.
+  [[ "$grep_status" -le 1 ]] || { listing_failed=1; release_tags=""; }
 fi
 
 if [[ "$listing_failed" -eq 0 && -z "$release_tags" ]]; then
