@@ -60,13 +60,15 @@ git_proj="$(mktemp -d)"
 # slice 5 only needs a real repository whose tag listing would answer STEADY
 # if discovered), a repo tagged vnext/v1.2 only (slice 4's discriminating
 # half: two real tags, neither semver), and a PATH stub directory for a
-# `git` that exits 127 (slice 6). All allocated here, ahead of the trap, for
-# the same reason $git_proj is: an unbound name in the trap body skips
-# cleanup of every temp dir, not just its own.
+# `git` that exits 127 (slice 6), and a second stub directory for a `grep`
+# that exits 2 (the failing-filter scenario). All allocated here, ahead of
+# the trap, for the same reason $git_proj is: an unbound name in the trap
+# body skips cleanup of every temp dir, not just its own.
 git_tagged_proj="$(mktemp -d)"
 git_vnext_proj="$(mktemp -d)"
 guard_stub127_dir="$(mktemp -d)"
-trap 'rm -rf "$proj" "$guard_err" "$git_proj" "$git_tagged_proj" "$git_vnext_proj" "$guard_stub127_dir"' EXIT
+guard_stubgrep_dir="$(mktemp -d)"
+trap 'rm -rf "$proj" "$guard_err" "$git_proj" "$git_tagged_proj" "$git_vnext_proj" "$guard_stub127_dir" "$guard_stubgrep_dir"' EXIT
 mkdir -p "$proj/.claude-plugin"
 cat > "$proj/.claude-plugin/plugin.json" <<'JSON'
 {
@@ -144,6 +146,24 @@ echo 'git: fatal: stub git standing in for an absent binary' >&2
 exit 127
 SH
 chmod 755 "$guard_stub127_dir/git"
+
+# PATH stub for the failing-filter scenario: a `grep` that exits 2 (grep's
+# own "an error occurred" status, as opposed to 1, "no match"). `grep` is
+# invoked exactly once in the guard, in the post-deny semver filter, so
+# stubbing it cannot disturb the deny decision itself.
+#
+# Silent, unlike the 127 `git` stub above, which writes to stderr on
+# purpose. The guard redirects the tag listing's stderr (git failing to
+# find a repo is an expected outcome there) but deliberately does NOT
+# redirect the filter's: a broken `grep` means a broken environment and
+# should show in a --debug run. A noisy stub would therefore trip
+# assert_deny's stderr check on behaviour that is reviewed and intended,
+# so the noise is left out rather than the assertion weakened.
+cat > "$guard_stubgrep_dir/grep" <<'SH'
+#!/bin/sh
+exit 2
+SH
+chmod 755 "$guard_stubgrep_dir/grep"
 
 # The hook reads CLAUDE_PROJECT_DIR, so every scenario passes it explicitly;
 # the payload `cwd` a scenario sets is deliberately not what locates the
@@ -375,6 +395,29 @@ assert_contains "$reason" "last released version" \
     "version-guard git-listing-failure reason: steady-state wording despite failed listing"
 assert_not_contains "$reason" "never been released" \
     "version-guard git-listing-failure reason: no never-released wording despite failed listing"
+
+# A failing *filter* is not an empty one either. The scenario above covers a
+# failing listing; this one covers `grep` itself failing (exit 2), which the
+# guard folds into the same restrictive answer -- only status 1, "no match",
+# counts as a real empty result. The discriminating fixture here is the
+# TAGGED one: with the fold dropped, a filter failure reads as "no match",
+# and a plugin that has released is told "this plugin has never been
+# released, $current is what the initial release will publish" -- the exact
+# failure this branch exists to prevent. Measured under that mutation: the
+# tagged fixture answers initial-release and every other scenario in this
+# file stays green, which is why this one has to exist.
+echo "=== version-guard (semver filter fails: steady-state wording) ==="
+guard_path="$guard_stubgrep_dir:$PATH"
+run_guard "$(jq -nc --arg cwd "$git_tagged_proj" --arg fp "$git_tagged_proj/.claude-plugin/plugin.json" \
+    '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"1.2.3", new_string:"9.9.9"}}')" \
+    "$git_tagged_proj"
+guard_path="$PATH"
+assert_deny "version-guard filter-failure"
+reason="$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<<"$guard_out")"
+assert_contains "$reason" "last released version" \
+    "version-guard filter-failure reason: steady-state wording despite failed filter"
+assert_not_contains "$reason" "never been released" \
+    "version-guard filter-failure reason: no never-released wording despite failed filter"
 
 market="$proj/marketplace.json"
 
