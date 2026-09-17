@@ -919,6 +919,53 @@ for setting in pushurl pushRemote pushDefault; do
     assert_eq "$(market_version)" "1.2.3" "diverged-push-route ($setting) marketplace untouched"
 done
 
+echo "=== resume: common_preflight refuses a diverged push route ==="
+# Same predicate as the release-mode block above, reached through --resume
+# instead of `release`: outline.md decision 3 requires the refusal on both
+# modes, and common_preflight runs unconditionally before the
+# release/resume branch (`5fa9e0d`'s :714), so nothing resume-specific
+# should be needed to reach it.
+#
+# The fixture is deliberately "healthy" in the sense that matters: a real,
+# completed release already sits on origin, so an unmodified --resume here
+# has somewhere to go and something to say — see "resume: no-op on a
+# healthy repo" above, which is this exact setup without the diverged
+# route, and which DOES call `gh release view v1.2.4` and reports
+# "already complete (nothing to do)". Establishing that first is what makes
+# `$GH_LOG` empty below a real assertion about ordering (refused before any
+# resume probing) rather than an accident of resume having nothing to do
+# for an unrelated reason.
+#
+# The setup's exit code is asserted because nothing downstream would notice a
+# broken fixture: the push-route check is the first thing common_preflight
+# does after the clean-tree and branch checks, so ANY fixture with pushurl set
+# produces exit 1, the key, the value and an empty $GH_LOG — verified against a
+# sandbox whose setup release died at `gh release create`, where all four
+# behaviour assertions below still passed. The setup assertion is the only
+# thing pinning the "healthy repo" the paragraph above claims.
+new_sandbox "1.2.3"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "0" "resume-push-route setup release exit code"
+: > "$GH_LOG"
+other="$sandbox/push-target repo.git"
+git init -q --bare -b main "$other"
+git -C "$plugin" config remote.origin.pushurl "$other"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "1" "resume diverged-push-route exit code"
+assert_contains "$out" "remote.origin.pushurl" "resume diverged-push-route names the setting"
+assert_contains "$out" "$other" "resume diverged-push-route names the value"
+# The refusal's own reason, not just the key and value. `$other` is a
+# filesystem path, and a successful `git push` through a pushurl echoes
+# `To <path>` onto stderr, which run_in folds into $out — so "names the value"
+# alone can be satisfied by the very push this check exists to prevent
+# (measured: under a release.sh with the check deleted outright, slice 1's
+# `diverged-push-route (pushurl) names the value` assertion PASSES on a
+# release that pushed to the wrong repo). Pinning the reason means no future
+# refusal that merely mentions the key — a resume-specific guard, say — can
+# stand in for this one.
+assert_contains "$out" "push route diverges from origin" "resume diverged-push-route names the refusal"
+assert_eq "$(cat "$GH_LOG")" "" "resume diverged-push-route must not call gh"
+
 echo "=== release: non-semver v tags are not releases ==="
 new_sandbox ""            # no marketplace entry
 make_virgin "0.1.0"       # manifest seeded by an external scaffold, no v* tags
