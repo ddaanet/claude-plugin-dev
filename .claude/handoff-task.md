@@ -1,5 +1,3 @@
 ## Current task
 
-The `/orchestrate` run of `plans/2026-09-15-first-release-version/` is finished: all four phases, plus three addendum items agreed mid-run (A1 the `jq -e` fail-open, A2 the version-drift reword, A3 the `url.<base>.pushInsteadOf` bound), and toolkit v0.8.0 is published. The `edify:tdd-auditor` pass was dropped on instruction, and the brief for `plugin-craft:toolkit-release` is delivered at `/Users/david/code/plugin-craft/inbox/brief-toolkit-release-skill-updates.md`.
-
-Nothing is mid-flight. What remains is a backlog of independent follow-ups, none blocking another.
+Three independent follow-ups, in the order my human partner named them: split `docs/references/recovery.md`, which sits at 389 lines against the 400-line cap after absorbing the self-release section; split `tests/hook-test.sh` (498 lines) by script under test; then a deliverable review of `plans/2026-09-15-first-release-version`, which wants a fresh session of its own on opus. None blocks another and nothing is mid-flight.
