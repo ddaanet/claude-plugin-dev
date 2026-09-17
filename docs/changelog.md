@@ -9,6 +9,12 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-09-17 — The self-release gets the recovery it had been shipping to consumers](changelog/2026-09-17-self-release-gets-a-resume.md)
+  — the root `justfile`'s unguarded release tail moves to
+  `scripts/self-release.sh` with an idempotent tail and a `resume-release`
+  counterpart, plus one guard consumers do not need: a bump is refused while the
+  version in `toolkit/VERSION` is tagged but not fully published, the state a
+  failed push leaves and the only one the previous guard set read as healthy
 - [2026-09-17 — Refusals that end in an act, and a bound the wording implied away](changelog/2026-09-17-refusals-that-end-in-an-act.md)
   — an unreadable `marketplace.json` no longer reads as an absent entry, which
   on `--resume` had let a run reach `create_github_release` before dying; the

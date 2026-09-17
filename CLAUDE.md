@@ -53,8 +53,15 @@ or removing a shipped file means updating the list in
   consumers (which vendor via subtree, where tags don't propagate) can
   identify the version they're on with `cat plugin-dev/VERSION`.
 - `justfile` — *this repo's own* dev recipes (distinct from
-  `release.just`). Defines `precommit` and the toolkit's self-`release`
-  recipe. Root-level, so it is not shipped.
+  `release.just`). Defines `precommit`, and wraps the self-release script
+  as `release` and `resume-release`. Root-level, so it is not shipped.
+- `scripts/self-release.sh` — this repo's own release flow, the
+  counterpart of `toolkit/release.sh` and deliberately not shared with
+  it: that one releases a plugin, this one releases the toolkit
+  (`toolkit/VERSION`, no marketplace, two tags). Same shape, though —
+  every step past the local commit is probed before it is taken, so
+  `--resume` finishes a run that died mid-flight. Root-level, so it is
+  not shipped; covered by `tests/self-release-test.sh`.
 - `README.md` — presents this repo and carries the consumer install and
   update instructions. Root-level, so it is not shipped: the vendored
   manual is `toolkit/README.md`, and a change to the install or update
@@ -85,11 +92,15 @@ just precommit
 
 Runs `bash -n` and `shellcheck` on the shell scripts, a private
 `_import-check` that imports `release.just` into a stub consumer to
-catch justfile syntax errors, `tests/docs-test.sh` (the 400-line cap
-over `docs/` and `plans/`, plus pointer resolution) and
-`tests/doc-sync-test.sh` (the install/update command blocks shared by the
-two READMEs, and the Layout list below against `toolkit/`'s actual
-contents). It also runs
+catch justfile syntax errors, and then **every test under `tests/`** —
+`hook-test.sh`, `release-test.sh`, `update-plugin-dev-test.sh`,
+`dist-tree-test.sh` (the shipped-file list), `docs-test.sh` (the
+400-line cap over `docs/` and `plans/`, plus pointer resolution) and
+`doc-sync-test.sh` (the install/update command blocks shared by the two
+READMEs, and the Layout list above against `toolkit/`'s actual
+contents). A green `precommit` — including the one a pre-commit hook
+runs — is therefore evidence the whole release suite passed, not just
+the linters. It also runs `whitespace` and
 `format-docs`, which needs rumdl: `uv sync` once, and the recipe finds
 `.venv/bin/rumdl` whether or not direnv has exported it. Must be green
 before committing.
@@ -104,7 +115,22 @@ Reads `toolkit/VERSION`, bumps, commits `release: X.Y.Z`, tags, cuts the
 `dist-vX.Y.Z` split tag consumers vendor, pushes main + both tags, and
 creates a GitHub release. Refuses to run on a dirty tree or when
 `toolkit/VERSION` disagrees with the latest tag (same invariant as the
-consumer release recipe protects on `plugin.json`).
+consumer release recipe protects on `plugin.json`), and refuses to bump
+while the *current* `toolkit/VERSION` is tagged but not fully published
+— tags on origin, GitHub release — because that state passes every other
+guard and a re-run would publish the next version while stranding the
+one whose push failed.
+
+```sh
+just resume-release
+```
+
+Finishes a release that landed partially, from `toolkit/VERSION`'s
+current value. Every remaining step is probed before it is taken, so
+running it on a complete release says so and does nothing. It depends on
+no gate, for the reason `release.just` gives consumers: a prerelease that
+already passed must not have to run again to finish the release it
+gated.
 
 Tags only; never expect consumers to track `main`. See
 docs/references/distribution.md "Versioning" and "Consumers vendor a
