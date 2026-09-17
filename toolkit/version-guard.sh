@@ -95,9 +95,10 @@ unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE \
 # Whether this plugin has ever released, to pick the deny wording below.
 # 2>/dev/null on the listing: on a CLAUDE_PROJECT_DIR that is not a git
 # repository at all (the common case pre-release), git's "not a git
-# repository" is an expected outcome here, not a diagnostic --
-# tests/hook-test.sh's non-repo fixture asserts this hook's stderr stays
-# empty. A CLAUDE_PROJECT_DIR that is not itself a repo but sits inside one
+# repository" is an expected outcome here, not a diagnostic. This hook is
+# silent on stderr whatever it decides, and the toolkit's own test suite
+# asserts that against a non-repo project directory.
+# A CLAUDE_PROJECT_DIR that is not itself a repo but sits inside one
 # lists the enclosing repo's tags instead; that only changes the wording
 # below, never the deny decision already established above. Same semver
 # filter release.sh's semver_tags uses, duplicated rather than sourced:

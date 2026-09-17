@@ -172,16 +172,14 @@ guard_path="$PATH"
 run_guard() {
     # $1 = payload JSON. $2 = project dir (default $proj, the non-repo
     # fixture) -- pass $git_proj for the tagless-repo scenarios. $3... =
-    # extra "NAME=value" assignments for the hook's environment (e.g. a
-    # future GIT_DIR override); none of today's scenarios need one, but the
-    # mechanism is here so a later slice doesn't have to touch every
-    # existing call site again. Captures stdout ONLY -- stderr is diverted
-    # to a file rather than folded in with 2>&1, so an assertion below can
-    # only pass if the hook JSON really is on stdout, where Claude Code
-    # parses it.
+    # extra "NAME=value" assignments for the hook's environment; the
+    # leaked-GIT_DIR scenario below is the one caller that passes any.
+    # Captures stdout ONLY -- stderr is diverted to a file rather than
+    # folded in with 2>&1, so an assertion below can only pass if the hook
+    # JSON really is on stdout, where Claude Code parses it.
     # Both array forms below are the bash-3.2-safe ones: under `set -u`,
     # bash before 4.4 (macOS ships 3.2) errors on expanding an empty array,
-    # and every current call site passes no $3.
+    # and all but that one call site passes no $3.
     local payload="$1"
     local project="${2:-$proj}"
     local extra_env=()
@@ -214,6 +212,22 @@ assert_allow() {
     if [[ -n "$guard_out" ]]; then
         fail "$1: expected no output, got '$guard_out'"
     fi
+}
+assert_no_escape_hatch() {
+    # $1 = a permissionDecisionReason, $2 = label. Both wordings must carry
+    # the no-bypass sentence and must offer the agent no route it could
+    # authorise for itself. That property is prose, so only an assertion
+    # holds it -- measured, with these missing the suite stays green when the
+    # sentence is deleted from either branch, and when "disable the hook in
+    # .claude/settings.json and retry the edit" is added to either.
+    # Residual bound: a route described without naming a file still passes.
+    # These pin the sentence and the two identifiers a bypass would have to
+    # name, not the absence of persuasion in general.
+    assert_contains "$1" \
+        "Do not bypass this guard, modify the recipe, or alter version state by" \
+        "$2: no-bypass sentence"
+    assert_not_contains "$1" "settings.json" "$2: names no hook-config file"
+    assert_not_contains "$1" "version-guard" "$2: names no hook script"
 }
 
 # version-guard denies an Edit that changes .version.
@@ -327,6 +341,7 @@ assert_not_contains "$reason_minus_refusal" "9.9.9" \
 # naming it ("when the release recipe runs") still passes here.
 assert_not_contains "$reason" "just release" \
     "version-guard no-tags reason: initial-release branch names no recipe invocation"
+assert_no_escape_hatch "$reason" "version-guard no-tags reason"
 
 # Slice 3: only the agent channel (permissionDecisionReason) may branch on
 # release state. systemMessage is a factual one-liner, true in both states,
@@ -342,6 +357,7 @@ assert_deny "version-guard tagged-steady"
 reason="$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<<"$guard_out")"
 assert_contains "$reason" "last released version" "version-guard tagged-steady reason: last-released wording"
 assert_not_contains "$reason" "never been released" "version-guard tagged-steady reason: no never-released wording"
+assert_no_escape_hatch "$reason" "version-guard tagged-steady reason"
 tagged_sysmsg="$(jq -r '.systemMessage' <<<"$guard_out")"
 assert_eq "$tagged_sysmsg" "$tagless_sysmsg" \
     "version-guard systemMessage byte-identical across tagless and tagged fixtures"
