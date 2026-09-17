@@ -6,6 +6,13 @@
 # Usage: bash tests/hook-test.sh   (run from repo root)
 set -euo pipefail
 
+# When run as this repo's own pre-commit hook, the enclosing `git commit`
+# leaks GIT_DIR/GIT_INDEX_FILE/etc. into this process's environment. The new
+# git-repo fixture below runs real git commands of its own, and a leaked
+# GIT_DIR would redirect them at this repo instead. See release-test.sh:8-13.
+# shellcheck disable=SC2046  # word-splitting is the point: a var-name list
+unset $(git rev-parse --local-env-vars)
+
 unset CDPATH   # else `cd` may echo its target into the $(cd … && pwd) capture below
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_root"
@@ -21,15 +28,52 @@ assert_eq() {
         fail "$3: expected '$2', got '$1'"
     fi
 }
+assert_contains() {
+    # $1=haystack $2=needle $3=label. Match against a specific extracted
+    # field (e.g. permissionDecisionReason alone), never the whole payload
+    # blob -- an unrelated line can satisfy a needle and hide the miss.
+    if [[ "$1" != *"$2"* ]]; then
+        fail "$3: expected to contain '$2', got '$1'"
+    fi
+}
+assert_not_contains() {
+    # $1=haystack $2=needle $3=label
+    if [[ "$1" == *"$2"* ]]; then
+        fail "$3: expected NOT to contain '$2', got '$1'"
+    fi
+}
 
 # version-guard scenarios use a fake plugin root with a hand-crafted
 # .claude-plugin/plugin.json fixture, so assertions are independent of
 # whatever consumer plugin happens to vendor this toolkit.
 proj="$(mktemp -d)"
 guard_err="$(mktemp)"
-trap 'rm -rf "$proj" "$guard_err"' EXIT
+# $git_proj is allocated here, not beside the fixture it belongs to below,
+# so the trap can name it: under `set -u` a failure between the trap and a
+# later assignment runs the trap with it unbound, which aborts the trap
+# before the rm and leaks every temp dir. Same reason release-test.sh
+# declares `sandboxes=()` ahead of its own trap.
+git_proj="$(mktemp -d)"
+trap 'rm -rf "$proj" "$guard_err" "$git_proj"' EXIT
 mkdir -p "$proj/.claude-plugin"
 cat > "$proj/.claude-plugin/plugin.json" <<'JSON'
+{
+  "name": "fixture",
+  "version": "1.2.3",
+  "license": "MIT"
+}
+JSON
+
+# Second fixture: a real git repo with no tags -- the "never been released"
+# state a first-time plugin author is in, as opposed to $proj above which
+# is deliberately not a repo at all (the listing-failure fallback). No
+# commit, no user.name/user.email: `git tag --list` on a zero-commit repo
+# still exits 0 with no output (checked directly), which is everything a
+# no-tags fixture needs to produce -- a commit would assert nothing this
+# suite checks. The directory itself is allocated above, beside the trap.
+git init -q "$git_proj"
+mkdir -p "$git_proj/.claude-plugin"
+cat > "$git_proj/.claude-plugin/plugin.json" <<'JSON'
 {
   "name": "fixture",
   "version": "1.2.3",
@@ -42,12 +86,25 @@ JSON
 # manifest. guard_path exists so one scenario can prepend a PATH stub.
 guard_path="$PATH"
 run_guard() {
-    # $1 = payload JSON. Captures stdout ONLY -- stderr is diverted to a file
-    # rather than folded in with 2>&1, so an assertion below can only pass if
-    # the hook JSON really is on stdout, where Claude Code parses it.
+    # $1 = payload JSON. $2 = project dir (default $proj, the non-repo
+    # fixture) -- pass $git_proj for the tagless-repo scenarios. $3... =
+    # extra "NAME=value" assignments for the hook's environment (e.g. a
+    # future GIT_DIR override); none of today's scenarios need one, but the
+    # mechanism is here so a later slice doesn't have to touch every
+    # existing call site again. Captures stdout ONLY -- stderr is diverted
+    # to a file rather than folded in with 2>&1, so an assertion below can
+    # only pass if the hook JSON really is on stdout, where Claude Code
+    # parses it.
+    # Both array forms below are the bash-3.2-safe ones: under `set -u`,
+    # bash before 4.4 (macOS ships 3.2) errors on expanding an empty array,
+    # and every current call site passes no $3.
+    local payload="$1"
+    local project="${2:-$proj}"
+    local extra_env=()
+    if [[ $# -gt 2 ]]; then extra_env=("${@:3}"); fi
     set +e
-    guard_out="$(printf '%s' "$1" \
-        | env CLAUDE_PROJECT_DIR="$proj" PATH="$guard_path" \
+    guard_out="$(printf '%s' "$payload" \
+        | env CLAUDE_PROJECT_DIR="$project" PATH="$guard_path" ${extra_env[@]+"${extra_env[@]}"} \
               bash toolkit/version-guard.sh 2>"$guard_err")"
     guard_rc=$?
     set -e
@@ -146,6 +203,20 @@ run_guard "$(jq -nc --arg cwd "$proj" --arg fp "$proj/other.json" --arg c "$othe
     '{cwd:$cwd, tool_name:"Write", tool_input:{file_path:$fp, content:$c}}')"
 guard_path="$PATH"
 assert_allow "version-guard bsd-realpath-unrelated"
+
+# version-guard still denies the edit against a plugin with no tags at all
+# (the deny itself isn't new), but the opening sentence claiming the
+# manifest version "is the last released version" is false when there has
+# never been a release -- the wording must say so instead.
+echo "=== version-guard (no tags: initial-release wording) ==="
+run_guard "$(jq -nc --arg cwd "$git_proj" --arg fp "$git_proj/.claude-plugin/plugin.json" \
+    '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"1.2.3", new_string:"9.9.9"}}')" \
+    "$git_proj"
+assert_deny "version-guard no-tags"
+reason="$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<<"$guard_out")"
+assert_contains "$reason" "never been released" "version-guard no-tags reason: never-released wording"
+assert_contains "$reason" "will publish" "version-guard no-tags reason: will-publish wording"
+assert_not_contains "$reason" "last released version" "version-guard no-tags reason: no last-released wording"
 
 market="$proj/marketplace.json"
 

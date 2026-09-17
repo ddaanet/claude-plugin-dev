@@ -1,72 +1,77 @@
+# Task — Phase 1 complete, awaiting a call on three referred findings
+
 ## Current task
 
 Executing `plans/2026-09-15-first-release-version/runbook.md` via `/orchestrate`
-(edify). 12 items, four phases. **Phase 1 Item 1.1 is COMPLETE**; next dispatch
-is Item 1.2 slice 1 RED.
+(edify). 12 items, four phases. **Phase 1 is COMPLETE and checkpointed** at
+`f2d5f25` — 57 scenarios green, `just precommit` green, verify-step CLEAN.
 
-### Landed so far (all committed, tree clean, `just precommit` green)
+### Phase 1, as landed (all four items, all reviewed)
 
-Item 1.1 — `toolkit/release.sh` detects the initial release by absence of a
-semver tag. Three slices, each run as RED -> test-review -> GREEN -> code-review:
-
-- `semver_tags()` — `^v[0-9]+\.[0-9]+\.[0-9]+$`, absorbs grep status 1 only.
-- `release_tags()` — `git tag --list 'v*' --sort=-v:refname | semver_tags`.
-- Detection predicate is now `[ -z "$release_tag_list" ]`, fed by
-  `release_tag_list=$(release_tags) || die "could not list this plugin's release
-  tags — nothing was done"`. That capture is a **fail-open fix**: the bare
-  `[ -z "$(release_tags)" ]` form discarded a failed listing's status, so a
-  broken `git tag` or a real grep error read as "never released" and would have
-  tagged and published. The same discipline binds every new caller in Items 1.2
-  and 1.4.
-- `latest_tag` rebuilt from that same captured listing (not a second
-  `release_tags` call — `$(release_tags | sed …)` would take `sed`'s status).
-- `marketplace_entry_exists` conjunct dropped from detection; the variable stays
-  for `bump_marketplace`. Header comment restated. Bump-refusal hint gained
-  `commit that edit`.
-
-Commits: `74c4733` (1.1/1), `979e285` (1.1/2), `3fd4d64` (1.1/3), plus
-review-fix, report and guard-test commits (`9414fcb` pins which end of the
-listing `latest_tag` takes).
+- **Item 1.1** — initial release detected by absence of a semver tag.
+  `semver_tags` (`^v[0-9]+\.[0-9]+\.[0-9]+$`, absorbs grep status 1 only),
+  `release_tags` (`git tag --list 'v*' --sort=-v:refname | semver_tags`),
+  `latest_tag` routed through the filter, `marketplace_entry_exists` conjunct
+  dropped from detection. FR-1/2/3.
+- **Item 1.2** — the lost-tags origin probe, first in `release_preflight`.
+  `origin_release_tags` reads `git ls-remote --tags --sort=-v:refname origin`,
+  captured once with its status read. Decision 1's hint branch at the
+  `check-version.sh` failure point, gated on a `verifiably_unpublished` flag.
+  FR-4/8.
+- **Item 1.3** — `common_preflight` refuses a diverged push route
+  (`remote.origin.pushurl`, `branch.$branch.pushRemote`, `remote.pushDefault`),
+  before any side effect, both modes, reading `--get-all` and advising
+  `--unset-all`. FR-6.
+- **Item 1.4** — `resume_preflight`'s no-tag refusal picks its hint from ONE
+  `origin_release_tags` read. Four branches in this order: origin membership
+  (`grep -qxF`) → origin non-empty → no local tags → else. A failed listing is
+  absorbed to the branch that claims least, never fatal. FR-5.
 
 ### Dispatch protocol in use
 
-Strict sequential, one dispatch per message. Per tdd slice, four dispatches:
-
-- RED — `edify:test-driver` (sonnet), mode RED named in the prompt, writes the
-  slice's tests only, proves each fails on its own assertion, **no commit**.
-- test review — `edify:corrector` (opus). Mechanical check first (every test
-  FAILED on an assertion, none PASSED/ERROR), re-running the suite itself rather
-  than trusting the report; then wrong-reason hunting. Fixes tests, no commit.
-- GREEN — `edify:test-driver` (sonnet), mode GREEN, narrowest implementation
-  that passes this slice, commits `<type>: Item N.M/k — <title>`.
-- code review — `edify:corrector` (opus), implementation only, may mutate the
-  SUT in place once to prove the tests bind. No commit; the orchestrator commits
-  its fixes.
-
-Dispatch names: `item-N-M-s<k>-red` / `-test-review` / `-green` / `-code-review`,
-`phase-P-corrector`, `final-review`, `tdd-audit`. Reports go to
-`plans/2026-09-15-first-release-version/reports/<dispatch name>.md`. Every prompt
-carries item text verbatim, the runbook's standing constraints, IN/OUT scope,
-and design + recall artifact **by path** (`outline.md`, `recall-artifact.md`).
-
-Verification after every committed dispatch:
+Strict sequential, one dispatch per message. Per tdd slice: RED
+(`edify:test-driver`, sonnet) → test review (`edify:corrector`, opus) → GREEN
+(test-driver) → code review (corrector). Reports at
+`plans/2026-09-15-first-release-version/reports/<dispatch name>.md`; agents
+reply with the path only. Orchestrator commits review fixes, then runs
 `bash /Users/david/.claude/plugins/cache/ddaanet/edify/0.2.0/skills/orchestrate/scripts/verify-step.sh`
-— **must run with `dangerouslyDisableSandbox: true`**, see below.
+— **must run with `dangerouslyDisableSandbox: true`**.
 
-### Environment caveat (carried in every dispatch prompt)
+**Batching lesson from this run:** when a slice's GREEN implements the
+runbook's *declared interface* rather than just that slice, later slices pass
+on arrival and become characterization guards. That happened to Item 1.2
+slices 2-5 and was handled by batching them into one test-writing dispatch
+whose scenarios are proven by *mutation* instead of by failing against
+unchanged code. Item 1.4's four slices were batched from the start for the
+same reason (one hint ladder, not four features). Do this deliberately, and
+say in the dispatch which case obtains.
 
-The Bash sandbox binds `$HOME` dotfiles into the repo working directory, so
-`git status` run inside a script or a nested `bash -c` lists `.bashrc`,
-`.zshrc`, `.gitconfig`, `.idea`, `.mcp.json`, `.claude/agents` etc. as
-untracked. The real tree is clean; a plain top-level `git status` is accurate
-(the `git:*` exclusion). `git add -A` fails outright against them — stage
-explicit paths. This is why `verify-step.sh` returns a false DIRTY sandboxed.
-Already documented in `memory/ddaanet/sandbox-effects.md`; nothing new to write.
+### Review technique that repeatedly earned its keep
+
+Reviews that *ran* probes found real defects; reviews that read did not. The
+highest-value probe is writing the plausible WRONG implementation and seeing
+whether the suite catches it. That found: a fail-open detection predicate, a
+half-proved contract, an unpinned `sed` address, a hint that would have been
+dropped unconditionally, a needle (`other`) matched by ordinary English
+(`another`), and two wrong ladder shapes that passed every delivered scenario.
+
+### Environment caveats (carry in every dispatch prompt)
+
+- The Bash sandbox binds `$HOME` dotfiles into the repo working directory, so
+  `git status` inside a script or nested `bash -c` lists `.bashrc`, `.zshrc`,
+  `.gitconfig`, `.idea`, `.mcp.json`, `.claude/agents` as untracked. The real
+  tree is clean; a plain top-level `git status` is accurate. Never stage or
+  delete them; `git add -A`/`git add .` fail against them. Stage explicit paths.
+- **`$TMPDIR` is unset in dispatch shells** — every dispatch hit this. Use an
+  explicit absolute path under `/tmp/claude-1000`.
+- **This box is ~2GB and OOM kills things.** One dispatch at a time, one suite
+  invocation at a time. A background commit job was killed mid-run once (its
+  work had already landed — check `git log` before redoing anything).
+- Run `just format-docs` BEFORE staging a report, or the pre-commit hook
+  reflows it after staging and leaves the tree dirty.
 
 ### Next action
 
-Dispatch `item-1-2-s1-red` — Item 1.2 slice 1, the lost-tags origin probe.
-Item 1.2 adds `origin_release_tags()` and runs it first in `release_preflight`,
-before `check-version.sh` and before any side effect, only when `release_tags`
-is empty. Six slices. `tests/release-test.sh` needs a helper that drops a tag
-locally while leaving origin's in place (slices 1-4).
+Open **Phase 2** — Item 2.1, `toolkit/version-guard.sh`'s message branch, 6
+slices, independent of Phase 1. First apply the `release.sh:235` fix if
+approved (see the todo's open decisions).

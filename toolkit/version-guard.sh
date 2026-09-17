@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # PreToolUse hook (Write|Edit) for the plugin manifest.
 # Refuses any edit that changes plugin.json's .version. The release
-# recipe owns version bumps; manual edits desync the manifest from the
-# latest tag and only get caught at release time.
+# recipe owns version bumps: once a plugin has released, manual edits
+# desync the manifest from the latest tag and only get caught at release
+# time; before a first release there is no tag to desync from, but the
+# recipe is still the only place a version is meant to change.
 #
 # Mechanical: agent is not involved.
 set -euo pipefail
@@ -77,6 +79,37 @@ esac
 
 [[ -z "$proposed" || "$proposed" == "$current" ]] && exit 0
 
+# Whether this plugin has ever released, to pick the deny wording below.
+# 2>/dev/null on the listing: on a CLAUDE_PROJECT_DIR that is not a git
+# repository at all (the common case pre-release), git's "not a git
+# repository" is an expected outcome here, not a diagnostic --
+# tests/hook-test.sh's non-repo fixture asserts this hook's stderr stays
+# empty. A CLAUDE_PROJECT_DIR that is not itself a repo but sits inside one
+# lists the enclosing repo's tags instead; that only changes the wording
+# below, never the deny decision already established above. Same semver
+# filter release.sh's semver_tags uses, duplicated rather than sourced:
+# release.sh runs its flow at top level and isn't written to be sourced.
+# The trailing `|| true` absorbs a failed `git -C` (not a repository at
+# all): pipefail propagates that failure through the grep stage even
+# though the grep stage itself already turned "no match" into success, so
+# without it `set -e` would abort the script here instead of falling
+# through to the empty-listing branch below.
+release_tags="$(git -C "$project" tag --list 'v*' --sort=-v:refname 2>/dev/null \
+  | { grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || [ "$?" -eq 1 ]; })" || true
+
+if [[ -z "$release_tags" ]]; then
+read -r -d '' agent_reason <<EOF || true
+plugin.json version edit refused: $current -> $proposed.
+
+This plugin has never been released -- no vX.Y.Z tag exists yet. The first
+release will publish whatever plugin.json holds when
+'just release {patch|minor|major}' runs; that recipe validates state,
+bumps, commits, tags, and pushes in one step.
+
+Do not bypass this guard, modify the recipe, or alter version state by
+other means.
+EOF
+else
 read -r -d '' agent_reason <<EOF || true
 plugin.json version edit refused: $current -> $proposed.
 
@@ -89,6 +122,7 @@ If the goal is to ship a release, invoke the recipe instead of editing this
 file. Do not bypass this guard, modify the recipe, or alter version state by
 other means.
 EOF
+fi
 
 human_msg="version-guard: blocked plugin.json version edit ($current -> $proposed)"
 
