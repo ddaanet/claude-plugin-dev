@@ -1101,6 +1101,57 @@ assert_contains "$out" "$other" "resume diverged-push-route names the value"
 assert_contains "$out" "push route diverges from origin" "resume diverged-push-route names the refusal"
 assert_eq "$(cat "$GH_LOG")" "" "resume diverged-push-route must not call gh"
 
+echo "=== resume: a diverged push route is refused before a resume that HAS work to do ==="
+# The scenario above establishes the refusal on a resume with nothing left to
+# do, where an empty $GH_LOG is weak evidence of ordering: push_branch would
+# report "already pushed" and push_tag "already pushed" even with the check
+# deleted, so gh is the first step that could have been reached. Here the
+# resume has real work — the commit and tag landed locally and NOTHING was
+# pushed — so with the check deleted push_branch would push main straight into
+# the redirect target. The assertion is on that target's ref list, which is the
+# only thing that tells "refused before any side effect" from "refused before
+# gh". All three settings, because they do not redirect the same commands:
+# push_branch's unqualified `git push` follows all three, while push_tag's
+# `git push origin <tag>` follows only pushurl.
+for setting in pushurl pushRemote pushDefault; do
+    new_sandbox "1.2.3"
+    cat > "$plugin/.git/hooks/pre-push" <<'HOOK'
+#!/bin/sh
+echo "pre-push: refusing" >&2
+exit 1
+HOOK
+    chmod +x "$plugin/.git/hooks/pre-push"
+    run_in "$plugin" bash plugin-dev/release.sh patch
+    assert_eq "$rc" "1" "resume-with-work ($setting) setup release exit code"
+    # The setup's whole point: a tag that exists locally and nowhere else, so
+    # the resume below genuinely reaches push_branch unless something stops it.
+    assert_eq "$(git -C "$plugin" rev-parse --verify -q refs/tags/v1.2.4 >/dev/null && echo yes || echo no)" \
+        "yes" "resume-with-work ($setting) setup left the tag local"
+    rm -f "$plugin/.git/hooks/pre-push"
+    : > "$GH_LOG"
+    other="$sandbox/push-target repo.git"
+    git init -q --bare -b main "$other"
+    case "$setting" in
+        pushurl)     git -C "$plugin" config remote.origin.pushurl "$other" ;;
+        pushRemote)  git -C "$plugin" remote add pushtarget "$other"
+                     git -C "$plugin" config branch.main.pushRemote pushtarget ;;
+        pushDefault) git -C "$plugin" remote add pushtarget "$other"
+                     git -C "$plugin" config remote.pushDefault pushtarget ;;
+    esac
+    run_in "$plugin" bash plugin-dev/release.sh --resume
+    assert_eq "$rc" "1" "resume-with-work ($setting) exit code"
+    assert_contains "$out" "push route diverges from origin" \
+        "resume-with-work ($setting) names the refusal"
+    # A bare assignment, not a substitution inside the assertion: the suite runs
+    # under set -euo pipefail, so a for-each-ref that fails aborts loudly here
+    # instead of yielding "" and passing this vacuously.
+    push_target_refs="$(git -C "$other" for-each-ref --format='%(refname)')"
+    assert_eq "$push_target_refs" "" \
+        "resume-with-work ($setting) wrote nothing to the redirect target"
+    assert_eq "$(cat "$GH_LOG")" "" "resume-with-work ($setting) must not call gh"
+    assert_eq "$(market_version)" "1.2.3" "resume-with-work ($setting) marketplace untouched"
+done
+
 echo "=== release: non-semver v tags are not releases ==="
 new_sandbox ""            # no marketplace entry
 make_virgin "0.1.0"       # manifest seeded by an external scaffold, no v* tags
