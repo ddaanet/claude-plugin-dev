@@ -98,4 +98,12 @@ of via `die`. No bypass or skip offered in the message.
 Staged `toolkit/release.sh`, `tests/release-test.sh`, and this report only (no
 `git add -A`). `just format-docs` run before staging this report.
 
-Commit: (recorded below after committing)
+Commit: `ff1beec` —
+`🐛 refuse an unreadable marketplace.json before anything is published`.
+Recorded here by the orchestrator, not the executing agent: the agent's
+background commit succeeded but it went idle before reading the hash back, so
+the hash comes from `git log` after the fact, as the gitmoji commit-msg rewrite
+requires.
+
+The RED report (`item-a1-red.md`) was left untracked by that same interruption
+and is committed alongside this line.
