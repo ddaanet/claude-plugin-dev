@@ -34,7 +34,9 @@ The steady-state wording is false on a plugin that has never released. It opens
 version — and sends the reader to `just release {patch|minor|major}`, which a
 first release refuses on sight. An agent that follows it literally either
 publishes whatever version the scaffold seeded or stalls with nothing it is
-permitted to do. Both were observed while cutting a consumer's first release.
+permitted to do. The gap surfaced while cutting a consumer's first release,
+where the manifest had been hand-seeded `0.0.0` and the literal path would have
+published `v0.0.0`.
 
 So the reason names the state it found. With no `vX.Y.Z` tag it says the plugin
 has never been released, that the manifest holds `$current`, that `$current` is
