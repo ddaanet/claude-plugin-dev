@@ -415,13 +415,16 @@ release_preflight() {
             # to the toolkit's own parent).
             [ -n "$market_version" ] \
                 || die "no $plugin_name entry in $marketplace_json to compare against — nothing was done"
-            # "no release tag at all", not "never published": what the probe
-            # established is that no `vX.Y.Z` tag exists here or on origin. A
-            # plugin released only under some other tag scheme is the residual
-            # the outline records, and this message must not deny it.
+            # "no vX.Y.Z tag", not "no release tag at all" and not "never
+            # published": what the probe established is exactly that no
+            # `vX.Y.Z` tag exists here or on origin. A plugin released only
+            # under some other tag scheme is the residual the outline records,
+            # and this message must not deny it — so it names the shape it
+            # actually looked for rather than claiming the plugin has no
+            # release history of any kind.
             printf 'hint: no release is recorded at %s or %s — this plugin has no\n' \
                 "$manifest_version" "$market_version" >&2
-            printf '      release tag at all, here or on origin, so there is nothing to resume.\n' >&2
+            printf '      vX.Y.Z tag, here or on origin, so there is nothing to resume.\n' >&2
             printf '      correct the marketplace entry to match plugin.json (a successful\n' >&2
             printf '      first release would write %s there anyway), or if %s was the\n' \
                 "$manifest_version" "$market_version" >&2
