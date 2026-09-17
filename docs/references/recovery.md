@@ -167,14 +167,10 @@ recurring source of quoting bugs that no linter sees. `release.just` keeps the
 two recipes as one-line wrappers, which is also the whole interface consumers
 depend on.
 
-This repo's own self-release recipe stays bespoke. It has the same tail minus
-the marketplace step, and it failed in the same window once — `v0.4.1` has a
-`VERSION` bump commit and no tag. Resuming it by hand is a tag and a
-`gh release create`, which the toolkit's sole maintainer can do;
-`resume-release` exists as a convenience for consumers, who are more numerous
-and less close to the code. Folding it in would also make the toolkit consume
-its own consumer-shaped code, which the "don't run `release.just`'s recipes from
-this repo" rule exists to prevent.
+This repo's own release borrows the same tail without sharing the code — it is
+not consumer-shaped, and folding the two together would make the toolkit consume
+its own consumer-shaped code. That argument, and the one guard the self-release
+carries that no consumer needs, are in [self-release.md](self-release.md).
 
 ## The refusal is where the operational knowledge lives
 
@@ -281,6 +277,8 @@ comment states that bound rather than implying full coverage.
 in `MARKETPLACE_DIR` alike. Two paths are exempt, and they are exempt for the
 same underlying reason: an agent session moves them between commits by design,
 so their being ahead of HEAD is the resting state rather than unfinished work.
+Both apply to this repo's own release too, where they are literal pathspecs
+rather than a `.gitmodules` lookup — see [self-release.md](self-release.md).
 
 ### `.claude/`
 
@@ -352,38 +350,3 @@ This is the toolkit's most specific coupling to gitlore, but not a new one — t
 release tail is already written around gitlore's `pre-commit` and `pre-push`
 hooks (see "Recovery"). Naming the submodule gitlore installs is weaker than
 assuming where it installed it.
-
-### This repo's own release script
-
-`scripts/self-release.sh` carries both exclusions as literal pathspecs —
-`.claude` and `memory` — rather than repeating `release.sh`'s `.gitmodules`
-lookup. It runs against exactly one repo, whose mount path is known, so
-discovery would be answering a question that has no second answer. That is the
-same reasoning that keeps it separate from `release.sh` at all: it is not
-consumer-shaped code and does not have to generalise.
-
-What it does share is the shape. The self-release began as an unguarded tail
-inlined in the root `justfile` — push, push tags, `gh release create` — and the
-failure `resume-release` exists to absorb hit it directly: with the commit and
-both tags local, `git push` was refused, and `toolkit/VERSION` was left equal to
-the newest tag. That state passes the drift check (VERSION *is* the latest tag)
-and passes the tag-collision check (which asks about the *next* version), so a
-re-run would have published the next version and left the stranded one tagged
-with no GitHub release. So the script now mirrors the consumer flow: an
-idempotent tail both `just release` and `just resume-release` run, each step
-probing origin before acting, plus one guard the consumer script does not need —
-a bump is refused while the version currently in `toolkit/VERSION` is tagged
-locally but missing either tag on origin or its GitHub release.
-
-The consumer script has no equivalent guard because it does not need one:
-`release_preflight` reads the version from `plugin.json`, and a half-landed
-consumer release is caught by `check-version.sh` comparing the manifest against
-the marketplace entry. The toolkit publishes no marketplace entry, so
-`toolkit/VERSION` is the only witness, and it is one a failed push leaves
-looking correct.
-
-The two tags are the other difference. `resume-release` re-cuts `dist-vX.Y.Z`
-from the `vX.Y.Z` tag rather than from `HEAD`, since by resume time `HEAD` has
-often moved on; and when origin already holds the dist tag but this clone does
-not, it leaves it alone rather than re-splitting, because a split that came out
-different would otherwise be pushed over a published ref.

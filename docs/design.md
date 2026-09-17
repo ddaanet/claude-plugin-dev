@@ -156,6 +156,26 @@ the dated record of the reversal goes in the changelog.
   HEAD is the resting state. The memory path is read from `.gitmodules` by
   submodule name; everything else still refuses.
 
+### This repo's own release — [references/self-release.md](references/self-release.md)
+
+- **The toolkit releases itself with a separate script** —
+  `scripts/self-release.sh` is not consumer-shaped: `toolkit/VERSION` in place
+  of a manifest, no marketplace entry, two tags. Folding it into `release.sh`
+  would make the toolkit consume its own consumer-shaped code.
+- **It borrows the shape, not the code** — the same idempotent tail, each step
+  probing origin before acting, reached by `just release` and by a
+  `just resume-release` that depends on no gate.
+- **A bump is refused while the current `toolkit/VERSION` is tagged but not
+  fully published** — the toolkit has no marketplace entry, so `VERSION` is the
+  only witness and a failed push leaves it looking correct. `release.sh` needs
+  no counterpart, because `check-version.sh` catches that state for a consumer.
+- **`resume-release` re-cuts `dist-vX.Y.Z` from the `vX.Y.Z` tag, never `HEAD`**
+  — and leaves a dist tag origin already holds alone rather than pushing a
+  recomputed ref over a published one.
+- **The clean-tree exclusions are literal pathspecs here** — one repo, one known
+  mount path, so `release.sh`'s `.gitmodules` lookup would answer a question
+  with no second answer.
+
 ### The version-guard hook — [references/version-guard.md](references/version-guard.md)
 
 - **The deny is dual-channel, on stdout with exit 0** —

@@ -71,7 +71,8 @@ or removing a shipped file means updating the list in
   limitations, and a one-line conclusion per decision. States what the
   toolkit *is*. Read it first and open only the node you need.
 - `docs/references/*.md` — one node per group of decisions
-  (`distribution`, `release-flow`, `recovery`, `version-guard`), each
+  (`distribution`, `release-flow`, `recovery`, `self-release`,
+  `version-guard`), each
   holding the argument behind the hub's conclusions: alternatives
   weighed, the bug that motivated it, what it costs. A decision that
   changes is rewritten in both places.

@@ -9,6 +9,12 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-09-17 — `recovery.md` splits off this repo's own release](changelog/2026-09-17-recovery-splits-off-the-self-release.md)
+  — the node was at 389 of 400 lines with two audiences in it; consumer recovery
+  stays and the self-release moves to `docs/references/self-release.md`, with
+  the clean-tree exclusions placed rather than assigned. The split surfaced a
+  paragraph still arguing the self-release has no `resume-release`, thirty lines
+  above the section describing the one it grew that morning
 - [2026-09-17 — Probes that fail closed on their own, and a pointer a consumer cannot follow](changelog/2026-09-17-probes-that-fail-closed-on-their-own.md)
   — `release.sh`'s three `ls-remote | cut` captures become one `ls_remote_sha`
   helper, so a failed probe can no longer be read as "the ref is not on origin"
