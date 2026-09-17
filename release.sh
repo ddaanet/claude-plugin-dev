@@ -148,6 +148,38 @@ common_preflight() {
     main_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || echo "main")
     [ "$branch" = "$main_branch" ] || die "must be on $main_branch (currently $branch)"
 
+    # A push redirected away from origin (decision 3, outline.md) makes
+    # push_branch's unqualified `git push` (:342-ish) and/or push_tag's
+    # `git push origin <tag>` — redirected only by pushurl — land somewhere the
+    # origin-tag probes below never inspect. Refuse before any side effect,
+    # here, in both `release` and `--resume` modes (common_preflight runs in
+    # both).
+    #
+    # Refuse when any of the three is SET, not when it "diverges" from origin:
+    # comparing URLs for repository identity (git@host:o/p.git vs
+    # https://host/o/p vs ssh://host/o/p vs an insteadOf rewrite, all one
+    # repository) is not decidable in shell without a network round trip on
+    # the common path. The recovery — unset it, or point it at origin — covers
+    # a same-repo pushurl on a different protocol too.
+    #
+    # `$branch` (not a hardcoded "main"): a master- or trunk-default plugin is
+    # supported above, and this must protect it too.
+    #
+    # `git config --get` exits 1 when the key is unset, which every healthy
+    # fixture leaves true for all three — absorb exactly that status. Using
+    # the assignment as the `if` condition (rather than `cmd || { ... }`) keeps
+    # this outside errexit's suppression natively: an `if` condition's status
+    # is never fatal under set -e, so no group-body pitfall applies here, and
+    # `$?` right after a failed `if` condition is still that command's status
+    # (nothing else has run in between).
+    for push_key in remote.origin.pushurl "branch.$branch.pushRemote" remote.pushDefault; do
+        if push_value=$(git config --get "$push_key"); then
+            die "push route diverges from origin: $push_key is set to $push_value; unset it or point it at origin"
+        elif [ "$?" -ne 1 ]; then
+            die "could not read git config $push_key"
+        fi
+    done
+
     [ -n "${MARKETPLACE_DIR:-}" ] \
         || die "MARKETPLACE_DIR not set (set in .envrc to the claude-plugins repo root)"
     marketplace_json="$MARKETPLACE_DIR/.claude-plugin/marketplace.json"
