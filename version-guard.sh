@@ -109,17 +109,16 @@ unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE \
 # answer "never released" for a listing that told us nothing. But every
 # status here still has to be absorbed -- the deny is already decided
 # above, and a hook that exits non-zero for any reason other than 2 is a
-# non-blocking error to Claude Code, so the just-refused edit proceeds
-# (see the hook-exit-status-contract report). `outline.md`'s "only the
-# filter's no-match status is absorbed" is read loosely here on purpose:
-# taken literally, a real grep error (status 2, essentially unreachable --
-# constant regex over string input) would reach `set -e` unabsorbed and
-# reopen exactly that bypass. So both the listing and the filter are read
-# inside an `if` condition, where errexit is suspended, and every outcome
-# --  listing failure, filter no-match, and any other filter exit -- is
-# turned into a plain variable rather than a status left on the table. No
-# pipe is used for either, which also sidesteps pipefail entirely instead
-# of reasoning through it (the older piped form's `|| true` did have to).
+# non-blocking error to Claude Code, so the just-refused edit proceeds.
+# Absorbing a status after the deny is fail-closed -- the worst outcome is
+# the wrong wording on a refusal that still refuses; propagating one is
+# fail-open, exiting non-2 with no stdout so the edit goes through. So both
+# the listing and the filter are read inside an `if` condition, where
+# errexit is suspended, and every outcome -- listing failure, filter
+# no-match, and any other filter exit -- is turned into a plain variable
+# rather than a status left on the table. No pipe is used for either, which
+# also sidesteps pipefail entirely instead of reasoning through it (the
+# older piped form's `|| true` did have to).
 if listing="$(git -C "$project" tag --list 'v*' --sort=-v:refname 2>/dev/null)"; then
   listing_failed=0
 else
@@ -131,6 +130,10 @@ if [[ "$listing_failed" -eq 0 ]]; then
   if release_tags="$(grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' <<<"$listing")"; then
     :  # at least one semver tag matched; release_tags holds the filtered list
   else
+    # Must stay the first statement in this branch. A branch body, unlike
+    # the `if` condition above it, is errexit-live: anything inserted here
+    # both clobbers $? and can itself exit the hook non-2 with no stdout --
+    # measured, a bare `[[ -n "$listing" ]]` on an empty listing does both.
     grep_status=$?
     # 1 == no match, a value (an empty-but-successful listing). Anything
     # else is a real filter failure, folded into "listing failed" so it
