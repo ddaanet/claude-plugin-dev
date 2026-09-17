@@ -9,6 +9,14 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-09-17 — The first release is the manifest version, detected by tag alone](changelog/2026-09-17-first-release-is-the-manifest-version.md)
+  — **detection semantics change: a marketplace entry no longer disqualifies a
+  first release.** A plugin is at its first release exactly when no `vX.Y.Z` tag
+  exists locally or on origin; the lost-tags case the old conjunct proxied for
+  is now probed on origin directly, before the drift check and any side effect.
+  The version-guard hook's agent message branches on the same predicate and
+  names no route to the proposed version, and `common_preflight` refuses a push
+  route redirected away from origin
 - [2026-09-07 — The README absorbs the post-pull check, and memory shrinks](changelog/2026-09-07-readme-absorbs-the-post-pull-check.md)
   — `toolkit/README.md`'s update section gains `just --list` as a verification
   step and the separate-commit rule; the ddaanet memory entry drops from 4025

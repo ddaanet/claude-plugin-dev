@@ -102,9 +102,12 @@ the dated record of the reversal goes in the changelog.
 - **The manifest holds the *last released* version** — `just release` bumps from
   there. This is the invariant the version-guard hook protects and the release
   recipe re-checks.
-- **A first release publishes the manifest version as-is** — a plugin that has
-  never been released has nothing to bump from, so an explicit bump there is
-  refused, naming the version that will ship instead.
+- **A first release publishes the manifest version as-is, detected by tag
+  alone** — a plugin is at its first release exactly when no `vX.Y.Z` tag exists
+  locally or on origin, the marketplace entry playing no part. There is nothing
+  to bump from, so an explicit bump is refused, naming the version that will
+  ship instead. Choosing some other first version is the maintainer's committed
+  edit, not a recipe argument.
 - **The marketplace entry is bumped if present and created if absent** — one
   `just release` publishes a brand-new plugin end to end. The commit and the
   push are separately idempotent, each measured against the remote.
@@ -125,9 +128,19 @@ the dated record of the reversal goes in the changelog.
 - **`check-version.sh` detects a half-landed release** — `plugin.json` against
   its marketplace entry, exposed as a recipe and run as a `release` pre-flight,
   so a release refuses to start on top of an unfinished one.
+- **An empty local tag list is checked against origin first** — a clone can lose
+  a tag origin still carries, so `release_preflight` probes origin's tags before
+  the drift check and before any side effect. A listing it could not perform
+  refuses; only origin's silence may say "never released" and continue.
+- **A push redirected away from origin is refused** — `remote.origin.pushurl`,
+  `branch.<name>.pushRemote` and `remote.pushDefault` would send the release
+  where the origin probes never look. Refused when set at all rather than when
+  it "diverges", before any side effect, in both modes.
 - **`resume-release` completes one** — the last four steps are an idempotent
   block that probes remote state before acting. It completes a release; it never
-  starts one, and it says so when there was nothing to do.
+  starts one, and it says so when there was nothing to do. Its no-tag refusal
+  picks its next command from one origin listing, where a failed listing costs
+  only advice and never a harder refusal.
 - **A refusal carries the diagnosis and the next command** — where the tree
   state is non-obvious or a release may already be partly public, the message
   states what was checked, what was exempt, and what to run. It ships with the
@@ -148,6 +161,13 @@ the dated record of the reversal goes in the changelog.
   hatch, `systemMessage` the one-line human notice. The manifest is located from
   `CLAUDE_PROJECT_DIR`, never the drifting payload `cwd`, and an Edit is applied
   and re-read rather than pattern-matched.
+- **The deny message branches on whether the plugin has ever released** — on the
+  same no-semver-tag predicate `release_preflight` uses. The initial-release
+  wording says the manifest already holds what the first release will publish,
+  and names no route to any other version; only the agent channel branches, and
+  a listing that failed takes the restrictive steady-state wording. Nothing
+  computed after the deny is decided may fail: a hook exiting non-2 is a
+  non-blocking error, so a crash there allows the edit it had just refused.
 
 ## Limitations
 

@@ -10,8 +10,11 @@ The conclusions these arguments support are listed in
 recipe bumps from there: `0.1.1 → 0.2.0` etc.
 
 This is the invariant the version-guard hook protects. It's also checked by the
-release recipe itself: if `plugin.json` and the latest tag disagree, release
-aborts with guidance to revert the manual bump.
+release recipe itself: if `plugin.json` and the newest semver tag disagree,
+release aborts with guidance to revert the manual bump. The newest *semver* tag
+and not simply the latest tag — `latest_tag` takes the first line of
+`release_tags`, which is already filtered, so a `vnext` or a `v1.2` sorting
+above the real release can never stand in for one.
 
 The bug that motivated the guard: an agent committed a version bump inside a
 feature commit (intending it to land at the next release). The release recipe,
@@ -30,12 +33,13 @@ publishes the version `plugin.json` already holds, rather than bumping forward
 from it. Passing an explicit bump there is refused, naming the version that
 would be published instead.
 
-A plugin arrives at its first release carrying a version somebody chose. The
-official Anthropic `plugin-dev` marketplace plugin — an unrelated project with a
-near-identical name — scaffolds new plugins at `0.1.0` through
-`/plugin-dev:create-plugin`. Under the bump-from-current rule that first release
-publishes `0.1.1`, and `0.1.0` can never be published at all. Every plugin
-scaffolded there and released here meets it.
+A plugin arrives at its first release carrying a version somebody chose, and
+that version is adopted rather than bumped past. The official Anthropic
+`plugin-dev` marketplace plugin — an unrelated project with a near-identical
+name — scaffolds new plugins at `0.1.0` through `/plugin-dev:create-plugin`.
+Under the bump-from-current rule that first release publishes `0.1.1`, and
+`0.1.0` can never be published at all. Every plugin scaffolded there and
+released here meets it.
 
 The seed cannot be fixed where it originates. `install.sh` vendors the toolkit
 and wires the recipe and hook into an *existing* manifest — it never writes a
@@ -49,14 +53,42 @@ partially, and requires the tag to already exist precisely so it never invents
 one; leaning on it to cut a first release means doing by hand the step it
 refuses to guess at.
 
-Detection requires **both** no `v*` tags and no marketplace entry. Either signal
-alone misreads a real state: a repo whose tags were lost or never fetched still
-has its marketplace entry, and republishing over it would collide with a version
-already out there; a plugin that is tagged but not yet in the marketplace is the
-ordinary pre-first-publication state that `check-version.sh` already skips over.
-Only a repo with neither has demonstrably never been through this script. The
-tag test is `git tag --list 'v*'`, not `git describe`, which sees only tags
-reachable from HEAD.
+Detection is by tag alone: a plugin is at its first release exactly when no tag
+matching `^v[0-9]+\.[0-9]+\.[0-9]+$` exists, locally or on origin. The
+marketplace entry plays no part in that decision.
+
+Detection used to require **both** no `v*` tags and no marketplace entry, on the
+argument that either signal alone misreads a real state: a repo whose tags were
+lost or never fetched still has its marketplace entry, and republishing over it
+would collide with a version already out there. The lost-tags danger is real;
+the conjunct was the wrong instrument for it. It only ever protected a lost-tags
+repo that *had* an entry — so it covered plugins already published to the
+marketplace and left a first-time publisher's lost-tags clone, which has no
+entry yet, with no guard at all. That state is reachable: `check-version.sh`
+treats a missing entry as ordinary pre-first-publication and skips, so a plugin
+can carry real release tags and no entry.
+
+`release_preflight` now probes origin directly whenever the local list is empty,
+which addresses the lost-tags case rather than proxying for it: origin's tags
+are the release record, any semver tag there refuses, and a listing that could
+not be performed refuses too rather than reading silence as "never released".
+That is strictly stronger than the conjunct, so the conjunct is gone — and with
+it the requirement that a plugin's `marketplace.json` entry be hand-written
+before its first release could be detected as one.
+
+The tag test is `git tag --list 'v*'` through the `semver_tags` filter, not
+`git describe`. `describe` sees only tags reachable from HEAD, so a release
+tagged on a since-abandoned branch would read as no tags at all, and it returns
+the nearest tag of any name rather than the newest release. The filter is what
+keeps `vnext` and `v1.2` out: both are `v*` tags and neither is a release.
+
+Both listings — `release_tags` locally and `origin_release_tags` over the wire —
+carry `--sort=-v:refname`, and it is load-bearing rather than tidy. Every caller
+reads the first line as the newest release, while refname order is
+lexicographic, where `v1.10.0` precedes `v1.2.3` precedes `v1.9.0`: without the
+sort a refusal names a tag that is not the newest as soon as a plugin reaches a
+two-digit minor or patch. Newest-first is fixed inside each function rather than
+at each call site, so no caller can forget it.
 
 Refusing an explicit bump rather than ignoring it: a patch bump makes no sense
 as an initial release, and no other bump makes sense either. A first release has
@@ -70,13 +102,39 @@ empty, leaving `patch` as a default inside `release.sh`. The recipe signature
 cannot distinguish an explicit `patch` from no argument at all, and on a first
 release that distinction is the whole decision.
 
-Rejected: seeding new consumers at `0.0.0` (via `install.sh` or by documented
-instruction) so that `0.0.0` reads unambiguously as "nothing released" and
-`just release minor` produces `0.1.0`. It keeps the invariant literally true,
-but it only helps plugins installed after the change — a plugin already vendored
-and sitting unreleased still hits the original conflict, which is precisely the
-case that surfaced it. It also puts `install.sh` in the business of rewriting
-the very field the version-guard hook exists to protect.
+Three other mechanisms were weighed and rejected, the first two of them raised
+by the brief that motivated this:
+
+- **Teaching the version-guard hook to allow the edit** when no release exists,
+  sharing the predicate with `release_preflight`. It is the only one that lets
+  an agent write the version unaided, which is exactly why it goes: what a
+  plugin first ships as is the maintainer's call, and a guard that permits the
+  edit hands that call to whoever happens to be editing. The guard's *message*
+  branches on the same predicate instead, saying the manifest already holds what
+  the first release will publish and naming no route to any other version — see
+  [version-guard.md](version-guard.md).
+- **A first-release version selector**, `just release --initial 0.1.0`, refused
+  once any semver tag exists. It is the option that keeps the guard's invariant
+  literally true, since version state would then change only through the recipe.
+  Rejected because it adds an argument valid exactly once in a plugin's life and
+  puts the recipe in the business of *choosing* a version rather than publishing
+  the one already chosen. It does not even remove the manual edit: a plugin
+  content with its scaffolded version still releases without the flag, so the
+  selector is a second way in beside the first rather than a replacement for it.
+- **Seeding a baseline tag** — creating `v0.0.0` at install so that "never
+  released" is a state that never occurs. It writes a release that did not
+  happen into the one namespace both listings treat as the release record, and
+  `just release` then bumps from it to `v0.0.1`: the same
+  version-nobody-asked-for outcome, moved one step along. It carries the seeding
+  objection below as well, helping only plugins installed after the change.
+
+Also rejected: seeding new consumers at `0.0.0` (via `install.sh` or by
+documented instruction) so that `0.0.0` reads unambiguously as "nothing
+released" and `just release minor` produces `0.1.0`. It keeps the invariant
+literally true, but it only helps plugins installed after the change — a plugin
+already vendored and sitting unreleased still hits the original conflict, which
+is precisely the case that surfaced it. It also puts `install.sh` in the
+business of rewriting the very field the version-guard hook exists to protect.
 
 ## Marketplace entry: bump if present, create on first publication
 

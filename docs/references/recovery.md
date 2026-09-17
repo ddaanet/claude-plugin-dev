@@ -31,6 +31,32 @@ instead of an assumed sibling directory. A missing marketplace entry is treated
 as pre-first-publication state (skip), not drift (fail) — consistent with how
 `release.just`'s marketplace step treats a missing entry.
 
+An entry that *disagrees* with the manifest is still drift, and on an initial
+release that needed its own hint. The ordinary advice for drift is
+`just resume-release`, which then finds no tag and points back at
+`just release`, which refuses on drift again: a loop whose only exit is a hand
+edit. `release_preflight` reaches that point knowing more than
+`check-version.sh` does — the lost-tags probe has already established that no
+semver tag exists here or on origin — so the plugin is verifiably unpublished
+and there is no partial release to resume.
+
+The refusal is kept rather than relaxed. The alternative was to skip
+`check-version.sh` when no semver tag exists anywhere and let `bump_marketplace`
+overwrite the entry. An entry naming a version that was never released is an
+anomaly with several readings — a plugin published under another name, an entry
+belonging to a different plugin, a manifest meant to hold that version — and
+overwriting picks one silently and hides the rest. Surfacing it costs one hand
+edit on a path that runs at most once in a plugin's life.
+
+So the hint names both versions, says no release is recorded at either, and
+points at the marketplace entry as the one to correct — a successful first
+release would write the manifest version there anyway — while naming the
+manifest edit instead for the case where the entry's version was the intended
+one. Resume is not offered. It also says "no vX.Y.Z tag, here or on origin"
+rather than "never published": what the probe established is the absence of a
+tag of that shape, and a plugin released only under some other scheme is a
+residual the message must not deny.
+
 ## Recovery: `resume-release` and the shared release tail
 
 `check-version.sh` detects a half-landed release but cannot fix one, and the
@@ -51,10 +77,37 @@ returns; only steps that act set `acted`.
 Resume takes its version from `plugin.json` and requires the matching local tag
 to already exist. It completes a release; it never starts one. Tagging `HEAD` on
 a guess would tag whatever landed since the interrupted release, so a missing
-tag is a refusal that points at `just release <bump>` instead. When every step
-finds nothing to do, the summary says the release is already complete rather
-than claiming to have completed it — that distinction is what makes running it
-on a healthy repo safe rather than merely harmless.
+tag is a refusal. When every step finds nothing to do, the summary says the
+release is already complete rather than claiming to have completed it — that
+distinction is what makes running it on a healthy repo safe rather than merely
+harmless.
+
+Which advice that refusal carries is picked from one `origin_release_tags`
+listing, because a missing local tag says nothing about what is published. Four
+cases:
+
+- **Origin has `v$V`.** The release landed and this clone never fetched it.
+  `git fetch --tags`, then `just resume-release`: the tag arrives and resume
+  finishes whatever is left.
+- **Origin has some other semver tag.** Something is published, but not this
+  version. `git fetch --tags`, then `just release <bump>` — once the fetch lands
+  there is a real release to bump from, and a bare `just release` would be
+  refused on sight as a first release that this is not.
+- **Origin has nothing, and this clone verifiably has no semver tag either.**
+  Nothing to bump forward from, so the next command names no bump:
+  `just release`.
+- **Anything else** — origin silent while this clone's own tags are either
+  present but non-matching or unreadable. `just release <bump>`: the branch that
+  asserts least, and whose advice is safe either way, since `release_preflight`
+  refuses a bump on a plugin that turns out never to have been released and says
+  why.
+
+Here the probe only improves the advice and is never allowed to harden the
+refusal, which was already decided before any listing ran. So a failed listing
+falls into the branch claiming least rather than becoming a second, different
+error — and only a listing that *succeeded* and came back empty sets the
+no-local-tags flag, since folding a failure into the empty case would let
+silence claim "never released" and route to a bare `just release`.
 
 A failure *of* the version commit is the one case recovery does not own. A
 consumer's `pre-commit` hook can refuse it — gitlore's memory-approval gate is
@@ -141,7 +194,57 @@ what was exempt from it, and the exact next command. The clean-tree checks print
 the offending paths and the exemptions that did not save them; the marketplace
 checks say what is already published before naming `just resume-release`; the
 first-release and version-drift refusals state the invariant they protect and
-give the command that satisfies it.
+give the command that satisfies it; the lost-tags refusal names the newest tag
+origin holds and asks for `git fetch --tags`; the diverged-push-route refusal
+names the config key, prints its values one per line, and gives the
+`git config --unset-all` that clears it.
+
+### Why the lost-tags probe runs before the drift check
+
+An empty *local* tag list is not evidence that a plugin was never released: a
+clone can lose a tag it once had, or never have fetched it, while origin still
+carries the actual release record. So `release_preflight` probes
+`origin_release_tags` whenever the local list is empty, and it does so before
+`check-version.sh` and therefore before `bump_commit_tag` tags or `push_branch`
+pushes.
+
+The ordering is the point. Reached after the drift check, the probe would be
+commenting on a repository that had already been given advice — and
+`check-version.sh`'s drift advice is actively wrong on a lost-tags clone, since
+following it commits the marketplace's older version over a release that is
+genuinely public. Firing first is what lets that state get the fetch hint
+instead. A listing that could not be performed refuses outright here, unlike in
+`resume_preflight`: there is a side effect left to protect, and `push_branch`
+and `push_tag` need origin anyway, so continuing would only move the failure
+past the last point a check could still have caught it.
+
+### The push route has to agree with the probe
+
+`git ls-remote origin` reads origin's *fetch* URL, while three settings redirect
+a push elsewhere: `remote.origin.pushurl`, `branch.<name>.pushRemote` and
+`remote.pushDefault`. They do not even reach the same commands — `push_branch`'s
+unqualified `git push` follows all three in that precedence, while `push_tag`'s
+`git push origin "$tag"` names its remote and is redirected only by `pushurl` —
+so the branch and the tag can land in different repositories, and both the
+origin probe and `push_tag`'s published-tag check would be reading somewhere the
+release does not publish to. `common_preflight` refuses when any of the three is
+set, before any side effect, on `release` and `--resume` alike.
+
+Refusing when a key is *set*, rather than when it "diverges" from origin:
+deciding whether two URLs name the same repository (`git@host:o/p.git`,
+`https://host/o/p`, `ssh://host/o/p`, an `insteadOf` rewrite — all one
+repository) is not decidable in shell without a network round trip on the common
+path. The recovery, unset it or point it at origin, covers a same-repo `pushurl`
+on a different protocol too.
+
+`--get-all` and not `--get`, because `remote.<name>.pushurl` is genuinely
+multi-valued — pushing to several mirrors is a supported arrangement — and
+`--get` on such a key prints only the *last* value and still exits 0 (measured,
+git 2.47.3). The refusal would then name one of two URLs and advise a `--unset`
+that refuses a multi-valued key with status 5: a correct refusal handing back a
+recovery that does not work. The other two keys are last-one-wins for git, but a
+config file can still hold several lines of them and `--unset` refuses those
+identically, so all three are read the same way.
 
 Two constraints shape the wording. No message offers a way to skip a check — the
 same rule the version-guard hook's deny message follows, for the same reason: an
