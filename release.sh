@@ -488,18 +488,32 @@ release_preflight() {
     # returned), and its first line matched the semver anchor, so latest_tag
     # is always set; the -n test below is belt and braces.
     latest_tag=$(printf '%s\n' "$release_tag_list" | sed -n '1s/^v//p')
+    # One remedy, because only one works here. This hint used to offer two more
+    # and both were dead on every path that reaches it — recorded so they do not
+    # come back:
+    #
+    # `git checkout HEAD -- $manifest` is always a no-op. common_preflight
+    # refuses a dirty tree before release_preflight runs, and clean_pathspecs
+    # exempts only `.claude/` and the gitlore submodule — never
+    # `.claude-plugin/` — so the hand-written bump this refusal is about has
+    # always been committed already. Reverting it therefore takes a new commit,
+    # which is what the hint now says.
+    #
+    # `git fetch --tags` can never have anything left to fetch. latest_tag comes
+    # from release_tag_list, the LOCAL semver tags, and the lost-tags probe
+    # above has already established that local and origin agree on the newest
+    # one (an origin tag ahead of local fires the probe's own fetch hint first;
+    # an unreachable origin dies there outright). Worse than merely useless: the
+    # probe's hint is what sends an operator to fetch, so a fetch offered here
+    # hands back the command they just ran and the two refusals close a loop.
     if [ -n "$latest_tag" ] && [ "$manifest_version" != "$latest_tag" ]; then
         printf 'hint: plugin.json holds the LAST released version, never the next one.\n' >&2
         # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
         printf '      `just release <bump>` computes the next one from it, so a manifest\n' >&2
         printf '      ahead of the newest tag means the bump was already written by hand and\n' >&2
         printf '      this run would publish a version past the one that was intended.\n' >&2
-        # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
-        printf '      revert it with `git checkout HEAD -- %s`, then re-run\n' "$manifest" >&2
-        printf '      with the bump you want.\n' >&2
-        printf '      if v%s was in fact released and only the tag is missing here,\n' "$manifest_version" >&2
-        # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
-        printf '      `git fetch --tags` and re-run.\n' >&2
+        printf '      set .version in %s back to %s, commit that\n' "$manifest" "$latest_tag" >&2
+        printf '      edit, then re-run with the bump that produces the version you want.\n' >&2
         die "plugin.json version ($manifest_version) does not match latest tag (v$latest_tag)"
     fi
     V=$(jq -r --arg bump "$bump" '
