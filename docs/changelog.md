@@ -9,6 +9,13 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-09-17 — Refusals that end in an act, and a bound the wording implied away](changelog/2026-09-17-refusals-that-end-in-an-act.md)
+  — an unreadable `marketplace.json` no longer reads as an absent entry, which
+  on `--resume` had let a run reach `create_github_release` before dying; the
+  version-drift refusal drops two remedies that were dead on every path reaching
+  it, keeping the one that works; and `url.<base>.pushInsteadOf` is recorded as
+  a stated bound of the diverged-push-route check rather than left
+  implied-covered
 - [2026-09-17 — The first release is the manifest version, detected by tag alone](changelog/2026-09-17-first-release-is-the-manifest-version.md)
   — **detection semantics change: a marketplace entry no longer disqualifies a
   first release.** A plugin is at its first release exactly when no `vX.Y.Z` tag

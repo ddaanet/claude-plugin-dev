@@ -136,6 +136,8 @@ the dated record of the reversal goes in the changelog.
   `branch.<name>.pushRemote` and `remote.pushDefault` would send the release
   where the origin probes never look. Refused when set at all rather than when
   it "diverges", before any side effect, in both modes.
+  `url.<base>.pushInsteadOf` is a fourth such route and is deliberately not
+  checked — a stated bound, not an oversight.
 - **`resume-release` completes one** — the last four steps are an idempotent
   block that probes remote state before acting. It completes a release; it never
   starts one, and it says so when there was nothing to do. Its no-tag refusal

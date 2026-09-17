@@ -220,10 +220,11 @@ past the last point a check could still have caught it.
 
 ### The push route has to agree with the probe
 
-`git ls-remote origin` reads origin's *fetch* URL, while three settings redirect
-a push elsewhere: `remote.origin.pushurl`, `branch.<name>.pushRemote` and
-`remote.pushDefault`. They do not even reach the same commands — `push_branch`'s
-unqualified `git push` follows all three in that precedence, while `push_tag`'s
+`git ls-remote origin` reads origin's *fetch* URL, while several settings can
+redirect a push elsewhere. `common_preflight` checks three:
+`remote.origin.pushurl`, `branch.<name>.pushRemote` and `remote.pushDefault`.
+They do not even reach the same commands — `push_branch`'s unqualified
+`git push` follows all three in that precedence, while `push_tag`'s
 `git push origin "$tag"` names its remote and is redirected only by `pushurl` —
 so the branch and the tag can land in different repositories, and both the
 origin probe and `push_tag`'s published-tag check would be reading somewhere the
@@ -245,6 +246,20 @@ that refuses a multi-valued key with status 5: a correct refusal handing back a
 recovery that does not work. The other two keys are last-one-wins for git, but a
 config file can still hold several lines of them and `--unset` refuses those
 identically, so all three are read the same way.
+
+The fourth route, `url.<base>.pushInsteadOf`, is a stated bound rather than an
+oversight. Measured: with it set and none of the three keys,
+`git push origin main` lands in the rewritten repository while
+`git ls-remote origin` still reads the original — precisely the split this check
+exists to prevent. What does not carry over is "refuse when set". The rewrite
+fires only when its base is a prefix of origin's URL, and a base that does not
+match is inert (measured), so refusing on presence would reject the global
+`insteadOf`/`pushInsteadOf` rewrites that are ordinary in corporate setups —
+where the three repo-scoped keys are anomalous by their very presence, which is
+what makes refusing on presence honest for them. Deciding whether a given base
+matches is the same URL-identity problem this section already declines to solve.
+Plain `url.<base>.insteadOf` needs no check at all: it rewrites fetch and push
+alike, so the probe reads the repository the release publishes to.
 
 Two constraints shape the wording. No message offers a way to skip a check — the
 same rule the version-guard hook's deny message follows, for the same reason: an

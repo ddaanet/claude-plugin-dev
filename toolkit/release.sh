@@ -162,6 +162,16 @@ common_preflight() {
     # the common path. The recovery — unset it, or point it at origin — covers
     # a same-repo pushurl on a different protocol too.
     #
+    # url.<base>.pushInsteadOf is a fourth route and is NOT checked — a stated
+    # bound, recorded in docs/references/recovery.md. Set, it sends the push to
+    # the rewritten repository while ls-remote still reads the original
+    # (measured). "Refuse when set" is what fails to carry over: the rewrite
+    # fires only when its base prefixes origin's URL, a non-matching base is
+    # inert (measured), and a global insteadOf/pushInsteadOf rewrite is ordinary
+    # — unlike these three repo-scoped keys, whose presence is itself the
+    # anomaly. Plain url.<base>.insteadOf needs no check: it rewrites fetch and
+    # push alike, so the probe reads where the release publishes.
+    #
     # `$branch` (not a hardcoded "main"): a master- or trunk-default plugin is
     # supported above, and this must protect it too.
     #
