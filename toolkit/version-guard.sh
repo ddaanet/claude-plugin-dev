@@ -79,6 +79,19 @@ esac
 
 [[ -z "$proposed" || "$proposed" == "$current" ]] && exit 0
 
+# A claude process started from inside a git hook can inherit GIT_DIR (and
+# friends), which overrides the -C below and redirects the listing at
+# whatever repo the enclosing git invocation was using -- measured: GIT_DIR
+# alone does this, GIT_WORK_TREE and GIT_COMMON_DIR do not. Cleared by a
+# hardcoded list rather than `unset $(git rev-parse --local-env-vars)`:
+# that discovery call is itself a git invocation, and would fail right
+# along with a genuinely absent or failing git (below), clearing nothing
+# when it matters most. This list is git's stable repo-local discovery
+# vars; a future git adding another one is a gap here, not a silent one.
+unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE \
+      GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES \
+      GIT_GRAFT_FILE GIT_SHALLOW_FILE
+
 # Whether this plugin has ever released, to pick the deny wording below.
 # 2>/dev/null on the listing: on a CLAUDE_PROJECT_DIR that is not a git
 # repository at all (the common case pre-release), git's "not a git
@@ -89,22 +102,45 @@ esac
 # below, never the deny decision already established above. Same semver
 # filter release.sh's semver_tags uses, duplicated rather than sourced:
 # release.sh runs its flow at top level and isn't written to be sourced.
-# The trailing `|| true` absorbs this capture's status wholesale, and has
-# to: the deny is already decided above, and a hook that exits non-zero for
-# any reason other than 2 is a non-blocking error, so the refused edit then
-# proceeds. Aborting here is a silent, total bypass rather than a loud
-# failure, and only the wording is at stake. Both statuses that reach it do
-# abort without it, measured: a `git -C` on a non-repository exits 128 and
-# pipefail carries that past the filter stage even though the filter has
-# already turned its own "no match" into success; a real `grep` error
-# (status 2) leaves the pipeline at 1. Neither is 2, so either would let
-# the edit through. The inner `|| [ "$?" -eq 1 ]` is release.sh's filter
-# verbatim; the outer absorber subsumes it here, and it is kept so the two
-# copies stay the same text.
-release_tags="$(git -C "$project" tag --list 'v*' --sort=-v:refname 2>/dev/null \
-  | { grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || [ "$?" -eq 1 ]; })" || true
+#
+# A failed listing (git absent, killed, not a repo, ...) is not the same
+# answer as an empty one (a repo with no matching tags): the two take
+# opposite wordings below, so folding a failure into an empty string would
+# answer "never released" for a listing that told us nothing. But every
+# status here still has to be absorbed -- the deny is already decided
+# above, and a hook that exits non-zero for any reason other than 2 is a
+# non-blocking error to Claude Code, so the just-refused edit proceeds
+# (see the hook-exit-status-contract report). `outline.md`'s "only the
+# filter's no-match status is absorbed" is read loosely here on purpose:
+# taken literally, a real grep error (status 2, essentially unreachable --
+# constant regex over string input) would reach `set -e` unabsorbed and
+# reopen exactly that bypass. So both the listing and the filter are read
+# inside an `if` condition, where errexit is suspended, and every outcome
+# --  listing failure, filter no-match, and any other filter exit -- is
+# turned into a plain variable rather than a status left on the table. No
+# pipe is used for either, which also sidesteps pipefail entirely instead
+# of reasoning through it (the older piped form's `|| true` did have to).
+if listing="$(git -C "$project" tag --list 'v*' --sort=-v:refname 2>/dev/null)"; then
+  listing_failed=0
+else
+  listing_failed=1
+fi
 
-if [[ -z "$release_tags" ]]; then
+release_tags=""
+if [[ "$listing_failed" -eq 0 ]]; then
+  if release_tags="$(grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' <<<"$listing")"; then
+    :  # at least one semver tag matched; release_tags holds the filtered list
+  else
+    grep_status=$?
+    # 1 == no match, a value (an empty-but-successful listing). Anything
+    # else is a real filter failure, folded into "listing failed" so it
+    # takes the same restrictive wording rather than a third, untested path.
+    [[ "$grep_status" -eq 1 ]] || listing_failed=1
+    release_tags=""
+  fi
+fi
+
+if [[ "$listing_failed" -eq 0 && -z "$release_tags" ]]; then
 read -r -d '' agent_reason <<EOF || true
 plugin.json version edit refused: $current -> $proposed.
 
@@ -117,6 +153,8 @@ Do not bypass this guard, modify the recipe, or alter version state by
 other means.
 EOF
 else
+# Also reached when the listing itself failed: "don't know" takes the
+# restrictive, steady-state wording rather than the permissive one.
 read -r -d '' agent_reason <<EOF || true
 plugin.json version edit refused: $current -> $proposed.
 
