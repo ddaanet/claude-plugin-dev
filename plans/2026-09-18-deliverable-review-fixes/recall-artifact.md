@@ -21,9 +21,9 @@ under-selected rather than exhaustive.
 - `memory/ddaanet/git-protocol-file-allow.md` —
   `fatal: transport 'file' not allowed`; the child *clone* reads
   `protocol.file.allow`, so fixture-repo config cannot supply it and
-  `git -c protocol.file.allow=always` is required. Load-bearing for Item 2.3's
-  submodule fixture, and the reason the outline calls that flag required rather
-  than optional.
+  `git -c protocol.file.allow=always` is required. Load-bearing for Item 2.1
+  part (c)'s submodule fixture, and the reason the outline calls that flag
+  required rather than optional.
 - `memory/ddaanet/uv-direnv-venv.md` — no `uv run` under Claude Code; `uv sync`
   materializes `.venv` and direnv puts it on PATH. `just format-docs` finds
   `rumdl` that way, and it runs inside `just precommit`, the gate every item

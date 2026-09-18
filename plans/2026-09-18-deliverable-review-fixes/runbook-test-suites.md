@@ -1,78 +1,93 @@
 # Runbook — Phases 2 and 3: test-suite discrimination
 
-The eight `general` items of the deliverable-review fix pass, split out of
-`runbook.md` for length. That file carries the requirements mapping, the phase
-typing deviation, Phase 1, Phase 4 and the gate; read it first. The design these
-items execute is `cluster-b-test-suites.md`, and the evidence behind them is
-`proof-verdicts-cluster-b.md`.
+The five `general` items of the deliverable-review fix pass, split out of
+`runbook.md` for length. That file carries the requirements mapping, Phase 1,
+Phase 4 and the gate, and states the phase-typing deviation these items execute;
+read it first. The design is `cluster-b-test-suites.md`, and the evidence behind
+it is `proof-verdicts-cluster-b.md`.
 
-Every item here carries a **Mutation gate** rather than slices: it strengthens a
-fixture whose assertions pass against unchanged production code, so the
-discrimination is proven by applying the named mutation, observing the failure,
-and reverting before the commit. No commit carries a mutation.
+**Why `general` and not `tdd`, the argument the hub states as a conclusion.**
+Each item here strengthens a fixture whose new assertions pass against
+*unchanged* production code, so a `tdd` dispatch's RED step would have nothing
+to fail on and would manufacture a fake red. The discrimination is proven
+instead by applying the item's named **Mutation gate** — the edit, the assertion
+that must fail under it, the revert — which the executor runs and reports before
+committing. No commit carries a mutation.
 
 ## Phase 2: `tests/self-release-test.sh` (type: general)
 
-One file, four items, strictly sequential — three of the overlaps `outline.md`
-Dependencies names are in this phase. Prefer one agent for the whole chain over
-one per item.
+One file, **one item in four lettered parts**. They were four items until the
+consolidation pass. `outline.md` Dependencies rule 5 asks for one agent per file
+rather than one per item, and `/orchestrate` composes one dispatch per *item*
+and names it `item-N-M` — so four items meant four fresh agents, each
+re-orienting in the same 336-line suite. One item is the only shape that
+delivers rule 5.
 
-- **Item 2.1:** `tests/self-release-test.sh` — the happy path's
-  `tree left dirty` check sees untracked leftovers.
-  - Requirements: N7
-  - Depends on: Item 1.3 (serialization — same file)
+Each part keeps its own requirement, its own change and its own
+**Mutation gate**, stated separately — the gates are the correctness criterion
+of this phase and none is merged into another. The item's single commit carries
+no mutation: each part reverts its own before the next part begins.
+
+**One commit for the four parts**, since `/orchestrate` commits once per general
+item. Git-history granularity is what the consolidation traded for the single
+agent; review granularity is unaffected, because the phase-boundary corrector
+reads the whole phase diff either way.
+
+**Run the parts in the order given.** Part (c) rewrites one of the ten refusals
+part (d) then sweeps — three of the overlaps `outline.md` Dependencies names sit
+inside this item, and (c) before (d) is the one that matters: a sweep landing
+first has its new assertions rewritten out from under it, and nothing fails when
+that happens.
+
+- **Item 2.1:** `tests/self-release-test.sh` — four fixtures that currently
+  cannot fail.
+  - Requirements: N7 (a), M1 (b), M3 (c), M4 (d)
+  - Depends on: Item 1.3 — serialization (same file), and consumption: 1.3's
+    `Also update:` rewrites the dist-tag-squatting scenario's comment, and that
+    scenario is one of the ten part (d) sweeps.
   - Model: sonnet
-  - Change: the happy-path check is
+  - **(a) N7 — the happy path's `tree left dirty` check sees untracked
+    leftovers.** The check is
     `git -C "$repo" diff --quiet HEAD || fail "happy: tree left dirty"`, which
     reads tracked paths only. Extend it to also assert no untracked path
     survives the release — `git -C "$repo" ls-files --others --exclude-standard`
     empty — and note in the comment why `diff --quiet HEAD` alone is
     insufficient, the way `stage_handoff_frame` in `tests/release-test.sh`
     already documents it.
-  - **Not in the outline:** carried from review finding N7, which no outline
-    item claims. Drop it at the proof gate rather than at execution time if it
-    is out of scope.
-  - Mutation gate: make `bump_commit_tag` in `scripts/self-release.sh` leave a
-    stray untracked file in the repo root. The new assertion must fail; the
-    existing `diff --quiet HEAD` must not. Revert before committing.
-
-- **Item 2.2:** `tests/self-release-test.sh` — the dist-split scenario
-  discriminates the tag's tree from `HEAD`'s.
-  - Requirements: M1
-  - Depends on: Item 2.1 (serialization — same file)
-  - Model: sonnet
-  - Change: `ensure_dist_tag` runs before `push_branch`, so the `block_push` +
-    `run minor` setup leaves `dist-v0.2.0` already created locally and the
+  - **(a) Not in the outline, and droppable whole:** carried from review finding
+    N7, which no outline item claims. If it is out of scope the proof gate
+    deletes this part and its gate and leaves (b)–(d) untouched — it is not a
+    decision to take at execution time.
+  - **(a) Mutation gate:** make `bump_commit_tag` in `scripts/self-release.sh`
+    leave a stray untracked file in the repo root. The new assertion must fail;
+    the existing `diff --quiet HEAD` must not. Revert before part (b).
+  - **(b) M1 — the dist-split scenario discriminates the tag's tree from
+    `HEAD`'s.** `ensure_dist_tag` runs before `push_branch`, so the `block_push`
+    + `run minor` setup leaves `dist-v0.2.0` already created locally and the
     `--resume` short-circuits at `already created locally` — `git subtree split`
     never runs. Land the later work *inside* `toolkit/`, delete the local dist
     tag before the resume (the dead-origin scenario later in the file already
     does exactly this), then assert `git show dist-v0.2.0:<later-file>` fails
     and `git ls-tree --name-only dist-v0.2.0` omits it. The `docs.md` commit
     then contributes no discrimination: **drop it.**
-  - Rewrite the comment — it is false, not merely weak. Its fallback claim,
-    "What it proves is that the split ran against the tagged commit at all", is
-    wrong: the split did not run, and the surviving assertion reads a tag built
-    in the *first* invocation, where `HEAD` and the tag coincided.
-  - Mutation gate: `scripts/self-release.sh`'s `git subtree split` argument
-    `"$tag"` → `HEAD`. The new `git show`/`ls-tree` assertions must fail; today
-    the whole suite stays green under it. Revert before committing.
-
-- **Item 2.3:** `tests/self-release-test.sh` — the clean-check exemptions are
-  actually constructed.
-  - Requirements: M3
-  - Depends on: Item 2.2 (serialization — same file; the two scenarios do not
-    overlap, 2.2's is the resume-after-later-work block and 2.3's is inside
-    `=== preflight refusals ===`). The line-level overlap `outline.md` names, B2
-    ↔ B3, is with Item 2.4 and is declared there.
-  - Model: sonnet
-  - Change, `.claude/`: the frame is written **untracked**, and
-    `common_preflight`'s check is
+  - **(b) Rewrite the comment** — it is false, not merely weak. Its fallback
+    claim, "What it proves is that the split ran against the tagged commit at
+    all", is wrong: the split did not run, and the surviving assertion reads a
+    tag built in the *first* invocation, where `HEAD` and the tag coincided.
+  - **(b) Mutation gate:** `scripts/self-release.sh`'s `git subtree split`
+    argument `"$tag"` → `HEAD`. The new `git show`/`ls-tree` assertions must
+    fail; today the whole suite stays green under it. Revert before part (c).
+  - **(c) M3 — the clean-check exemptions are actually constructed.** For
+    `.claude/`: the frame is written **untracked**, and `common_preflight`'s
+    check is
     `git diff --quiet HEAD -- . ':(exclude).claude' ':(exclude)memory'`, which
     sees tracked paths only — so the scenario is vacuous. Adopt the
     commit-then-rewrite-and-stage shape of `stage_handoff_frame` in
     `tests/release-test.sh`, whose comment already documents why untracked does
-    not reach the check.
-  - Change, `memory`: construct a gitlink resting off `HEAD`'s recorded sha —
+    not reach the check. Part (b)'s scenario is the resume-after-later-work
+    block and this one is inside `=== preflight refusals ===`; they do not
+    overlap.
+  - **(c) `memory`:** construct a gitlink resting off `HEAD`'s recorded sha —
     the resting state gitlore leaves. Init a `sub` repo with two empty commits,
     `git -c protocol.file.allow=always submodule add` it as `memory`, commit the
     gitlink at the second, then `git -C memory checkout` the first.
@@ -82,45 +97,38 @@ one per item.
     *clone*, so fixture-repo config cannot supply it. The suite drops the leaked
     git environment near its top (`unset $(git rev-parse --local-env-vars)`), so
     the submodule calls are safe there.
-  - **The `sub` upstream is built per-sandbox, inside `$sandbox`**, not once
+  - **(c) The `sub` upstream is built per-sandbox, inside `$sandbox`**, not once
     outside it. `new_sandbox` rebuilds `$repo` on every call, so a shared
     upstream leaves state crossing scenario boundaries — a fixture that works
     alone and breaks when a scenario is inserted ahead of it. State that reason
     in the fixture's comment.
-  - Rewrite the comment. It currently reads "`.claude/` and `memory/` are
-    excluded from that check, the way this repo needs" — claiming both halves
-    are covered when only `.claude/` is attempted, vacuously, and `memory` is
-    never constructed at all.
-  - Mutation gate: drop `':(exclude).claude'` → the `.claude` half must go red;
-    drop `':(exclude)memory'` → the `memory` half must go red. Both stay green
-    today. Revert both before committing.
-  - Interfaces:
-    - the `memory` fixture leaves
-      `git diff --quiet HEAD -- . ':(exclude).claude' ':(exclude)memory'` clean
-      and the same command without `':(exclude)memory'` dirty — both outcomes
-      confirmed on the 2026-09-18 probe against git 2.47.3.
-
-- **Item 2.4:** `tests/self-release-test.sh` — all ten refusals assert status,
-  side-effect absence and `gh` untouched.
-  - Requirements: M4
-  - Depends on: Item 2.3 (line-level overlap — its rewritten scenario is one of
-    the ten) and Item 1.3 (whose comment update targets the squatting refusal,
-    also one of the ten)
-  - Model: sonnet
-  - Change: add an `assert_gh_untouched` helper and apply `rc`, `$GH_LOG` empty
-    and tag absence to all ten refusals. **Ten, not nine**: the
-    `=== preflight refusals ===` block is nine, and `=== resume refusals ===`
-    carries "resume, no tag anywhere" with the identical defect — hint and
-    remedy needles, no `rc`, no tag check, no `$GH_LOG`. In the same pass, "no
-    dist tag: names it" asserts `refute_tag v0.2.0` but no `rc`. `$GH_LOG` is
-    truncated per `new_sandbox`, so the pair that shares one sandbox needs the
-    log read *between* runs, not after both.
-  - Mutation gate: make `common_preflight`'s dirty-tree branch print to stderr
-    and fall through instead of `die`. Three refusal scenarios must go red; all
-    three stay green today while the release proceeds. Revert before committing.
-  - Interfaces:
-    - `assert_gh_untouched <label>` — fails unless `$(cat "$GH_LOG")` is empty;
-      called after each refusal, before the next `run`.
+  - **(c) Rewrite the comment.** It currently reads "`.claude/` and `memory/`
+    are excluded from that check, the way this repo needs" — claiming both
+    halves are covered when only `.claude/` is attempted, vacuously, and
+    `memory` is never constructed at all.
+  - **(c) The fixture's contract**, confirmed on the 2026-09-18 probe against
+    git 2.47.3: the `memory` fixture leaves
+    `git diff --quiet HEAD -- . ':(exclude).claude' ':(exclude)memory'` clean
+    and the same command without `':(exclude)memory'` dirty.
+  - **(c) Mutation gate:** drop `':(exclude).claude'` → the `.claude` half must
+    go red; drop `':(exclude)memory'` → the `memory` half must go red. Both stay
+    green today. Revert both before part (d).
+  - **(d) M4 — all ten refusals assert status, side-effect absence and `gh`
+    untouched.** Add an `assert_gh_untouched <label>` helper — fails unless
+    `$(cat "$GH_LOG")` is empty, called after each refusal and before the next
+    `run` — and apply `rc`, `$GH_LOG` empty and tag absence to all ten refusals.
+    **Ten, not nine**: the `=== preflight refusals ===` block is nine, and
+    `=== resume refusals ===` carries "resume, no tag anywhere" with the
+    identical defect — hint and remedy needles, no `rc`, no tag check, no
+    `$GH_LOG`. In the same pass, "no dist tag: names it" asserts
+    `refute_tag v0.2.0` but no `rc`. `$GH_LOG` is truncated per `new_sandbox`,
+    so the pair that shares one sandbox needs the log read *between* runs, not
+    after both. Part (c)'s rewritten scenario is one of the ten, and so is the
+    squatting refusal Item 1.3's comment update targets.
+  - **(d) Mutation gate:** make `common_preflight`'s dirty-tree branch print to
+    stderr and fall through instead of `die`. Three refusal scenarios must go
+    red; all three stay green today while the release proceeds. Revert before
+    committing.
 
 ## Phase 3: `release-test.sh` and `version-guard-test.sh` (type: general)
 

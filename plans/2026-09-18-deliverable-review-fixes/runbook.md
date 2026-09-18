@@ -5,7 +5,7 @@ Design: `outline.md` (scope, clusters A and C, ordering, gate) and
 Decisions: `classification.md`. Evidence: `proof-verdicts.md`,
 `proof-verdicts-cluster-b.md`.
 
-**This file is the hub.** Phases 2 and 3 — the eight test-suite items — are in
+**This file is the hub.** Phases 2 and 3 — the five test-suite items — are in
 [`runbook-test-suites.md`](runbook-test-suites.md), split out for the repo's
 400-line cap the way the design split cluster B. Requirements source:
 `plans/2026-09-15-first-release-version/reports/deliverable-review.md` — 6 Major
@@ -19,9 +19,9 @@ convention this pass establishes.
 **One coverage gap the outline does not carry: `N7`.** The review's seventh
 Minor — `tests/self-release-test.sh`'s happy-path `tree left dirty` check is
 tracked-only, so an untracked leftover passes — is assigned to no outline item.
-It is the same root cause as `M3` (B2) at a different site. Carried here as
-**Item 2.1**; if it should be dropped instead, that is a scope decision to take
-at `/proof` rather than silently.
+It is the same root cause as `M3` (B2) at a different site. Carried as
+**Item 2.1 part (a)**, which is droppable whole; if it should be dropped, that
+is a scope decision to take at `/proof` rather than silently.
 
 **Field lines are nested bullets, not continuation lines.** `just format-docs`
 runs rumdl with MD013 reflow over `plans/`, which joins continuation lines into
@@ -32,10 +32,10 @@ running prose. Nested bullets survive the reflow.
 
 | Requirement | Outline item | Phase | Items | Notes |
 |---|---|---|---|---|
-| M1 dist split does not discriminate | B1 | 2 | 2.2 | |
+| M1 dist split does not discriminate | B1 | 2 | 2.1 (b) | |
 | M2 `release_tags()` rests on `pipefail` | A1 | 1 | 1.1 | |
-| M3 clean-check exemptions untested | B2 | 2 | 2.3 | |
-| M4 ten refusals assert a message only | B3 | 2 | 2.4 | |
+| M3 clean-check exemptions untested | B2 | 2 | 2.1 (c) | |
+| M4 ten refusals assert a message only | B3 | 2 | 2.1 (d) | |
 | M5 `version-guard.md` parity claim | C2 | 4 | 4.2 | |
 | M6 `version-guard.sh` header contradicts | C1 | 4 | 4.1 | |
 | N1 `printf \| grep -qxF` EPIPE | A2 | 1 | 1.2 | |
@@ -44,7 +44,7 @@ running prose. Nested bullets survive the reflow.
 | N4 `tagless_sysmsg` reads a stale `guard_out` | B5 | 3 | 3.2 | |
 | N5 no allow scenario touches a git fixture | B6 | 3 | 3.3 | |
 | N6 `vnext` half omits two assertions | B5 | 3 | 3.2 | |
-| N7 happy-path dirty check is tracked-only | — | 2 | 2.1 | **Not in the outline** |
+| N7 happy-path dirty check is tracked-only | — | 2 | 2.1 (a) | **Not in the outline** |
 | N8 `assert_contains` harness divergence | B7 | 3 | 3.4 | |
 | N9 stale `<script>.sh:<line>` citations | C4 | 4 | 4.6 | Grown 1 → 3 by sweep |
 | N10 hub carries the node's argument | C5 | 4 | 4.3 | |
@@ -62,15 +62,11 @@ the unreproduced `release-test.sh` failure of 2026-09-17.
 
 ## Phase typing — one deviation from the outline
 
-The outline types cluster B as tdd.
-**Phase 2 and Phase 3 are `general` instead.** A cluster B item strengthens a
-fixture whose assertions pass against *unchanged* production code; the
-discrimination is proven by applying the item's named mutation, not by a failing
-assertion on the current tree. A `tdd` dispatch's RED step would have nothing to
-fail on. Each item therefore carries an explicit **Mutation gate** — the edit to
-apply, the assertion that must fail under it, and the revert — which the
-executor runs and reports before committing. Cluster A is genuine tdd and keeps
-its type.
+The outline types cluster B as tdd. **Phases 2 and 3 are `general` instead**,
+every item and part carrying an explicit **Mutation gate** — the edit to apply,
+the assertion that must fail under it, and the revert — in place of a RED step
+that would have nothing to fail on. Cluster A is genuine tdd and keeps its type.
+The argument is in the node.
 
 ## `Depends on:` carries two kinds here
 
@@ -78,7 +74,8 @@ Most dependencies in this pass are **serialization**, not consumption: two items
 edit the same file and must not run in parallel, per `outline.md` Dependencies
 rule 5. Those carry no `Interfaces:` block, because nothing crosses between them
 but the file's state. An `Interfaces:` block appears only where a later item
-genuinely reads an earlier item's output — Items 1.1, 2.3, 2.4, 3.2 and 3.4.
+genuinely reads an earlier item's output — Items 1.1, 3.2 and 3.4. Phase 2's two
+former blocks are internal to Item 2.1 now, stated inside its parts (c) and (d).
 
 ## Phase 1: production logic paths (type: tdd)
 
@@ -222,15 +219,18 @@ genuinely reads an earlier item's output — Items 1.1, 2.3, 2.4, 3.2 and 3.4.
 
 ## Phases 2 and 3: test-suite discrimination (type: general)
 
-Eight items across three test suites, split to their own node for length:
-**`runbook-test-suites.md`**. Phase 2 is the four items on
-`tests/self-release-test.sh` (2.1 N7, 2.2 M1, 2.3 M3, 2.4 M4); Phase 3 is 3.1 on
-`tests/release-test.sh` (N3) and 3.2–3.4 on `tests/version-guard-test.sh`
-(N4/N6, N5, N8). Each carries a Mutation gate in place of slices.
+Five items across three test suites, split to their own node for length:
+**`runbook-test-suites.md`**. Phase 2 is one item on
+`tests/self-release-test.sh` — Item 2.1, consolidated from four items into four
+lettered parts (a N7, b M1, c M3, d M4) to give `outline.md` Dependencies rule 5
+its one-agent-per-file shape. Phase 3 is 3.1 on `tests/release-test.sh` (N3) and
+3.2–3.4 on `tests/version-guard-test.sh` (N4/N6, N5, N8). Every part and every
+item carries its own Mutation gate in place of slices; no gate is merged into
+another.
 
 The ordering constraints that cross into Phase 1 and Phase 4 stay here: Item 2.1
 follows Item 1.3 and Item 3.1 follows Item 1.2 (same file, serialization); Item
-2.4 also consumes Item 1.3's comment update; Item 3.4 runs last on
+2.1's part (d) also consumes Item 1.3's comment update; Item 3.4 runs last on
 `tests/version-guard-test.sh`, before Item 4.6 touches its comments.
 
 ## Phase 4: prose (type: inline)
@@ -384,12 +384,13 @@ that certifies the pass.
 
 Per `commit-bundling`, each code change rides with the test that proves it and
 with the comment that documents it — no carve-outs, and nothing dropped
-silently. A cluster B item's mutation is applied, observed and **reverted**
-before its commit; no commit carries a mutation.
+silently. A cluster B mutation is applied, observed and **reverted** before the
+next part or item begins; no commit carries a mutation. Item 2.1 lands its four
+parts in one commit — the node states why.
 
 One scope question the pass does not decide in an item: whether Item 4.6's
 citation convention also belongs as a bullet in `CLAUDE.md`'s Conventions
 section. **The executor's default is no** — it lands in Item 4.7's dated entry
 and nowhere else, and no item edits `CLAUDE.md`'s Conventions. Raise it at the
-proof gate, the way Item 2.1 is raised there; it is not an open choice inside
-any dispatch.
+proof gate, the way Item 2.1's part (a) is raised there; it is not an open
+choice inside any dispatch.
