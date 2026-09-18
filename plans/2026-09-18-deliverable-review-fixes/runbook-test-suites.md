@@ -60,8 +60,10 @@ one per item.
 - **Item 2.3:** `tests/self-release-test.sh` — the clean-check exemptions are
   actually constructed.
   - Requirements: M3
-  - Depends on: Item 2.2 (line-level overlap — 2.3 rewrites the `.claude`/
-    `memory` scenario that sits inside the range Item 2.4 then sweeps)
+  - Depends on: Item 2.2 (serialization — same file; the two scenarios do not
+    overlap, 2.2's is the resume-after-later-work block and 2.3's is inside
+    `=== preflight refusals ===`). The line-level overlap `outline.md` names, B2
+    ↔ B3, is with Item 2.4 and is declared there.
   - Model: sonnet
   - Change, `.claude/`: the frame is written **untracked**, and
     `common_preflight`'s check is
@@ -148,9 +150,13 @@ Item 3.1 is on a different file from 3.2–3.4 and is independent of them. Items
   - Model: sonnet
   - Change, N4: `tagless_sysmsg` reads the `guard_out` left by a run forty lines
     and two assertion blocks earlier, with no note saying so — unlike the
-    deliberate `$reason` reuse just above it, which *is* documented. Re-invoke
-    the hook for that assertion, or add the note; a scenario inserted between
-    silently retargets a byte-identity comparison.
+    deliberate `$reason` reuse just above it, which *is* documented.
+    **Re-invoke the hook** against `$git_proj` immediately before capturing
+    `tagless_sysmsg`, and say in the comment that the capture is deliberately
+    fresh. The outline offered "re-invoke or add the note"; this runbook takes
+    re-invoke, because a note only discloses the hazard while a fresh run
+    removes it, and the cost is one more hook invocation. A scenario inserted
+    between would otherwise silently retarget a byte-identity comparison.
   - Change, N6: the `vnext` half of slice 4 omits **two** assertions, not one.
     Add `assert_no_escape_hatch "$reason" "version-guard vnext-tags reason"`,
     which slice 2 and the tagged case both call, and
@@ -160,6 +166,10 @@ Item 3.1 is on a different file from 3.2–3.4 and is independent of them. Items
     site documents that property as asserted there alone only because the
     *steady-state* message names the recipe legitimately. A `vnext` reason is
     not steady-state.
+  - Also update: the no-tags site's comment, which states the no-recipe property
+    is "Asserted over the no-tags reason alone: the steady-state message names
+    the recipe legitimately". Adding the `vnext` assertion falsifies that
+    sentence; per `commit-bundling` the comment rides with the change.
   - Mutation gate, N6: add an escape-hatch sentence to the initial-release deny
     reason in `toolkit/version-guard.sh`. The new `assert_no_escape_hatch` on
     the `vnext` case must go red; it stays green today. Revert before
@@ -213,16 +223,26 @@ Item 3.1 is on a different file from 3.2–3.4 and is independent of them. Items
     output too, or one suite keeps a different diagnostic shape. The glob form's
     comment constrains what the caller passes as the *haystack*, not the
     matcher, and survives unchanged.
-  - Scope: 20 call sites before 3.2's and 3.3's additions — nine
-    `assert_contains` and eleven `assert_not_contains`. Re-read every needle
-    under BRE before landing. Across the pre-existing twenty the only BRE-live
-    characters are the dots in `9.9.9` and in `settings.json`; both widen to
-    any-char and both still match, so no needle needs escaping — verify rather
-    than assume, and include the needles 3.2 and 3.3 added.
-    **The two kinds carry opposite risks:** BRE widening makes `assert_contains`
-    risk a silent **false pass**, and `assert_not_contains` stricter, so its
-    risk is a **false failure**, loud on the first run. Spend the careful read
-    on the positive needles; the negative ones report themselves.
+  - Scope: **18 call sites** before 3.2's and 3.3's additions — eight
+    `assert_contains` and ten `assert_not_contains`, three of them inside
+    `assert_no_escape_hatch`'s body. The outline's "20 … nine and eleven"
+    counted the two helper *definitions* as sites; the outline is a frozen dated
+    artifact and is not corrected there, so this line is the count to work from.
+  - Re-read every needle before landing, on **two** axes, and include the
+    needles 3.2 and 3.3 added:
+    - **BRE-live characters.** Across the pre-existing eighteen the only ones
+      are the dots in `9.9.9` and in `settings.json`; both widen to any-char and
+      both still match, so no needle needs escaping — verify rather than assume.
+    - **Newline spans.** The glob form matches across newlines; `grep` matches
+      within a line. No current needle spans one — `assert_no_escape_hatch`'s
+      long needle is deliberately cut at the deny reason's line break — but a
+      needle that did would change meaning silently under the new form.
+    **The two kinds carry opposite risks, and the two axes invert them.** Under
+    BRE widening `assert_contains` risks a silent **false pass** and
+    `assert_not_contains` only a **false failure**, loud on the first run. Under
+    the newline change it is the other way: `assert_contains` fails loudly,
+    `assert_not_contains` passes silently. So the careful read covers the
+    positive needles for BRE characters and *every* needle for line breaks.
   - Mutation gate: no production mutation applies — the gate is the suite
     itself. Run it before and after conversion and confirm the same set of
     scenarios passes, and that a deliberately weakened positive needle (one

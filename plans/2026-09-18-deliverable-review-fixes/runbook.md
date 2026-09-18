@@ -89,12 +89,20 @@ genuinely reads an earlier item's output — Items 1.1, 2.3, 2.4, 3.2 and 3.4.
   - Model: sonnet
   - Change: rewrite `release_tags`'s body to the capture-then-filter shape
     `origin_release_tags` already uses — assign
-    `git tag --list 'v*' --sort=-v:refname` to a local, `|| die` on its status,
-    then filter the local through `semver_tags`. Rewrite `release_tags`'s
-    comment to say the safety no longer depends on the `set -o pipefail` line,
-    and move the half of `origin_release_tags`'s comment that now describes both
-    callers onto **`semver_tags`'s own** comment — once neither caller pipes,
-    the hazard belongs to the filter that absorbs grep's status. Carry the
+    `git tag --list 'v*' --sort=-v:refname` to a local, **`|| return 1`** on its
+    status, then filter the local through `semver_tags`. `return`, not `die`:
+    both call sites already handle a non-zero status — `release_preflight`'s
+    `|| die "could not list this plugin's release tags — nothing was done"`, and
+    `resume_preflight`'s `if release_tag_list=$(release_tags) && …`, whose
+    comment requires a failed listing to fall through to the last branch "whose
+    advice is safe either way". A `die` here runs in the substitution's
+    subshell, so it would not abort the script — it would print a second
+    `error:` line into the middle of a hint ladder the code keeps deliberately
+    non-fatal. Rewrite `release_tags`'s comment to say the safety no longer
+    depends on the `set -o pipefail` line, and move the half of
+    `origin_release_tags`'s comment that now describes both callers onto
+    **`semver_tags`'s own** comment — once neither caller pipes, the hazard
+    belongs to the filter that absorbs grep's status. Carry the
     `Verified both ways (bash 5.2, git 2.47.3)` evidence line across with the
     argument it supports.
   - Slices:
@@ -104,10 +112,11 @@ genuinely reads an earlier item's output — Items 1.1, 2.3, 2.4, 3.2 and 3.4.
        wrapper first on `PATH` that exits 1 for `tag --list` and `exec`s the
        real binary for everything else — the `guard_stub127_dir` stub idiom from
        `tests/version-guard-test.sh`. Test
-       `pipefail-stripped release_tags failure refuses`: asserts `rc` is 1 and
-       that `$out` names the `git tag --list` failure, and
-       `assert_not_contains "$out" "git fetch --tags"` — the lost-tags remedy is
-       the wrong branch and its presence is the defect.
+       `pipefail-stripped release_tags failure refuses`: asserts `rc` is 1, that
+       `$out` contains `could not list this plugin's release tags` — the needle
+       is `release_preflight`'s existing `die`, since the stub prints nothing of
+       its own — and `assert_not_contains "$out" "git fetch --tags"` — the
+       lost-tags remedy is the wrong branch and its presence is the defect.
     2. It publishes nothing. Test
        `pipefail-stripped release_tags failure publishes nothing`: asserts the
        plugin's local tag set equals the fixture's (a set comparison, not a
@@ -120,8 +129,8 @@ genuinely reads an earlier item's output — Items 1.1, 2.3, 2.4, 3.2 and 3.4.
     manifest version of a plugin whose release history it could not read.
   - Interfaces:
     - `release_tags()` — writes the newline-separated semver tag list to stdout,
-      newest first; `die`s on a failed `git tag --list` rather than returning
-      empty.
+      newest first; returns 1 on a failed `git tag --list` rather than returning
+      empty with status 0. Both call sites keep the handling they already have.
     - `semver_tags()` — filter, reads stdin; its comment is now the single home
       of the "absorbs a no-match grep's status" hazard note.
 
@@ -133,9 +142,11 @@ genuinely reads an earlier item's output — Items 1.1, 2.3, 2.4, 3.2 and 3.4.
   - Change: in `resume_preflight`'s hint ladder, replace
     `printf '%s\n' "$origin_tag_list" | grep -qxF -- "$tag"` with
     `grep -qxF -- "$tag" <<<"$origin_tag_list"`. A herestring has no pipe, so no
-    EPIPE and no `pipefail` dependency. `toolkit/version-guard.sh`'s own
-    `grep -qxF` herestring is the in-repo precedent.
-    **Locate the site by symbol**, not by `:577` — Item 1.1 has moved it.
+    EPIPE and no `pipefail` dependency. The in-repo herestring precedent is
+    `toolkit/version-guard.sh`'s tag filter, `grep -E '…' <<<"$listing"` — a
+    herestring, not a pipe; the `-qxF` flags are this site's own and carry over
+    unchanged. **Locate the site by symbol**, not by `:577` — Item 1.1 has moved
+    it.
   - Slices:
     1. The ladder is reached and branch 1 fires. The site sits inside the
        lost-tags refusal path, entered only when the local semver listing is
@@ -179,16 +190,26 @@ genuinely reads an earlier item's output — Items 1.1, 2.3, 2.4, 3.2 and 3.4.
     and a reader could otherwise take this for an oversight.
   - Slices:
     1. A `vnext` tag on `HEAD`'s ancestry is not read as the latest release.
-       Test `self-release: vnext on ancestry is not the latest tag`: fixture
-       tags `HEAD~` `v0.1.0` and `HEAD` `vnext`; asserts the run does not print
-       `does not match latest tag (vnext)` and that the drift guard compares
-       against `v0.1.0`. Today the refusal fires with a hint that cannot fix it.
+       Test `self-release: vnext on ancestry is not the latest tag`:
+       `new_sandbox` already leaves `v0.1.0` on the only commit with
+       `toolkit/VERSION` at `0.1.0`, so the fixture adds one ordinary commit and
+       tags **it** `vnext` — `v0.1.0` then sits on `HEAD~` and `vnext` on
+       `HEAD`. `run minor` must reach a release: asserts `rc` is 0,
+       `assert_tag v0.2.0 local`, and
+       `assert_not_contains "$out" "does not match latest tag"`. Today
+       `describe` returns the nearest tag of any name — `vnext` — and the drift
+       guard refuses with `does not match latest tag (vnext)`, a hint that
+       cannot fix it.
     2. A release tag off `HEAD`'s ancestry is still seen. Test
        `self-release: release tag off ancestry still triggers drift guard`:
-       fixture creates `v0.9.0` on a commit not reachable from `HEAD`, leaves
-       `toolkit/VERSION` at an older value; asserts the run refuses naming
-       `v0.9.0`. Today `latest_tag` comes back empty and the drift guard is
-       skipped entirely.
+       fixture creates `v0.9.0` on a commit not reachable from `HEAD` and leaves
+       `toolkit/VERSION` at `0.1.0`; asserts `rc` is 1 and `$out` contains
+       `does not match latest tag (v0.9.0)`. Today `describe` sees only the
+       reachable `v0.1.0`, which matches `toolkit/VERSION`, so the guard passes
+       and the release proceeds — the newer tag is invisible, not merely
+       unranked. The review's "`latest_tag` comes back empty" describes a repo
+       with *no* reachable tag; keep `v0.1.0`, which
+       `require_prior_release_published` downstream needs.
   - Also update: the dist-tag-squatting scenario's comment in
     `tests/self-release-test.sh`, which explains the scenario in terms of
     `describe --match 'v*'`. The behaviour survives — the `v*` glob still
@@ -201,7 +222,7 @@ genuinely reads an earlier item's output — Items 1.1, 2.3, 2.4, 3.2 and 3.4.
 
 ## Phases 2 and 3: test-suite discrimination (type: general)
 
-Eight items across four test suites, split to their own node for length:
+Eight items across three test suites, split to their own node for length:
 **`runbook-test-suites.md`**. Phase 2 is the four items on
 `tests/self-release-test.sh` (2.1 N7, 2.2 M1, 2.3 M3, 2.4 M4); Phase 3 is 3.1 on
 `tests/release-test.sh` (N3) and 3.2–3.4 on `tests/version-guard-test.sh`
@@ -236,6 +257,15 @@ dispatch, per `outline.md`. Item 4.6 runs after Phases 1–3; Item 4.7 runs last
     from the steady-state message. The initial-release branch is the model and
     `craft:directive-writing` is the rule.
   - M6 lands before N15 — N15's scope depends on the restatement.
+  - **Both deny reasons are an asserted surface.** M6 edits the file header,
+    which nothing asserts; N15 edits the steady-state reason, which
+    `tests/version-guard-test.sh` reads through
+    `assert_contains "last released version"` and `assert_no_escape_hatch` (the
+    no-bypass sentence present, no `settings.json` and no `version-guard`
+    identifier). By Phase 4 those call sites are in Item 3.4's `grep -q --` form
+    and the `vnext` block carries Item 3.2's additions. Keep every needle
+    satisfied and re-run the suite; the gate would catch a break, but the
+    constraint is the item's, not the gate's.
 
 - **Item 4.2:** `docs/references/version-guard.md` — record the hook/recipe
   bound.
@@ -291,7 +321,10 @@ dispatch, per `outline.md`. Item 4.6 runs after Phases 1–3; Item 4.7 runs last
   `tests/release-test.sh` — convert four `<script>.sh:<line>` citations to
   unambiguous line context.
   - Requirements: N9
-  - Depends on: Items 1.1, 1.2, 3.1, 3.4
+  - Depends on: Items 1.1, 1.2, 3.1, 3.2, 3.4 — 3.2 is `outline.md`'s line-level
+    overlap B5 ↔ C4 (the two stale `version-guard-test.sh` citations sit inside
+    the comment block 3.2 edits), named here rather than left to transitivity
+    through 3.4.
   - A whole-tree sweep found four hits, three of them stale; the review reported
     one. Each of the three lands on *different real code*, so a reader who
     follows one gets a confident wrong answer rather than an error:
@@ -354,6 +387,9 @@ with the comment that documents it — no carve-outs, and nothing dropped
 silently. A cluster B item's mutation is applied, observed and **reverted**
 before its commit; no commit carries a mutation.
 
-An open decision the pass has not taken, and which no item here resolves:
-whether Item 4.6's citation convention also belongs as a bullet in `CLAUDE.md`'s
-Conventions section. It is currently recorded only in Item 4.7's dated entry.
+One scope question the pass does not decide in an item: whether Item 4.6's
+citation convention also belongs as a bullet in `CLAUDE.md`'s Conventions
+section. **The executor's default is no** — it lands in Item 4.7's dated entry
+and nowhere else, and no item edits `CLAUDE.md`'s Conventions. Raise it at the
+proof gate, the way Item 2.1 is raised there; it is not an open choice inside
+any dispatch.
