@@ -78,3 +78,23 @@ My human partner took the stated defaults on all four forks:
 4. `outline.md:262`'s three-vs-four hint count: **leave the outline alone**
    (C11). It is a dated executed artifact; the review report carries the
    correction.
+
+## Decisions taken at the proof gate, 2026-09-18
+
+Four forks the outline left open, plus one out-of-scope question. My human
+partner took the stated defaults on all five. Three were probed empirically
+first, and two of the probes changed the outline's own framing — details in the
+items named.
+
+1. **A2** — stub `git ls-remote`, size the listing **≥1 MB**. The outline's "64
+   KiB pipe buffer" premise was wrong in magnitude: the measured GNU grep 3.11
+   boundary is near 96 KiB and is grep-implementation dependent.
+2. **B2** — **build the submodule fixture.** Probed feasible at ~6 lines with
+   `-c protocol.file.allow=always`, which is required rather than optional. It
+   is no longer cluster B's heaviest item.
+3. **B7** — **converge now.** Scoped at 20 call sites, not a 447-line rewrite,
+   with no needle needing BRE escaping.
+4. **C4** — **drop line numbers for unambiguous line context** at all four
+   sites; a convention change, recorded in C10 and briefed upstream to `edify`.
+5. **`/gitlore:push` for this repo's memory store** — **no.** Out of scope, as
+   the outline's Scope/OUT already records.

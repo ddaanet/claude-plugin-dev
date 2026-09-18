@@ -3,8 +3,16 @@
 Fixes the findings of
 `plans/2026-09-15-first-release-version/reports/deliverable-review.md` (Critical
 0, Major 6, Minor 15) against `8d3fbf5`, tree clean. Every Major was re-verified
-against current code during triage; none is stale. Classification and the four
-triage decisions are in `classification.md` beside this file.
+against current code during triage; none is stale. Classification, the four
+triage decisions and the five taken at the proof gate are in `classification.md`
+beside this file; the item-by-item proof verdicts are in `proof-verdicts.md`.
+
+**Citations are pinned to `8d3fbf5`.** The `<file>:<line>` references below were
+correct at that commit, and A1 and A2 move lines inside `toolkit/release.sh`.
+Any item executing after those two re-locates its `toolkit/release.sh` targets
+by symbol rather than trusting the number. References into frozen dated
+artifacts — the executed `outline.md`, the review report — keep their line
+numbers and stay correct, per C4.
 
 Three clusters: **A** production code (3 items, each a logic path), **B** test
 suites (7 items, each a fixture that currently cannot fail), **C** prose (11
@@ -12,8 +20,10 @@ items). A and B are tdd-shaped; C is inline.
 
 ## Scope
 
-**IN** — all 6 Majors, 13 of the 15 Minors, and two stale self-citations the
-review did not find (see C4).
+**IN** — all 6 Majors; 13 of the 15 Minors fixed directly, with the remaining 2
+converted to recorded bounds rather than dropped (C9, C11); two further stale
+citations the review did not find; and a **citation convention change** applied
+at four sites (C4), which is the one change here that binds future edits.
 
 **OUT**, with the reason:
 
@@ -43,8 +53,12 @@ input and `git tag`'s failure reaches the caller only through `set -o pipefail`.
 
 **Change:** capture the listing into a local and read *its* status, then filter
 — the shape `origin_release_tags` already uses at `:337-345`. Rewrite the
-function comment to say the safety no longer depends on the `set` line, and drop
-the half of `origin_release_tags:322-336` that now describes both.
+function comment to say the safety no longer depends on the `set` line, and move
+the half of `origin_release_tags:322-336` that now describes both
+**onto `semver_tags`'s own comment** — once neither caller pipes, the hazard
+belongs to the filter that absorbs the status, not to either caller. Keep the
+`Verified both ways (bash 5.2, git 2.47.3)` evidence line; it moves with the
+argument.
 
 **Test:** extend the pipefail-stripped harness at `tests/release-test.sh:1427`
 to a second scenario. A `git` wrapper on `PATH` — the stub idiom
@@ -68,27 +82,50 @@ lines, match on line 1, status 141. Two other sites in the same file avoid
 so there is no EPIPE and no pipefail dependency. `version-guard.sh:139` is the
 in-repo precedent.
 
-**Test:** a `git` stub whose `ls-remote --tags` emits enough synthetic semver
-lines to exceed the 64 KiB pipe buffer with the match first. Prefer the stub
-over creating real tags: ~8 000 `git tag` calls costs minutes, the stub costs
-one `seq`-driven `printf`. Assert branch 1 of the ladder fires — "origin already
-has <tag>" and the `git fetch --tags` remedy — not branch 2's
-`just release <bump>`, which `release_preflight` then refuses.
+**Scenario:** the fixture must reach the ladder, which sits inside the lost-tags
+refusal path — entered only when the local semver listing came back empty while
+origin holds tags. That surrounding state is part of the item: it decides
+whether the test runs the code at all.
 
-**Mutation that must go red:** restore the pipe.
+**Test:** a `git` stub whose `ls-remote --tags` emits synthetic rows with the
+match first — ~8000 real `git tag` calls costs minutes, the stub one
+`seq`-driven `printf`. Assert branch 1 fires ("origin already has <tag>", the
+`git fetch --tags` remedy), not branch 2's `just release <bump>`.
+
+**Size the *post-filter* string.** The ≥1 MB bound is on `$origin_tag_list`,
+what `grep` reads — not on the stub's output, which `origin_release_tags` first
+runs through `cut -f2 | sed 's|^refs/tags/||' | semver_tags`. Measured: 100000
+tags give a 1088895-byte `$origin_tag_list`, needing **6188895 bytes** of
+`<oid><TAB>refs/tags/vX.Y.Z` rows — 5.7x, so sizing the stub to 1 MB under-sizes
+the fixture by that factor. ≥1 MB rather than the measured GNU grep 3.11
+boundary (~96 KiB) because the threshold is the pipe buffer *plus* grep's read
+buffer and so varies by implementation — ugrep 7.8.4 needed ~500 KB.
+`origin_release_tags`'s own pipeline is safe at any size: every stage reads to
+EOF, so only `grep -q`'s early exit creates the hazard. Full measurements in
+`proof-verdicts.md`.
+
+**Mutation that must go red:** restore the pipe. Polarity is opposite to A1 —
+there `pipefail` rescues the code and the fix drops the dependency; here
+`pipefail` *causes* the defect by promoting `printf`'s 141 over `grep`'s 0. Same
+edit shape, opposite reasons.
 
 ### A3 — `self-release.sh` uses the tag shape `release.sh` documents as wrong
 
 `scripts/self-release.sh:105-117`. `git describe --tags --abbrev=0 --match 'v*'`
 sees only tags reachable from `HEAD` and returns the *nearest* of any matching
-name, not the newest — the two failure modes `toolkit/release.sh:302-306` spells
-out for its own callers.
+name, not the newest — the two failure modes `release_tags` in
+`toolkit/release.sh` spells out for its own callers.
 
 **Change:** list and filter. `git tag --list 'v*' --sort=-v:refname`, keep lines
 matching `^v[0-9]+\.[0-9]+\.[0-9]+$`, take the first. Capture-then-filter, not a
-pipe, for A1's reason. No code is shared with `toolkit/release.sh` — that
-separation is deliberate (`self-release.sh:8-12`) and this item does not touch
-it.
+pipe, for A1's reason. State the two failure modes in `self-release.sh`'s
+**own** comment rather than pointing at `release.sh` — a cross-file line
+citation into the file A1 is editing is exactly the form C4 removes. No code is
+shared with `toolkit/release.sh`: that separation is deliberate
+(`self-release.sh:8-12`) and this item does not touch it, so say in the comment
+that duplicating a three-line tag listing is intentional under that header — the
+paragraph there argues against factoring the *flow*, and a reader could
+otherwise take this for an oversight.
 
 **Tests:** two scenarios, both currently impossible to write.
 
@@ -99,6 +136,12 @@ it.
    must still be seen. Today `latest_tag` comes back empty and the drift guard
    at `:112` is skipped entirely.
 
+**Mutation that must go red:** revert to
+`git describe --tags --abbrev=0 --match 'v*'`. Both scenarios above fail under
+it. Naming this matters because "currently impossible to write" establishes only
+that the tests could not have existed before — a weaker claim than detecting a
+regression, and Cluster A's contract is the latter.
+
 **Also update:** `tests/self-release-test.sh:296-297`, whose comment explains
 the dist-tag-squatting scenario in terms of `describe --match 'v*'`. The
 scenario's behaviour survives — the `v*` glob still excludes `dist-v*` — but the
@@ -106,112 +149,18 @@ stated reason does not.
 
 ## Cluster B — test suites
 
-Every item here is `craft:test-discipline`'s core move: make the fixture carry
-the discrimination, so the assertion has something to be wrong about. Each names
-the mutation that must go red.
-
-### B1 — the dist split does not discriminate the tag from `HEAD` (Major 1)
-
-`tests/self-release-test.sh:210-222`. `ensure_dist_tag` runs before
-`push_branch`, so the `block_push` + `run minor` setup leaves `dist-v0.2.0`
-already created locally; the `--resume` takes the short-circuit at
-`self-release.sh:183-186` and `git subtree split` never runs. The happy path
-(`:143-162`) splits when `HEAD` *is* the tagged commit, so it cannot
-discriminate either. Nothing in the suite pins the tree of the ref every
-consumer vendors.
-
-**Change:** land the later work *inside* `toolkit/`, delete the local dist tag
-before the resume — the dead-origin scenario at `:325` already does exactly this
-— then assert `git show dist-v0.2.0:<later-file>` fails and
-`git ls-tree --name-only dist-v0.2.0` omits it.
-
-**Mutation:** `scripts/self-release.sh:203` `"$tag"` → `HEAD`. Today the whole
-suite stays green under it.
-
-### B2 — the clean-check exemptions are untested (Major 3)
-
-`tests/self-release-test.sh:267-271`. The handoff frame is written
-**untracked**, and `self-release.sh:56` is
-`git diff --quiet HEAD -- . ':(exclude).claude' ':(exclude)memory'`, which sees
-tracked paths only. The `memory` half is never constructed at all.
-
-**Change, `.claude/`:** adopt the commit-then-rewrite-and-stage shape of
-`tests/release-test.sh:179-192` (`stage_handoff_frame`), whose comment already
-documents why untracked does not reach the check.
-
-**Change, `memory`:** construct a gitlink resting ahead of `HEAD` — the resting
-state gitlore leaves. This needs a real submodule in the fixture; the suite
-already drops the leaked git environment at `:17`
-(`unset $(git rev-parse --local-env-vars)`), so the submodule calls are safe
-there. A local-path submodule clone may need `-c protocol.file.allow=always`;
-confirm against the sandbox rather than assuming.
-
-**Mutations:** drop `':(exclude).claude'` → red; drop `':(exclude)memory'` →
-red. Both stay green today.
-
-### B3 — nine refusals assert a message and nothing else (Major 4)
-
-`tests/self-release-test.sh:231-309`. No exit status, no absence of a side
-effect, and `$GH_LOG` is never asserted empty anywhere in the suite — so no
-refusal is pinned as having happened before `gh` was reached.
-`tests/release-test.sh` asserts it on essentially every refusal.
-
-**Change:** add an `assert_gh_untouched` helper and apply `rc`, `$GH_LOG` empty
-and tag-absence to all nine. Note `$GH_LOG` is truncated per `new_sandbox`
-(`:104`), so the pair at `:262-271` sharing one sandbox needs the log read
-between runs, not after both.
-
-**Mutation:** make `common_preflight`'s dirty-tree branch print to stderr and
-fall through instead of `die`. `:262-265`, `:273-276` and `:296-301` all stay
-green today while the release proceeds.
-
-### B4 — two `release-test.sh` refusals under-assert (Minor 3)
-
-`tests/release-test.sh:935-947` and `:949-964` assert `rc` and message needles
-but not tag absence, `$GH_LOG`, origin `main` or the marketplace, against the
-blanket rule the executed `outline.md:172-173` states. Bring both up to the
-shape the rest of that file uses.
-
-### B5 — two `version-guard-test.sh` gaps (Minors 4 and 6)
-
-- `:355` — `tagless_sysmsg` reads the `guard_out` left by the run at `:315-317`,
-  forty lines and two assertion blocks earlier, with no note saying so. The
-  deliberate `$reason` reuse at `:324-332` *is* documented. Either re-invoke the
-  hook or add the note; a scenario inserted between silently retargets a
-  byte-identity comparison.
-- `:374-381` — the `vnext` half of slice 4 omits `assert_no_escape_hatch`, which
-  slice 2 (`:349`) and the tagged case (`:365`) both call. Add it.
-
-### B6 — no allow scenario touches a git fixture (Minor 5)
-
-Every `assert_allow` in `tests/version-guard-test.sh` runs against `$proj`,
-which is deliberately not a repo. The executed `outline.md:130`'s property — the
-tag listing runs only after the deny is established — is therefore unpinned.
-
-**Change:** add one allow scenario against a git fixture (an edit to
-`plugin.json` that does not change `.version`, in `$git_tagged_proj`).
-
-**Mutation:** hoist the listing above `version-guard.sh:80`. The suite passes
-today.
-
-### B7 — `assert_contains` means two different things (Minor 8)
-
-`tests/version-guard-test.sh:34-47` implements it as a literal glob
-(`[[ "$1" != *"$2"* ]]`); `release-test.sh:30`, `self-release-test.sh:34` and
-`update-plugin-dev-test.sh:32` use `grep -q --`, a BRE. Same name, same
-signature, different semantics, in a repo that deliberately duplicates the
-harness per file.
-
-**Change:** move `version-guard-test.sh` to the `grep -q --` form. No needle
-currently produces a false pass either way, but re-check every needle in that
-file under BRE before landing — the dots in `1.2.3 -> 9.9.9` become any-char and
-still match, which is the point to verify rather than assume.
-`self-release-test.sh:207-208`'s `": pushed$"` anchors already depend on the
-grep form, so this converges the four suites rather than diverging them further.
+Seven items, each a fixture that currently cannot fail. Split to its own node
+for length: **`cluster-b-test-suites.md`**. Ordering constraints that involve
+them stay in Dependencies below.
 
 ## Cluster C — prose
 
 Inline items. C1 and C3 touch the same file; C4 must land after A1 and A2.
+
+Eleven findings across seven files sit in this one item, where clusters A and B
+give one item per finding. That asymmetry is triage decision "Simple, cluster C,
+batched" and is not reopened — but `/runbook` splits Cluster C **per file**
+rather than emitting a single eleven-part dispatch.
 
 - **C1 (Major 6)** — `toolkit/version-guard.sh:3-7`. The header's clause "before
   a first release there is no tag to desync from, but the recipe is still the
@@ -253,12 +202,31 @@ Inline items. C1 and C3 touch the same file; C4 must land after A1 and A2.
     `just release` publishing `$current`; that range is a `die` plus the resume
     hint. The claim lives at `:470-486` and `:618-626`. **Stale.**
   - `tests/release-test.sh:1248` cites `release.sh:138` for the dirty-tree
-    refusal preceding `release_preflight`. **Accurate — leave it.**
+    refusal preceding `release_preflight`. **Accurate today.**
 
-  **Standing question for `/runbook`:** line-number citations rot on every edit,
-  and A1/A2 will shift `release.sh` again. Recommend citing function names and
-  dropping line numbers; that is a convention change, so surface it rather than
-  deciding it here.
+  **Decision taken 2026-09-18: convert all four sites to unambiguous line
+  context and drop the line numbers.** Repairing the three numbers buys
+  citations that rot inside this same pass — A1 and A2 both shift
+  `toolkit/release.sh` again. The failure mode is not a dangling pointer: each
+  of the three lands on *different real code*, so a reader who follows one gets
+  a confident wrong answer rather than an error.
+
+  The replacement form is the enclosing symbol plus a short quoted fragment of
+  the cited line — e.g. "`release.sh`, the mode dispatch in `main`, the
+  `--resume` branch" — not a bare function name, which loses precision in a long
+  function. `tests/release-test.sh:1248` converts too, so the repo carries one
+  convention rather than two.
+
+  Citations *into frozen dated artifacts* keep their line numbers and are out of
+  scope: an executed `outline.md`, a runbook, a review report and a changelog
+  entry are never revised, so the number stays permanently correct. That
+  exception covers this outline's own `outline.md:NNN` references.
+
+  **Recorded upstream, no follow-up held here:** a brief at
+  `../edify/inbox/brief-cite-line-context-not-line-numbers.md` proposes the same
+  convention for `/design`'s outline guidance and for tightening `/runbook`'s
+  existing "file:function or file:line" bullet. Dropping it is the end of this
+  repo's involvement.
 - **C5 (Minor 10)** — `docs/design.md:186-192` and `:135-140` carry the nodes'
   arguments (the non-blocking-exit mechanism; the three push-route keys and the
   `pushInsteadOf` bound) against the hub's own one-conclusion-per-decision
@@ -276,37 +244,76 @@ Inline items. C1 and C3 touch the same file; C4 must land after A1 and A2.
   `just format-docs` runs rumdl over `docs/` and `plans/` only. Hand-wrap it;
   widening the recipe over `CLAUDE.md` is a separate decision and not this
   pass's to take.
-- **C9 (Minor 14)** — record the bound triage decision 2 left standing:
-  `toolkit/release.sh` is 852 lines and 51% comment-only, `version-guard.sh`
-  45%, nothing measures source files, and three blocks are write-time record
-  rather than contract. One line in `docs/design.md`'s Limitations, naming it as
-  accepted rather than unnoticed.
+- **C9 (Minor 14)** — record the bound triage decision 2 left standing: nothing
+  measures source files, and three blocks in `toolkit/release.sh` are write-time
+  record rather than contract. One line in `docs/design.md`'s Limitations,
+  naming it as accepted rather than unnoticed.
+
+  **State it as a proportion, without figures.** This pass edits both files
+  (A1/A2, C1/C3), so exact counts would be false on the commit that lands them —
+  C4's defect one layer up, in a living present-tense document. Write "roughly
+  half of `release.sh` is comment-only, much of it write-time record rather than
+  contract" in the hub, and put the measured numbers in C10's **dated**
+  changelog entry, where a measurement stays correct because it carries its
+  date.
 - **C10** — a dated write-time record at
   `docs/changelog/2026-09-18-deliverable-review-fixes.md` plus its index line in
-  `docs/changelog.md`, per the repo's design-and-changelog convention.
+  `docs/changelog.md`, per the repo's design-and-changelog convention. It also
+  carries C4's convention change — source citations name unambiguous line
+  context rather than line numbers, with frozen dated artifacts exempt — since
+  that binds future edits and is not derivable from the diff.
 - **C11** — no deliverable changes for the baseline defect. State in C10's
   record that `outline.md:262`'s three-hint count was left standing
   deliberately, so a later pass does not re-open it as an unfixed finding.
 
 ## Dependencies and ordering
 
-1. **A1 and A2 before C4.** Both shift line numbers inside `toolkit/release.sh`,
-   and C4's whole point is that its citations are right.
+1. **A1 and A2 before C4 — weakened, not dropped.** C4 no longer emits line
+   numbers, so the shifts A1 and A2 cause can no longer invalidate it. What
+   still orders them is content: C4 must name the mechanism as A1 and A2 leave
+   it, and A1 rewrites the `release_tags` comment C4's first citation is
+   adjacent to. Ordering is preferred, not required.
 2. **A3 before the `tests/self-release-test.sh:296-297` comment update**, which
    is part of A3's own item.
 3. **C1 before C3** — same file, adjacent prose, and C3's scope depends on C1's
    restatement landing first.
-4. **B2 is the heaviest item** (a submodule fixture) and depends on nothing.
-   Schedule it so it does not block the rest.
-5. Everything else is independent.
+4. **B2 no longer needs special scheduling.** The submodule fixture was probed
+   and is ~6 lines; it depends on nothing and blocks nothing.
+5. **Items sharing a file run sequentially, never in parallel.** Four items
+   touch `tests/version-guard-test.sh` (B5, B6, B7, C4) and four touch
+   `tests/self-release-test.sh` (A3, B1, B2, B3); `tests/release-test.sh` has
+   three (A1, B4, C4), `toolkit/release.sh` three (A1, A2, C4) and
+   `toolkit/version-guard.sh` two (C1, C3). Prefer one agent per file over one
+   per item. Three of these overlap at the line level, not merely the file:
+   - **B2 ↔ B3** — B3 covers the refusals at `:262-309`; B2 rewrites the
+     `.claude`/`memory` scenario at `:267-271`, inside it.
+   - **A3 ↔ B3** — A3's comment update targets `:296-297`; B3's squatting
+     refusal is that same scenario at `:296-301`.
+   - **B5 ↔ C4** — C4's two stale citations sit inside the comment block B5
+     edits.
+6. **B7 runs last on `tests/version-guard-test.sh`.** It converts all twenty
+   assertion call sites to the `grep` form while B5 and B6 each *add* assertions
+   to that file. In any other order the new assertions land in the glob form and
+   B7's BRE re-check silently skips them.
 
 ## Gate
 
 `just precommit` must be green before each commit — it runs all eight suites,
 `_import-check`, the 400-line cap, the doc-sync check, `whitespace` and
-`format-docs`. Doc-sync covers the two READMEs' shared command blocks and the
-`CLAUDE.md` Layout list against `toolkit/`'s contents; C7 and C8 both land
-inside its reach.
+`format-docs`.
+
+**Doc-sync does not cover C7 or C8 — verify both by reading.** It compares only
+*fenced command blocks* in the two READMEs' install/update sections, and C7 is a
+prose line in a component bullet; its second check extracts `` `toolkit/...` ``
+tokens from `CLAUDE.md`, and C8's target bullet holds none, so it passes
+trivially rather than being checked. Claiming the gate catches these would be
+this pass's own false-assurance defect, in the section that certifies the pass.
+
+C8 also carries a hazard no gate guards: `format-docs` covers `docs/` and
+`plans/` only, so its re-wrap is by hand, and doc-sync's token extraction
+survives re-wrapping **unless** a wrap splits a backticked `` `toolkit/...` ``
+path across a newline — which drops it silently and surfaces as a spurious
+"undocumented shipped file".
 
 Per `commit-bundling`, each code change rides with the test that proves it and
 with the comment that documents it — no carve-outs, and nothing dropped
