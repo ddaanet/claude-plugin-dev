@@ -1,11 +1,12 @@
 ## Current task
 
-Design is complete for the fix pass over the deliverable review of
-`plans/2026-09-15-first-release-version`: the 21 findings are triaged in
-`plans/2026-09-18-deliverable-review-fixes/classification.md` and specified
-item by item, each naming the mutation that must go red, in `outline.md`.
+The deliverable-review fix pass in `plans/2026-09-18-deliverable-review-fixes/`.
+Triage, design and the item-by-item `/edify:proof` are all complete — every one
+of the 14 outline items took a revise verdict and those revisions are applied.
+`/runbook` over `outline.md` is the next stage, then `/orchestrate`.
 
-What resumes is `/edify:proof` over that outline, which reached orientation and
-stopped there. Its 14 items are the outline's own section headings — Scope,
-A1–A3, B1–B7, Cluster C, Dependencies, Gate. Ten are mechanical; the four
-carrying a real fork are the open decisions.
+The pass carries four artifacts: `outline.md` (scope, clusters A and C,
+ordering, gate), `cluster-b-test-suites.md` (the seven test-suite items),
+`proof-verdicts.md` plus `proof-verdicts-cluster-b.md` (per-item verdicts and
+the evidence behind them), and `classification.md` (triage plus the five
+decisions taken at the proof gate).
