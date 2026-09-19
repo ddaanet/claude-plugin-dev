@@ -1,12 +1,12 @@
 ## Current task
 
 The deliverable-review fix pass in `plans/2026-09-18-deliverable-review-fixes/`.
-Triage, design and the item-by-item `/edify:proof` are all complete — every one
-of the 14 outline items took a revise verdict and those revisions are applied.
-`/runbook` over `outline.md` is the next stage, then `/orchestrate`.
+`/runbook` is done: `runbook.md` is the hub (requirements mapping over the
+review's 6 Majors, 15 Minors and the baseline defect; Phase 1 tdd; Phase 4
+inline prose; the gate) and `runbook-test-suites.md` the node (Phases 2 and 3,
+typed `general`). Fifteen items, reviewed by `runbook-corrector` — eleven fixes,
+report under `reports/` — and consolidated by `runbook-simplifier`, which merged
+Phase 2's four items into Item 2.1 in four lettered parts.
 
-The pass carries four artifacts: `outline.md` (scope, clusters A and C,
-ordering, gate), `cluster-b-test-suites.md` (the seven test-suite items),
-`proof-verdicts.md` plus `proof-verdicts-cluster-b.md` (per-item verdicts and
-the evidence behind them), and `classification.md` (triage plus the five
-decisions taken at the proof gate).
+`/proof` over the runbook was skipped rather than run, so the runbook has had no
+human gate. It is the next stage, then `/orchestrate`.
