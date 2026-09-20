@@ -9,6 +9,16 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-09-20 — The first-release pass reviewed, and what the diff does not say](changelog/2026-09-20-deliverable-review-fixes.md)
+  — `/deliverable-review` of the first-release-version pass returned 6 Major, 15
+  Minor and one baseline defect, executed over four phases. Three things the
+  diff does not carry: citing a script by line number is now refused by
+  `tests/citation-test.sh` rather than by a `CLAUDE.md` bullet that would rot
+  the day upstream ships the same rule, with its `.md` residual bound stated;
+  the comment volume of the shipped scripts is accepted, with the measured
+  figures here and only a proportion in the hub; and the baseline defect, a
+  three-versus-four hint count in a frozen outline, was seen and deliberately
+  left standing
 - [2026-09-17 — One script under test per suite file](changelog/2026-09-17-one-script-under-test-per-suite.md)
   — `tests/hook-test.sh` covered two unrelated scripts under a name that fit
   one; split into `version-guard-test.sh` and `check-version-test.sh`, each
