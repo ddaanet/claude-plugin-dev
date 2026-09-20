@@ -1447,6 +1447,49 @@ assert_not_contains "$out" "push of main failed" \
     "no-pipefail probe refused before attempting the push"
 assert_eq "$(cat "$GH_LOG")" "" "no-pipefail probe must not call gh"
 
+echo "=== pipefail-stripped release_tags failure refuses ==="
+# Item A1, slice 1. Mutation-must-go-red case for the release_tags() fix: under
+# the stripped copy, a `git tag --list` failure must abort release_preflight
+# rather than being absorbed by semver_tags's status-1 rescue and misread as
+# "no tags yet". Today's body — `git tag --list 'v*' --sort=-v:refname |
+# semver_tags` (release_tags()'s own comment: "Local semver release tags") —
+# depends on `set -o pipefail` to carry that failure past the filter, exactly
+# the property the origin-probes harness above strips to test the same class
+# of hazard. A `git` wrapper here fails only `tag --list`, delegating every
+# other call to the real binary: common_preflight runs ahead of
+# release_preflight and makes git calls of its own, and release_tags holds the
+# script's only `git tag --list`, so failing that one form targets exactly the
+# read under test. The wrapper matches it positionally ($1/$2), which covers
+# every `git tag --list` the script has; a `git -C … tag --list` would slip
+# past, and none exists. `$real_git` is interpolated into the stub body, so a
+# git path holding a quote, backslash or `$` would break it — a space is
+# handled, since the emitted `exec` quotes it.
+new_sandbox "1.2.3"
+nopipefail_tags="$plugin/plugin-dev/release-nopipefail-tags.sh"
+sed '/^set -euo pipefail$/s//set -eu/' "$repo_root/toolkit/release.sh" > "$nopipefail_tags"
+grep -qx 'set -eu' "$nopipefail_tags" || fail "pipefail-stripped copy: the set line was not rewritten"
+git_wrapper_dir="$sandbox/git-wrapper"
+mkdir -p "$git_wrapper_dir"
+real_git="$(command -v git)"
+cat > "$git_wrapper_dir/git" <<STUB
+#!/bin/sh
+if [ "\$1" = "tag" ] && [ "\$2" = "--list" ]; then
+    echo "git: fatal: stub git failing tag --list" >&2
+    exit 1
+fi
+exec "$real_git" "\$@"
+STUB
+chmod +x "$git_wrapper_dir/git"
+saved_path="$PATH"
+export PATH="$git_wrapper_dir:$PATH"
+run_in "$plugin" bash plugin-dev/release-nopipefail-tags.sh patch
+export PATH="$saved_path"
+assert_eq "$rc" "1" "pipefail-stripped release_tags failure refuses exit code"
+assert_contains "$out" "could not list this plugin's release tags" \
+    "pipefail-stripped release_tags failure refuses names release_preflight's die"
+assert_not_contains "$out" "git fetch --tags" \
+    "pipefail-stripped release_tags failure refuses did not take the lost-tags branch"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
