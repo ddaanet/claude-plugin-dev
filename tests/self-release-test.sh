@@ -333,8 +333,9 @@ assert_tag dist-v0.2.0 origin "resume after work"
 # tree; a split of $tag would not. This is what discriminates the two --
 # splitting always "against the tagged commit at all" is not enough, because
 # the first invocation's split (above) ran when HEAD and the tag coincided.
-git -C "$repo" show dist-v0.2.0:later-work.md >/dev/null 2>&1 \
-    && fail "resume after work: dist tree carries later work"
+if git -C "$repo" show dist-v0.2.0:later-work.md >/dev/null 2>&1; then
+    fail "resume after work: dist tree carries later work"
+fi
 dist_files_after_work=$(git -C "$repo" ls-tree --name-only dist-v0.2.0)
 assert_not_contains "$dist_files_after_work" "later-work" \
     "resume after work: dist tree omits later file"
@@ -368,7 +369,10 @@ run --resume
 assert_eq "$rc" 1 "resume, no tag anywhere: exit status"
 assert_contains "$out" "no release was started at 0.1.0" "resume, no tag anywhere: hint"
 assert_contains "$out" "just release <bump>" "resume, no tag anywhere: remedy"
-refute_tag v0.2.0 "resume, no tag anywhere"
+# v0.1.0, the version this resume is about: the scenario deleted it here and
+# on origin, and the refusal must not leave one behind. v0.2.0 names a bump
+# --resume never performs.
+refute_tag v0.1.0 "resume, no tag anywhere"
 assert_gh_untouched "resume, no tag anywhere"
 
 echo "=== never moves a published tag ==="
@@ -414,7 +418,10 @@ git -C "$repo" commit -qam "bad version"
 run minor
 assert_eq "$rc" 1 "malformed VERSION: exit status"
 assert_contains "$out" "toolkit/VERSION is not X.Y.Z" "malformed VERSION"
-refute_tag v0.2.0 "malformed VERSION"
+# v0.3.0, not v0.2.0: '0.2' reads as maj=0 min=2 pat='', so a minor bump that
+# got past the shape guard would tag v0.3.0. Naming the tag no path creates
+# would leave this unfalsifiable.
+refute_tag v0.3.0 "malformed VERSION"
 assert_gh_untouched "malformed VERSION"
 new_sandbox
 printf '0.08.0\n' > "$repo/toolkit/VERSION"
@@ -450,7 +457,12 @@ refute_tag v0.2.0 "tag squatting"
 # gh IS legitimately reached here, by require_prior_release_published's own
 # `gh release view` a few lines before the squatting die -- unlike every
 # other preflight refusal, which dies before release_preflight gets that far.
-assert_contains "$(cat "$GH_LOG")" "release view v0.1.0" "tag squatting: gh reached for the prior-release check"
+# Pinned as the WHOLE log rather than a needle in it, so this scenario still
+# asserts what assert_gh_untouched asserts everywhere else: that nothing but
+# that one read-only call reached gh. A containment check would pass with a
+# `release create` logged after it.
+assert_eq "$(cat "$GH_LOG")" "release view v0.1.0" \
+    "tag squatting: gh reached only for the prior-release check"
 
 new_sandbox
 run sideways
