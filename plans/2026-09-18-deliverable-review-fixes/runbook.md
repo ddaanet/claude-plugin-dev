@@ -121,6 +121,12 @@ former blocks are internal to Item 2.1 now, stated inside its parts (c) and (d).
        plugin's local tag set equals the fixture's (a set comparison, not a
        named refutation — which tag the code would create is itself under test),
        the origin tag set is unchanged, and `$(cat "$GH_LOG")` is empty.
+       **Fixture, revised as executed:** `new_sandbox "1.2.3"` alone is vacuous
+       here. The `git` stub covers `tag --list` only, so origin's real tags let
+       `origin_release_tags` trip the lost-tags refusal under fixed and mutated
+       code alike and the test passes either way. Add `make_virgin "1.2.3"` —
+       the harness's own helper, already used elsewhere — so origin genuinely
+       holds no tags and the mutation reaches `first_release=1`.
   - Mutation that must go red: restore
     `git tag --list 'v*' --sort=-v:refname | semver_tags`. Under the stripped
     copy `release_preflight`'s `|| die` stops firing, the lost-tags branch is
