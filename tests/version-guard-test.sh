@@ -37,14 +37,16 @@ assert_contains() {
     # $1=haystack $2=needle $3=label. Match against a specific extracted
     # field (e.g. permissionDecisionReason alone), never the whole payload
     # blob -- an unrelated line can satisfy a needle and hide the miss.
-    if [[ "$1" != *"$2"* ]]; then
-        fail "$3: expected to contain '$2', got '$1'"
+    if ! printf '%s' "$1" | grep -q -- "$2"; then
+        fail "$3: output did not contain '$2'"
+        printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
     fi
 }
 assert_not_contains() {
     # $1=haystack $2=needle $3=label
-    if [[ "$1" == *"$2"* ]]; then
-        fail "$3: expected NOT to contain '$2', got '$1'"
+    if printf '%s' "$1" | grep -q -- "$2"; then
+        fail "$3: output contained '$2'"
+        printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
     fi
 }
 
