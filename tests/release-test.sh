@@ -1490,6 +1490,65 @@ assert_contains "$out" "could not list this plugin's release tags" \
 assert_not_contains "$out" "git fetch --tags" \
     "pipefail-stripped release_tags failure refuses did not take the lost-tags branch"
 
+echo "=== pipefail-stripped release_tags failure publishes nothing ==="
+# Item A1, slice 2. Same stub idiom as the scenario above, but on a
+# make_virgin fixture (no v* tag locally or on origin) rather than the
+# already-released one: with real origin tags present, origin_release_tags
+# (untouched by the stub) finds v1.2.3 and release_preflight's lost-tags
+# branch ("local release tags are missing — refusing to guess whether ... was
+# published") fires either way — the scenario above already proves that
+# branch's wording, but it cannot exercise the sharper hazard, because that
+# refusal also happens to leave nothing published. On a virgin plugin,
+# origin_release_tags legitimately returns empty too, so a stripped copy that
+# absorbs the `git tag --list` failure reaches release_preflight's
+# `first_release=1` branch ("a plugin that has never been released has no
+# last-released version to bump forward from") and actually tags, pushes and
+# publishes v1.2.3 — the defect the item's mutation note names
+# ("bump_commit_tag tags HEAD — publishing the manifest version of a plugin
+# whose release history it could not read"), reachable only from a fixture
+# where that branch is live. No bump argument: a first release refuses an
+# explicit one before reaching bump_commit_tag, which would refuse for a
+# reason unrelated to this defect.
+#
+# The three assertions below are all absences, so they would also hold if the
+# run never reached the read under test — a broken fixture, or a stripped copy
+# that died in common_preflight, publishes nothing either. The exit code and
+# the die message pin that the refusal came from release_tags's own status,
+# which is what makes those absences evidence.
+new_sandbox "1.2.3"
+make_virgin "1.2.3"
+nopipefail_tags="$plugin/plugin-dev/release-nopipefail-tags.sh"
+sed '/^set -euo pipefail$/s//set -eu/' "$repo_root/toolkit/release.sh" > "$nopipefail_tags"
+grep -qx 'set -eu' "$nopipefail_tags" || fail "pipefail-stripped copy: the set line was not rewritten"
+git_wrapper_dir="$sandbox/git-wrapper"
+mkdir -p "$git_wrapper_dir"
+real_git="$(command -v git)"
+cat > "$git_wrapper_dir/git" <<STUB
+#!/bin/sh
+if [ "\$1" = "tag" ] && [ "\$2" = "--list" ]; then
+    echo "git: fatal: stub git failing tag --list" >&2
+    exit 1
+fi
+exec "$real_git" "\$@"
+STUB
+chmod +x "$git_wrapper_dir/git"
+local_tags_before="$(git -C "$plugin" tag --list | sort)"
+origin_tags_before="$(git -C "$plugin-origin.git" tag --list | sort)"
+saved_path="$PATH"
+export PATH="$git_wrapper_dir:$PATH"
+run_in "$plugin" bash plugin-dev/release-nopipefail-tags.sh
+export PATH="$saved_path"
+assert_eq "$rc" "1" \
+    "pipefail-stripped release_tags failure publishes nothing exit code"
+assert_contains "$out" "could not list this plugin's release tags" \
+    "pipefail-stripped release_tags failure publishes nothing refused at the tag read"
+assert_eq "$(git -C "$plugin" tag --list | sort)" "$local_tags_before" \
+    "pipefail-stripped release_tags failure publishes nothing local tag set unchanged"
+assert_eq "$(git -C "$plugin-origin.git" tag --list | sort)" "$origin_tags_before" \
+    "pipefail-stripped release_tags failure publishes nothing origin tag set unchanged"
+assert_eq "$(cat "$GH_LOG")" "" \
+    "pipefail-stripped release_tags failure publishes nothing gh log empty"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
