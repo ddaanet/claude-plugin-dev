@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # PreToolUse hook (Write|Edit) for the plugin manifest.
-# Refuses any edit that changes plugin.json's .version. The release
-# recipe owns version bumps: once a plugin has released, manual edits
-# desync the manifest from the latest tag and only get caught at release
-# time; before a first release there is no tag to desync from, but the
-# recipe is still the only place a version is meant to change.
+# Refuses any edit that changes plugin.json's .version. Once a plugin has
+# released, the release recipe owns the version: a manual edit desyncs the
+# manifest from the latest tag and is only caught at release time. Before a
+# first release there is no tag to desync from, and the version the initial
+# release publishes is the maintainer's own committed hand edit -- the hook
+# refuses there too, because it governs agent edits and not the
+# maintainer's. The two cases differ only in the deny wording below.
 #
 # Mechanical: agent is not involved.
 set -euo pipefail
@@ -167,7 +169,7 @@ The manifest version is the last released version. It is changed only by
 tags, and pushes in one step. The release recipe also refuses if plugin.json
 and the latest git tag disagree.
 
-If the goal is to ship a release, invoke the recipe instead of editing this
+The release recipe owns this version -- invoke it instead of editing this
 file. Do not bypass this guard, modify the recipe, or alter version state by
 other means.
 EOF
