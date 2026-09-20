@@ -43,7 +43,7 @@ has never been released, that the manifest holds `$current`, that `$current` is
 what the initial release will publish verbatim, and that which version a plugin
 first ships as is the maintainer's call and their edit to make. The predicate is
 the one `release_preflight` uses — no tag matching `^v[0-9]+\.[0-9]+\.[0-9]+$` —
-so the hook and the recipe cannot disagree about which state a repo is in. See
+read here against the local clone, with the bound that carries noted below. See
 "First release publishes the manifest version as-is" in
 [release-flow.md](release-flow.md).
 
@@ -132,6 +132,21 @@ gap here, but a visible one.
 One bound is accepted and stated rather than closed: a `CLAUDE_PROJECT_DIR` that
 is not itself a repository but sits inside one lists the enclosing repository's
 tags. That changes which wording the refusal carries, never the refusal.
+
+A second bound is accepted on the same terms. The hook shares
+`release_preflight`'s predicate but not its evidence: the hook lists local tags
+only, while the recipe falls through to `origin_release_tags` when the local
+list comes back empty. On a clone that never fetched its tags the two therefore
+read the same repository differently — the recipe finds origin's release tags
+and refuses with its `git fetch --tags` hint, while the hook sees no local
+semver tag and takes the initial-release wording. Local-only is the right
+reading for a `PreToolUse` hook: it fires on every matching edit, and
+`git ls-remote` reaches the network and fails routinely, which would put a
+network round-trip, or a failure absorbed into the restrictive wording, in front
+of an agent's ordinary editing. The recipe can afford the probe because it runs
+once and is about to publish. So the disagreement is real and is bounded where
+the previous one is: it selects which wording a refusal carries, never whether
+the refusal happens.
 
 ## Locating the manifest
 
