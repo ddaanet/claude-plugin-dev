@@ -1,33 +1,17 @@
 ## Open decisions
 
-- Item 2.1 part (a) covers review finding N7 — `tests/self-release-test.sh`'s
-  happy-path `tree left dirty` check uses `git diff --quiet HEAD`, tracked-only,
-  so an untracked leftover passes. No `outline.md` item claims it; it was found
-  by mapping all 21 findings to items. Keep it or delete the part whole, with
-  its mutation gate, leaving (b)-(d) untouched.
-- Whether Item 4.6's citation convention — name unambiguous line context (the
-  enclosing symbol plus a quoted fragment) rather than a line number, with
-  citations into frozen dated artifacts exempt — also becomes a bullet in
-  `CLAUDE.md`'s Conventions section, where this repo's binding rules live. The
-  runbook states the executor default as no: it lands in Item 4.7's dated
-  changelog entry and nowhere else. A brief proposing the same convention
-  upstream sits at `../edify/inbox/brief-cite-line-context-not-line-numbers.md`;
-  dropping it was the end of this repo's involvement there.
-- Two deviations `/runbook` took from `outline.md`, both overturnable: Phases 2
-  and 3 are typed `general` rather than `tdd`, each item carrying a Mutation
-  gate — apply the named edit, observe the assertion fail, revert — in place of
-  a RED step that would have nothing to fail on, since every cluster B
-  assertion passes against unchanged production code. And Phase 2 is one item
-  in four parts rather than four items, which buys one agent on the 336-line
-  suite at the cost of one commit and one proof verdict for all four fixtures.
-- Item 3.2 resolves a fork `outline.md` left open, and the runbook says so:
-  re-invoke the hook before capturing `tagless_sysmsg` rather than adding a note
-  that the capture is stale. The note-only option is the weaker one, not wrong.
+- None. The four carried here were settled at a `/ddaa:proof` pass on
+  2026-09-19 and written into `runbook.md` and `runbook-test-suites.md`, which
+  record each outcome where it applies. The one structural change: the citation
+  convention is enforced by a precommit check rather than a `CLAUDE.md` bullet,
+  so old Item 4.6 became `general` Item 3.5 in the node and the number 4.6 is
+  left vacant.
 
 ## Remaining
 
 - `/proof plans/2026-09-18-deliverable-review-fixes/runbook.md`, then
-  `/orchestrate`.
+  `/orchestrate`. Only the open decisions have been proofed; the runbook's items
+  have not had their item-by-item read. The proof edits are uncommitted.
 - `/gitlore:index-audit` on the root `memory/MEMORY.md`, which is over Claude
   Code's loader cap — it did not load at all this session, so recall ran against
   `rg --files memory/` filenames. Eight facts are queued unwritten behind it.

@@ -1,6 +1,6 @@
 # Runbook — Phases 2 and 3: test-suite discrimination
 
-The five `general` items of the deliverable-review fix pass, split out of
+The six `general` items of the deliverable-review fix pass, split out of
 `runbook.md` for length. That file carries the requirements mapping, Phase 1,
 Phase 4 and the gate, and states the phase-typing deviation these items execute;
 read it first. The design is `cluster-b-test-suites.md`, and the evidence behind
@@ -13,6 +13,14 @@ to fail on and would manufacture a fake red. The discrimination is proven
 instead by applying the item's named **Mutation gate** — the edit, the assertion
 that must fail under it, the revert — which the executor runs and reports before
 committing. No commit carries a mutation.
+
+**A gate report quotes its evidence; "gate passed" is not a report.** `general`
+gives up the separate RED-phase review a `tdd` item gets, so the agent that
+wrote an assertion is also the one that says it can fail. For every gate below,
+the item's report quotes the failing assertion's output line under the mutation,
+and the suite's closing green line after the revert. A reviewer can check quoted
+output against the assertion's label; it cannot check a bare claim. Decided at
+`/proof`, 2026-09-19, as the condition for keeping the `general` typing.
 
 ## Phase 2: `tests/self-release-test.sh` (type: general)
 
@@ -54,10 +62,13 @@ that happens.
     empty — and note in the comment why `diff --quiet HEAD` alone is
     insufficient, the way `stage_handoff_frame` in `tests/release-test.sh`
     already documents it.
-  - **(a) Not in the outline, and droppable whole:** carried from review finding
-    N7, which no outline item claims. If it is out of scope the proof gate
-    deletes this part and its gate and leaves (b)–(d) untouched — it is not a
-    decision to take at execution time.
+  - **(a) Not in the outline, kept at `/proof`:** carried from review finding
+    N7, which no outline item claims. The proof gate of 2026-09-19 kept it; it
+    is in scope and not an open choice at execution time. One thing the gate did
+    not establish: whether the happy-path fixture already leaves an untracked,
+    non-ignored path. If the new assertion fails against *unchanged* code, that
+    is a fixture leftover to clean up and report, not a reason to weaken the
+    assertion.
   - **(a) Mutation gate:** make `bump_commit_tag` in `scripts/self-release.sh`
     leave a stray untracked file in the repo root. The new assertion must fail;
     the existing `diff --quiet HEAD` must not. Revert before part (b).
@@ -130,10 +141,11 @@ that happens.
     red; all three stay green today while the release proceeds. Revert before
     committing.
 
-## Phase 3: `release-test.sh` and `version-guard-test.sh` (type: general)
+## Phase 3: two suites and the citation gate (type: general)
 
 Item 3.1 is on a different file from 3.2–3.4 and is independent of them. Items
-3.2–3.4 are strictly sequential on `tests/version-guard-test.sh`.
+3.2–3.4 are strictly sequential on `tests/version-guard-test.sh`. Item 3.5 runs
+last in the phase: it edits comments in both suites and in `toolkit/release.sh`.
 
 - **Item 3.1:** `tests/release-test.sh` — two refusals assert the four
   properties the rest of the file asserts.
@@ -165,6 +177,11 @@ Item 3.1 is on a different file from 3.2–3.4 and is independent of them. Items
     re-invoke, because a note only discloses the hazard while a fresh run
     removes it, and the cost is one more hook invocation. A scenario inserted
     between would otherwise silently retarget a byte-identity comparison.
+    Re-invoke was confirmed at `/proof`, 2026-09-19.
+    **Say in the comment why the two neighbours differ** — the `$reason` reuse
+    stays a documented reuse because its run is adjacent, while this capture is
+    fresh because its run was forty lines away — or a later reader "fixes" one
+    to match the other.
   - Change, N6: the `vnext` half of slice 4 omits **two** assertions, not one.
     Add `assert_no_escape_hatch "$reason" "version-guard vnext-tags reason"`,
     which slice 2 and the tagged case both call, and
@@ -178,6 +195,14 @@ Item 3.1 is on a different file from 3.2–3.4 and is independent of them. Items
     is "Asserted over the no-tags reason alone: the steady-state message names
     the recipe legitimately". Adding the `vnext` assertion falsifies that
     sentence; per `commit-bundling` the comment rides with the change.
+  - Mutation gate, N4, **in two steps** — no single edit can turn this red,
+    because `assert_eq "$tagged_sysmsg" "$tagless_sysmsg"` asserts the two
+    notices *equal*, so a stale read of any other deny compares equal too. Step
+    1: insert a `run_guard` of an **allow** scenario just above the new
+    re-invocation; the suite must stay green, which shows the fresh capture is
+    insulated. Step 2: with that insertion still in place, delete the
+    re-invocation; the `assert_eq` must go red, `tagless_sysmsg` having read the
+    allow run's absent `.systemMessage`. Revert both before the N6 gate.
   - Mutation gate, N6: add an escape-hatch sentence to the initial-release deny
     reason in `toolkit/version-guard.sh`. The new `assert_no_escape_hatch` on
     the `vnext` case must go red; it stays green today. Revert before
@@ -259,3 +284,80 @@ Item 3.1 is on a different file from 3.2–3.4 and is independent of them. Items
     - `assert_contains <haystack> <needle> <label>` — `grep -q --`, BRE
       semantics, matching the other three suites.
     - `assert_not_contains <haystack> <needle> <label>` — same matcher, negated.
+
+- **Item 3.5:** new `tests/citation-test.sh`, `justfile`, `CLAUDE.md`,
+  `toolkit/release.sh`, `tests/version-guard-test.sh`, `tests/release-test.sh` —
+  a gate check that refuses line-number citations into living source, and the
+  five citations it finds converted to unambiguous line context.
+  - Requirements: N9
+  - Depends on: Items 1.1, 1.2, 3.1, 3.2, 3.4 — 3.2 is `outline.md`'s line-level
+    overlap B5 ↔ C4 (two stale `version-guard-test.sh` citations sit inside the
+    comment block 3.2 edits), named here rather than left to transitivity
+    through 3.4. 3.4's "runs last" is about assertion call sites; this item
+    touches comments only in that file.
+  - Model: sonnet
+  - **Was Item 4.6, an inline prose item, until `/proof` on 2026-09-19.** The
+    proof gate decided the convention is enforced by a check rather than by a
+    `CLAUDE.md` Conventions bullet: a bullet duplicating a rule proposed
+    upstream rots silently once upstream ships it, since nothing here learns of
+    that, while a check is not prose and cannot become a duplicate. A check is
+    code, so the item moved to a `general` phase and the conversion came with it
+    — the check going green is the conversion's completion criterion.
+  - **Order: the check first, then the conversion.** Written against the
+    unconverted tree the check must report exactly the five hits below — quote
+    that output in the report; it is this item's honest red. Then convert until
+    it is green.
+  - Change, the check: `tests/citation-test.sh`, in the shape of
+    `tests/docs-test.sh` — a checker suite with its own copy of the harness,
+    signing off with the checks that passed. Over `git ls-files -z`, excluding
+    `plans/` and `docs/changelog/`, fail on any `<name>.sh:<digits>`,
+    `<name>.just:<digits>` or `justfile:<digits>`. The failure line names file
+    and line and **carries the convention**: cite the enclosing symbol plus a
+    short quoted fragment, not a line number. The message is the convention's
+    only standing home, so it must be enough to act on alone.
+  - **The check must not flag itself.** Its pattern and message describe the
+    forbidden form; build any literal sample at runtime rather than exempting
+    the file, so the suite stays inside its own coverage.
+  - **Self-fixture, so the failing path is tested on every run and not once by
+    hand.** Run the check function against a throwaway git repo holding one
+    planted citation in a tracked script and one under `plans/`: it must report
+    the first and not the second. Then run it against this repo.
+  - **Residual bound, stated in the suite's header:** citations into `.md` files
+    are not checked, because an extension cannot tell a living document from a
+    frozen one — `tests/version-guard-test.sh`'s `outline.md:118-121` cites an
+    executed outline and is correct forever. Leave that one standing.
+  - Wire it in: add the suite to `justfile`'s `precommit` recipe, in both the
+    `bash -n` line and the run list, and to the suite list in `CLAUDE.md`'s
+    Quality gate paragraph. **No `CLAUDE.md` Conventions bullet.**
+  - Change, the conversion — five citations, four stale. Each stale one lands on
+    *different real code*, so a reader who follows it gets a confident wrong
+    answer rather than an error:
+    - `release.sh`'s comment citing `:780-785` for "release_preflight never runs
+      on resume" — that range is the marketplace commit-gate rollback.
+      **Stale.**
+    - `version-guard-test.sh`'s comment citing `release.sh:446-455` for a bump
+      argument refused on an unreleased plugin — that range is the version-drift
+      refusal. **Stale.**
+    - the same comment citing `release.sh:456-460` for a bare `just release`
+      publishing `$current` — that range is a `die` plus the resume hint.
+      **Stale.**
+    - `version-guard-test.sh`'s header comment, "See release-test.sh:8-13", for
+      the leaked-git-environment explanation — off by one at each end: it takes
+      in `set -euo pipefail` and stops short of the `unset` line. **Stale.**
+      Found at `/proof`; the earlier sweep missed it.
+    - `release-test.sh`'s comment citing `release.sh:138` for the dirty-tree
+      refusal preceding `release_preflight`. **Accurate at `8d3fbf5`** — convert
+      it too; the check allows no second convention.
+  - Replacement form: the enclosing symbol plus a short quoted fragment of the
+    cited line — "`release.sh`, the mode dispatch in `main`, the `--resume`
+    branch" — not a bare function name, which loses precision in a long
+    function. **Re-locate each target by symbol**: Items 1.1 and 1.2 have moved
+    `release.sh` and Items 3.2–3.4 have moved `version-guard-test.sh`.
+  - Recorded upstream, no follow-up held here: a brief at
+    `../edify/inbox/brief-cite-line-context-not-line-numbers.md` proposes the
+    same convention for `/design` and `/runbook`. Dropping it was the end of
+    this repo's involvement.
+  - Mutation gate: after the conversion is green, put one `<script>.sh:<line>`
+    citation back into a comment in `toolkit/release.sh`. The real-repo check
+    must go red naming that file and line; the self-fixture half must stay
+    green. Revert before committing.

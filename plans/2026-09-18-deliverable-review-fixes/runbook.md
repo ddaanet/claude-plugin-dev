@@ -5,7 +5,7 @@ Design: `outline.md` (scope, clusters A and C, ordering, gate) and
 Decisions: `classification.md`. Evidence: `proof-verdicts.md`,
 `proof-verdicts-cluster-b.md`.
 
-**This file is the hub.** Phases 2 and 3 — the five test-suite items — are in
+**This file is the hub.** Phases 2 and 3 — the six `general` items — are in
 [`runbook-test-suites.md`](runbook-test-suites.md), split out for the repo's
 400-line cap the way the design split cluster B. Requirements source:
 `plans/2026-09-15-first-release-version/reports/deliverable-review.md` — 6 Major
@@ -20,8 +20,8 @@ convention this pass establishes.
 Minor — `tests/self-release-test.sh`'s happy-path `tree left dirty` check is
 tracked-only, so an untracked leftover passes — is assigned to no outline item.
 It is the same root cause as `M3` (B2) at a different site. Carried as
-**Item 2.1 part (a)**, which is droppable whole; if it should be dropped, that
-is a scope decision to take at `/proof` rather than silently.
+**Item 2.1 part (a)**, and **kept at `/proof` on 2026-09-19** — in scope, not an
+open choice at execution time.
 
 **Field lines are nested bullets, not continuation lines.** `just format-docs`
 runs rumdl with MD013 reflow over `plans/`, which joins continuation lines into
@@ -44,9 +44,9 @@ running prose. Nested bullets survive the reflow.
 | N4 `tagless_sysmsg` reads a stale `guard_out` | B5 | 3 | 3.2 | |
 | N5 no allow scenario touches a git fixture | B6 | 3 | 3.3 | |
 | N6 `vnext` half omits two assertions | B5 | 3 | 3.2 | |
-| N7 happy-path dirty check is tracked-only | — | 2 | 2.1 (a) | **Not in the outline** |
+| N7 happy-path dirty check is tracked-only | — | 2 | 2.1 (a) | **Not in the outline**; kept at `/proof` |
 | N8 `assert_contains` harness divergence | B7 | 3 | 3.4 | |
-| N9 stale `<script>.sh:<line>` citations | C4 | 4 | 4.6 | Grown 1 → 3 by sweep |
+| N9 stale `<script>.sh:<line>` citations | C4 | 3 | 3.5 | 1 → 4 stale of 5; gated by a check |
 | N10 hub carries the node's argument | C5 | 4 | 4.3 | |
 | N11 partial tag loss unrecorded | C6 | 4 | 4.3 | |
 | N12 `README.md` "the latest tag" | C7 | 4 | 4.4 | |
@@ -66,7 +66,9 @@ The outline types cluster B as tdd. **Phases 2 and 3 are `general` instead**,
 every item and part carrying an explicit **Mutation gate** — the edit to apply,
 the assertion that must fail under it, and the revert — in place of a RED step
 that would have nothing to fail on. Cluster A is genuine tdd and keeps its type.
-The argument is in the node.
+The argument is in the node. **Kept at `/proof` on 2026-09-19, on one condition
+the node's preamble now states:** every gate report quotes the failing
+assertion's output under mutation and the green line after the revert.
 
 ## `Depends on:` carries two kinds here
 
@@ -181,7 +183,7 @@ former blocks are internal to Item 2.1 now, stated inside its parts (c) and (d).
     Capture-then-filter, not a pipe, for Item 1.1's reason. State the two
     failure modes in `self-release.sh`'s **own** comment rather than pointing at
     `release.sh` — a cross-file line citation into the file Item 1.1 edits is
-    exactly the form Item 4.6 removes. Say in that comment that duplicating a
+    exactly the form Item 3.5 removes. Say in that comment that duplicating a
     three-line tag listing is intentional under the separation header at the top
     of `self-release.sh`: that paragraph argues against factoring the *flow*,
     and a reader could otherwise take this for an oversight.
@@ -219,24 +221,30 @@ former blocks are internal to Item 2.1 now, stated inside its parts (c) and (d).
 
 ## Phases 2 and 3: test-suite discrimination (type: general)
 
-Five items across three test suites, split to their own node for length:
-**`runbook-test-suites.md`**. Phase 2 is one item on
-`tests/self-release-test.sh` — Item 2.1, consolidated from four items into four
-lettered parts (a N7, b M1, c M3, d M4) to give `outline.md` Dependencies rule 5
-its one-agent-per-file shape. Phase 3 is 3.1 on `tests/release-test.sh` (N3) and
-3.2–3.4 on `tests/version-guard-test.sh` (N4/N6, N5, N8). Every part and every
-item carries its own Mutation gate in place of slices; no gate is merged into
-another.
+Six items, split to their own node for length: **`runbook-test-suites.md`**.
+Phase 2 is one item on `tests/self-release-test.sh` — Item 2.1, consolidated
+from four items into four lettered parts (a N7, b M1, c M3, d M4) to give
+`outline.md` Dependencies rule 5 its one-agent-per-file shape, a merge `/proof`
+kept. Phase 3 is 3.1 on `tests/release-test.sh` (N3), 3.2–3.4 on
+`tests/version-guard-test.sh` (N4/N6, N5, N8), and 3.5, the citation gate (N9):
+a new `tests/citation-test.sh` wired into `just precommit`, plus the five
+citations it finds converted. Every part and every item carries its own Mutation
+gate in place of slices; no gate is merged into another.
 
 The ordering constraints that cross into Phase 1 and Phase 4 stay here: Item 2.1
 follows Item 1.3 and Item 3.1 follows Item 1.2 (same file, serialization); Item
 2.1's part (d) also consumes Item 1.3's comment update; Item 3.4 runs last on
-`tests/version-guard-test.sh`, before Item 4.6 touches its comments.
+`tests/version-guard-test.sh`, before Item 3.5 touches its comments; Item 3.5
+edits `CLAUDE.md`'s Quality gate paragraph, so it precedes Item 4.5 on that
+file.
 
 ## Phase 4: prose (type: inline)
 
 Executed by the orchestrator. Split per file rather than one eleven-part
-dispatch, per `outline.md`. Item 4.6 runs after Phases 1–3; Item 4.7 runs last.
+dispatch, per `outline.md`. Item 4.7 runs last. **There is no Item 4.6**: it
+became Item 3.5 at `/proof`, when the citation convention gained a check and so
+stopped being prose. The number is left vacant rather than reassigned, so
+nothing written against the old numbering silently retargets.
 
 - **Item 4.1:** `toolkit/version-guard.sh` — restate the header for both release
   cases and drop the conditional framing from the steady-state deny.
@@ -317,50 +325,15 @@ dispatch, per `outline.md`. Item 4.6 runs after Phases 1–3; Item 4.7 runs last
     spurious "undocumented shipped file". Re-run the suite and read its output
     rather than trusting a green exit.
 
-- **Item 4.6:** `toolkit/release.sh`, `tests/version-guard-test.sh`,
-  `tests/release-test.sh` — convert four `<script>.sh:<line>` citations to
-  unambiguous line context.
-  - Requirements: N9
-  - Depends on: Items 1.1, 1.2, 3.1, 3.2, 3.4 — 3.2 is `outline.md`'s line-level
-    overlap B5 ↔ C4 (the two stale `version-guard-test.sh` citations sit inside
-    the comment block 3.2 edits), named here rather than left to transitivity
-    through 3.4.
-  - A whole-tree sweep found four hits, three of them stale; the review reported
-    one. Each of the three lands on *different real code*, so a reader who
-    follows one gets a confident wrong answer rather than an error:
-    - `release.sh`'s comment citing `:780-785` for "release_preflight never runs
-      on resume" — the mode dispatch is elsewhere and that range is the
-      marketplace commit-gate rollback. **Stale.**
-    - `version-guard-test.sh`'s comment citing `release.sh:446-455` for a bump
-      argument being refused on an unreleased plugin — that range is the
-      version-drift refusal. **Stale.**
-    - `version-guard-test.sh`'s comment citing `release.sh:456-460` for a bare
-      `just release` publishing `$current` — that range is a `die` plus the
-      resume hint. **Stale.**
-    - `release-test.sh`'s comment citing `release.sh:138` for the dirty-tree
-      refusal preceding `release_preflight`. **Accurate today** — convert it
-      too, so the repo carries one convention rather than two.
-  - Replacement form: the enclosing symbol plus a short quoted fragment of the
-    cited line — "`release.sh`, the mode dispatch in `main`, the `--resume`
-    branch" — not a bare function name, which loses precision in a long
-    function. **Re-locate each target by symbol**, since Items 1.1 and 1.2 have
-    moved `release.sh` and Items 3.2–3.4 have moved `version-guard-test.sh`.
-  - Citations *into frozen dated artifacts* keep their line numbers and are out
-    of scope: an executed `outline.md`, a runbook, a review report and a
-    changelog entry are never revised, so the number stays permanently correct.
-  - Recorded upstream, no follow-up held here: a brief at
-    `../edify/inbox/brief-cite-line-context-not-line-numbers.md` proposes the
-    same convention for `/design` and `/runbook`. Dropping it was the end of
-    this repo's involvement.
-
 - **Item 4.7:** `docs/changelog/2026-09-18-deliverable-review-fixes.md` and its
   index line in `docs/changelog.md` — the dated write-time record.
   - Requirements: N9, N14, BD
   - Depends on: every prior item
   - Carries three things not derivable from the diff:
-    - **the citation convention** Item 4.6 establishes — source citations name
+    - **the citation convention** Item 3.5 establishes — source citations name
       unambiguous line context rather than line numbers, frozen dated artifacts
-      exempt — because it binds future edits;
+      exempt — and **why a check enforces it** rather than a `CLAUDE.md` bullet,
+      with the check's `.md` residual bound;
     - **the measured comment figures** Item 4.3 deliberately kept out of the
       hub, which stay correct here because the entry is dated;
     - **BD**: `outline.md:262`'s three-versus-four hint count was left standing
@@ -370,9 +343,9 @@ dispatch, per `outline.md`. Item 4.6 runs after Phases 1–3; Item 4.7 runs last
 
 ## Gate
 
-`just precommit` must be green before **each** commit. It runs all eight suites,
-`_import-check`, the 400-line cap, the doc-sync check, `whitespace` and
-`format-docs`.
+`just precommit` must be green before **each** commit. It runs all eight suites
+— nine once Item 3.5 lands `tests/citation-test.sh` — `_import-check`, the
+400-line cap, the doc-sync check, `whitespace` and `format-docs`.
 
 **Doc-sync does not cover Items 4.4 or 4.5 — verify both by reading.** It
 compares only *fenced command blocks* in the two READMEs' install/update
@@ -388,9 +361,8 @@ silently. A cluster B mutation is applied, observed and **reverted** before the
 next part or item begins; no commit carries a mutation. Item 2.1 lands its four
 parts in one commit — the node states why.
 
-One scope question the pass does not decide in an item: whether Item 4.6's
-citation convention also belongs as a bullet in `CLAUDE.md`'s Conventions
-section. **The executor's default is no** — it lands in Item 4.7's dated entry
-and nowhere else, and no item edits `CLAUDE.md`'s Conventions. Raise it at the
-proof gate, the way Item 2.1's part (a) is raised there; it is not an open
-choice inside any dispatch.
+**Decided at `/proof` on 2026-09-19, and closed:** Item 2.1 part (a) stays; the
+citation convention is enforced by Item 3.5's check and gets no `CLAUDE.md`
+Conventions bullet; Phases 2 and 3 stay `general` with quoted gate evidence;
+Item 2.1 stays one item in four parts; Item 3.2 re-invokes the hook and gains an
+N4 gate. None of these is an open choice inside a dispatch.
