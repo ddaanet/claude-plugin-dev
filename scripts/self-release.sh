@@ -106,14 +106,16 @@ release_preflight() {
     local maj min pat t tags
     # Lists every v* tag and filters it down, rather than asking `git describe`
     # for "the" latest one, because describe has two failure modes here: it
-    # returns the nearest tag of ANY name reachable from HEAD, so a non-release
-    # tag like `vnext` sitting on HEAD would be read as the latest release; and
-    # it only sees tags reachable from HEAD, so a release tag off HEAD's
-    # ancestry would be invisible rather than merely unranked. `--list 'v*'
-    # --sort=-v:refname` considers every v* tag regardless of reachability,
-    # ordered by version, and the filter below narrows that to the X.Y.Z shape
-    # -- the dist-v* lineage sorts as text after "v" and is dropped there, not
-    # by the glob.
+    # returns the nearest reachable tag matching its pattern whatever that
+    # tag's name means, so a non-release tag like `vnext` sitting on HEAD would
+    # be read as the latest release; and it only sees tags reachable from HEAD,
+    # so a release tag off HEAD's ancestry would be invisible rather than
+    # merely unranked. `--list 'v*' --sort=-v:refname` considers every v* tag
+    # regardless of reachability, ordered by version, and the filter below
+    # narrows that to the X.Y.Z shape -- which is what drops `vnext` and any
+    # other non-release name the glob admits. The dist-v* lineage never reaches
+    # that filter: the glob anchors at the start of the tag name, so
+    # `git tag --list 'v*'` does not list `dist-v0.2.0` at all (measured).
     #
     # Captured into a local and filtered as a second step, via a here-string
     # rather than a pipe, for ls_remote_sha's reason above: a pipe would let a
@@ -126,7 +128,16 @@ release_preflight() {
     # lines of listing is not worth a shared flow branching on which release
     # this is.
     tags=$(git tag --list 'v*' --sort=-v:refname) || die "git tag --list failed"
-    latest_tag=$(grep -m1 -E '^v[0-9]+\.[0-9]+\.[0-9]+$' <<< "$tags") || latest_tag=""
+    latest_tag=$(grep -m1 -E '^v[0-9]+\.[0-9]+\.[0-9]+$' <<< "$tags") || {
+        # grep exits 1 for a clean no-match -- a repo holding no release tag
+        # yet -- and non-1 for a real error. Only the first is a value: folding
+        # an error into the empty case would leave $latest_tag empty, skip the
+        # drift guard below, and release from whatever toolkit/VERSION holds
+        # over a listing this function could not read. Same distinction
+        # toolkit/release.sh's semver_tags draws with `[ "$?" -eq 1 ]`.
+        [ "$?" -eq 1 ] || die "could not filter the tag listing -- nothing was done"
+        latest_tag=""
+    }
     latest_tag=${latest_tag#v}
     if [ -n "$latest_tag" ] && [ "$file_version" != "$latest_tag" ]; then
         # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution

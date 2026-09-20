@@ -250,8 +250,9 @@ common_preflight() {
     # absence, which in `release` mode was only ever caught downstream, by
     # check-version.sh, with an unrelated "version drift" message. In
     # `--resume` mode nothing downstream reads this file at all until
-    # bump_marketplace: release_preflight never runs on resume
-    # (release.sh:780-785), so the misread survived common_preflight
+    # bump_marketplace: release_preflight never runs on resume — the mode
+    # dispatch at the foot of this file takes the `else resume_preflight`
+    # branch — so the misread survived common_preflight
     # untouched and the run reached create_github_release — a GitHub release
     # made public — before bump_marketplace's own jq call finally aborted the
     # script with a raw parse error instead of a `die`.

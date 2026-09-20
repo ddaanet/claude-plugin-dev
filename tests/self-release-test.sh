@@ -334,9 +334,10 @@ run minor
 assert_contains "$out" "does not match latest tag (v0.1.0)" "hand-written bump"
 assert_contains "$out" "holds the LAST released version" "hand-written bump: hint"
 
-# The dist lineage, because the X.Y.Z filter over the `v*` listing excludes it:
-# a squatting v0.2.0 reachable from HEAD is caught one guard earlier, by the
-# drift check.
+# The dist lineage, because `git tag --list 'v*'` never lists it -- the glob
+# anchors at the start of the tag name, so dist-v0.2.0 is absent from
+# release_preflight's listing before its X.Y.Z filter runs at all. A squatting
+# v0.2.0 reachable from HEAD is caught one guard earlier, by the drift check.
 new_sandbox
 git -C "$repo" tag -a dist-v0.2.0 -m "squatter"
 run minor
