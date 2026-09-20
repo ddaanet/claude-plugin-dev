@@ -60,6 +60,17 @@ refute_tag() {
         fail "$2: tag $1 should not exist"
     fi
 }
+assert_gh_untouched() {
+    # $1=label. Fails unless $GH_LOG is empty -- pinning that the refusal
+    # happened before `gh` was ever reached, not merely that its visible
+    # output was absent. $GH_LOG is truncated per new_sandbox, so a scenario
+    # sharing one sandbox across several refusals must call this between runs
+    # rather than once at the end, or an earlier touch could be attributed to
+    # the wrong one.
+    local logged
+    logged="$(cat "$GH_LOG")"
+    [ -z "$logged" ] || fail "$1: gh was touched ($logged)"
+}
 
 sandboxes=()
 cleanup() {
@@ -140,6 +151,49 @@ block_push() {
 }
 unblock_push() { rm -f "$repo/.git/hooks/pre-push"; }
 
+stage_claude_frame() {
+    # $1=repo path. Reproduces what the handoff skills leave behind: a task
+    # frame under .claude/, committed once and then rewritten and staged for
+    # whatever commit lands next. Staged, not merely written -- an untracked
+    # frame never reaches common_preflight's tracked-only
+    # `git diff --quiet HEAD` in the first place, so a fixture that only
+    # writes it untracked would exercise nothing. Same shape as
+    # stage_handoff_frame in tests/release-test.sh.
+    local dir="$1"
+    mkdir -p "$dir/.claude"
+    printf 'frame v1\n' > "$dir/.claude/handoff-task.md"
+    git -C "$dir" add .claude/handoff-task.md
+    git -C "$dir" commit -qm "handoff frame"
+    printf 'frame v2\n' > "$dir/.claude/handoff-task.md"
+    git -C "$dir" add .claude/handoff-task.md
+}
+
+stage_memory_gitlink() {
+    # $1=repo path $2=sandbox path -- builds a real submodule inside
+    # $sandbox, not shared across scenarios: new_sandbox rebuilds $repo on
+    # every call, so a shared upstream outside the sandbox would leave state
+    # crossing scenario boundaries -- a fixture that works alone and breaks
+    # once another scenario runs ahead of it. Two empty commits upstream, add
+    # it as memory/ at the second, commit the gitlink, then check the
+    # submodule itself out at the first -- the gitlink recorded in HEAD's
+    # tree and the submodule's own checked-out commit now disagree, the
+    # resting state gitlore leaves. `-c protocol.file.allow=always` is
+    # required, not optional: `submodule add` clones via a child process that
+    # reads its own environment rather than the parent repo's config, and a
+    # plain local-path add fails with `fatal: transport 'file' not allowed`.
+    local dir="$1" upstream="$2/sub" first_sha
+    git init -q -b main "$upstream"
+    git -C "$upstream" config user.email test@example.com
+    git -C "$upstream" config user.name "Toolkit Test"
+    git -C "$upstream" config commit.gpgsign false
+    git -C "$upstream" commit -q --allow-empty -m c1
+    first_sha=$(git -C "$upstream" rev-parse HEAD)
+    git -C "$upstream" commit -q --allow-empty -m c2
+    git -c protocol.file.allow=always -C "$dir" submodule add -q "$upstream" memory
+    git -C "$dir" commit -qm "memory gitlink"
+    git -C "$dir/memory" checkout -q "$first_sha"
+}
+
 echo "=== happy path: minor bump publishes everything ==="
 new_sandbox
 run minor
@@ -147,6 +201,14 @@ assert_eq "$rc" 0 "happy: exit status"
 assert_contains "$out" "Release v0.2.0 complete" "happy: final line"
 assert_eq "$(cat "$repo/toolkit/VERSION")" "0.2.0" "happy: VERSION file"
 git -C "$repo" diff --quiet HEAD || fail "happy: tree left dirty"
+# diff --quiet HEAD reads tracked paths only, so an untracked leftover the
+# release steps write (a stray file, a build byproduct) would pass it
+# silently -- ls-files --others --exclude-standard is the tracked check's
+# blind spot, the way stage_handoff_frame in tests/release-test.sh documents
+# for the opposite direction (an untracked frame never reaching a tracked-only
+# check).
+untracked=$(git -C "$repo" ls-files --others --exclude-standard)
+[ -z "$untracked" ] || fail "happy: untracked leftovers left ($untracked)"
 assert_tag v0.2.0 local "happy"
 assert_tag dist-v0.2.0 local "happy"
 assert_tag v0.2.0 origin "happy"
@@ -248,18 +310,34 @@ assert_contains "$out" "already complete (nothing to do)" "resume twice: says so
 assert_not_contains "$out" ": pushed$" "resume twice: pushed nothing"
 assert_not_contains "$out" ": created$" "resume twice: created nothing"
 
-echo "=== resume after later work on main ==="
+echo "=== resume after later work inside toolkit/ ==="
 new_sandbox
 block_push
 run minor
 unblock_push
-commit_in_repo docs.md "written after the release commit"
+commit_in_repo toolkit/later-work.md "written after the release commit, inside toolkit/"
+# ensure_dist_tag runs before push_branch, so the blocked `run minor` above
+# already created dist-v0.2.0 locally. Left in place, --resume would take
+# ensure_dist_tag's own "already created locally" short-circuit and
+# `git subtree split` would never run at all -- the assertions below would
+# then pass whether the split targets the tag or HEAD, discriminating
+# nothing. Deleting the local tag first forces the split to actually run (the
+# dead-origin resume scenario further down clears the same tag for the same
+# reason).
+git -C "$repo" tag -d dist-v0.2.0 >/dev/null
 run --resume
 assert_eq "$rc" 0 "resume after work: exit status"
 assert_tag dist-v0.2.0 origin "resume after work"
-# Split from the tag, not HEAD: the dist tree must not carry later work, and
-# would not even see it here -- docs.md is outside toolkit/. What it proves is
-# that the split ran against the tagged commit at all.
+# Split from the tag, not HEAD: HEAD now carries toolkit/later-work.md, added
+# after the release commit. A split of HEAD would carry it into the dist
+# tree; a split of $tag would not. This is what discriminates the two --
+# splitting always "against the tagged commit at all" is not enough, because
+# the first invocation's split (above) ran when HEAD and the tag coincided.
+git -C "$repo" show dist-v0.2.0:later-work.md >/dev/null 2>&1 \
+    && fail "resume after work: dist tree carries later work"
+dist_files_after_work=$(git -C "$repo" ls-tree --name-only dist-v0.2.0)
+assert_not_contains "$dist_files_after_work" "later-work" \
+    "resume after work: dist tree omits later file"
 assert_eq "$(git -C "$repo" show dist-v0.2.0:VERSION)" "0.2.0" "resume after work: dist VERSION"
 
 echo "=== a partially published release still refuses a bump ==="
@@ -272,6 +350,7 @@ refute_tag v0.2.0 "no gh release"
 new_sandbox
 git -C "$repo" push -q origin ":refs/tags/dist-v0.1.0"
 run minor
+assert_eq "$rc" 1 "no dist tag: exit status"
 assert_contains "$out" "dist-v0.1.0" "no dist tag: names it"
 refute_tag v0.2.0 "no dist tag"
 
@@ -286,8 +365,11 @@ new_sandbox
 git -C "$repo" tag -d v0.1.0 >/dev/null
 git -C "$repo" push -q origin ":refs/tags/v0.1.0"
 run --resume
+assert_eq "$rc" 1 "resume, no tag anywhere: exit status"
 assert_contains "$out" "no release was started at 0.1.0" "resume, no tag anywhere: hint"
 assert_contains "$out" "just release <bump>" "resume, no tag anywhere: remedy"
+refute_tag v0.2.0 "resume, no tag anywhere"
+assert_gh_untouched "resume, no tag anywhere"
 
 echo "=== never moves a published tag ==="
 new_sandbox
@@ -303,36 +385,57 @@ echo "=== preflight refusals ==="
 new_sandbox
 printf 'dirty\n' > "$repo/ROOT-ONLY.md"
 run minor
+assert_eq "$rc" 1 "dirty tree: exit status"
 assert_contains "$out" "uncommitted changes" "dirty tree"
+refute_tag v0.2.0 "dirty tree"
+assert_gh_untouched "dirty tree"
 git -C "$repo" checkout -q -- ROOT-ONLY.md
-# .claude/ and memory/ are excluded from that check, the way this repo needs.
-mkdir -p "$repo/.claude"
-printf 'task frame\n' > "$repo/.claude/handoff-task.md"
+# common_preflight's `git diff --quiet HEAD -- . ':(exclude).claude'
+# ':(exclude)memory'` sees tracked content only, so an untracked .claude/ file
+# or an absent memory/ directory would never reach the check either way --
+# proving the exclusions requires constructing real diffs under both paths
+# for them to suppress, not merely creating the paths.
+stage_memory_gitlink "$repo" "$sandbox"
+stage_claude_frame "$repo"
 run minor
-assert_eq "$rc" 0 ".claude/ is excluded from the clean check"
+assert_eq "$rc" 0 ".claude/ and memory/ are exempted from the clean check"
 
 new_sandbox
 git -C "$repo" checkout -q -b side
 run minor
+assert_eq "$rc" 1 "wrong branch: exit status"
 assert_contains "$out" "must be on main (currently side)" "wrong branch"
+refute_tag v0.2.0 "wrong branch"
+assert_gh_untouched "wrong branch"
 
 new_sandbox
 printf '0.2\n' > "$repo/toolkit/VERSION"
 git -C "$repo" commit -qam "bad version"
 run minor
+assert_eq "$rc" 1 "malformed VERSION: exit status"
 assert_contains "$out" "toolkit/VERSION is not X.Y.Z" "malformed VERSION"
+refute_tag v0.2.0 "malformed VERSION"
+assert_gh_untouched "malformed VERSION"
 new_sandbox
 printf '0.08.0\n' > "$repo/toolkit/VERSION"
 git -C "$repo" commit -qam "padded version"
 run minor
+assert_eq "$rc" 1 "zero-padded VERSION: exit status"
 assert_contains "$out" "toolkit/VERSION is not X.Y.Z" "zero-padded VERSION"
+refute_tag v0.2.0 "zero-padded VERSION"
+assert_gh_untouched "zero-padded VERSION"
 
 new_sandbox
 printf '0.2.0\n' > "$repo/toolkit/VERSION"
 git -C "$repo" commit -qam "hand-written bump"
 run minor
+assert_eq "$rc" 1 "hand-written bump: exit status"
 assert_contains "$out" "does not match latest tag (v0.1.0)" "hand-written bump"
 assert_contains "$out" "holds the LAST released version" "hand-written bump: hint"
+# 0.2.0 is what the hand-written VERSION holds; a minor bump from there would
+# tag v0.3.0 if the drift guard did not catch it first.
+refute_tag v0.3.0 "hand-written bump"
+assert_gh_untouched "hand-written bump"
 
 # The dist lineage, because `git tag --list 'v*'` never lists it -- the glob
 # anchors at the start of the tag name, so dist-v0.2.0 is absent from
@@ -341,15 +444,30 @@ assert_contains "$out" "holds the LAST released version" "hand-written bump: hin
 new_sandbox
 git -C "$repo" tag -a dist-v0.2.0 -m "squatter"
 run minor
+assert_eq "$rc" 1 "tag squatting: exit status"
 assert_contains "$out" "tag dist-v0.2.0 already exists" "tag squatting"
+refute_tag v0.2.0 "tag squatting"
+# gh IS legitimately reached here, by require_prior_release_published's own
+# `gh release view` a few lines before the squatting die -- unlike every
+# other preflight refusal, which dies before release_preflight gets that far.
+assert_contains "$(cat "$GH_LOG")" "release view v0.1.0" "tag squatting: gh reached for the prior-release check"
 
 new_sandbox
 run sideways
+assert_eq "$rc" 1 "bad argument: exit status"
 assert_contains "$out" "unknown bump type: sideways" "bad argument"
+refute_tag v0.2.0 "bad argument"
+assert_gh_untouched "bad argument"
 run --wat
+assert_eq "$rc" 1 "bad option: exit status"
 assert_contains "$out" "unknown option: --wat" "bad option"
+refute_tag v0.2.0 "bad option"
+assert_gh_untouched "bad option"
 run minor patch
+assert_eq "$rc" 1 "extra argument: exit status"
 assert_contains "$out" "too many arguments" "extra argument"
+refute_tag v0.2.0 "extra argument"
+assert_gh_untouched "extra argument"
 
 echo "=== an unreadable origin refuses rather than proceeds ==="
 new_sandbox
