@@ -134,10 +134,10 @@ the dated record of the reversal goes in the changelog.
   refuses; only origin's silence may say "never released" and continue. Partial
   tag loss — a clone keeping older release tags but not the newest — never
   reaches the probe and is a stated bound, not an oversight.
-- **A push redirected away from origin is refused** — refused when the config
-  key is set at all rather than when it "diverges", before any side effect, in
-  both modes. Which keys carry that route, and which fourth one is a stated
-  bound instead, are in the node.
+- **A push redirected away from origin is refused** — when the config key is set
+  at all rather than when it "diverges", before any side effect, in both modes.
+  Which keys carry that route, and which further one is a stated bound instead,
+  are in the node.
 - **`resume-release` completes one** — the last four steps are an idempotent
   block that probes remote state before acting. It completes a release; it never
   starts one, and it says so when there was nothing to do. Its no-tag refusal

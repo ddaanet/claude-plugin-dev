@@ -228,9 +228,11 @@ and a bump computed from it, and it reads the state as a partial release rather
 than as a lost tag.
 
 Closing it means listing origin on every release instead of only on an empty
-local list: a network round trip, and a listing whose failure has to be
-absorbed, on the common path where the local tags are complete. The bound is
-accepted on those terms, as the fourth push route below is.
+local list: a network round trip on the common path where the local tags are
+complete, and a listing whose failure could not refuse the way the empty-list
+probe's does — that would put every release behind a working network — so its
+status would have to be absorbed instead. The bound is accepted on those terms,
+as the fourth push route below is.
 
 ### The push route has to agree with the probe
 

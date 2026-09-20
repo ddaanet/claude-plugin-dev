@@ -43,8 +43,8 @@ has never been released, that the manifest holds `$current`, that `$current` is
 what the initial release will publish verbatim, and that which version a plugin
 first ships as is the maintainer's call and their edit to make. The predicate is
 the one `release_preflight` uses — no tag matching `^v[0-9]+\.[0-9]+\.[0-9]+$` —
-read here against the local clone, with the bound that carries noted below. See
-"First release publishes the manifest version as-is" in
+read here against the local clone only, a bound stated below. See "First release
+publishes the manifest version as-is" in
 [release-flow.md](release-flow.md).
 
 The filter is duplicated rather than shared. `release.sh` runs its flow at top
