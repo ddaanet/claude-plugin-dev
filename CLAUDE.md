@@ -72,10 +72,9 @@ or removing a shipped file means updating the list in
   toolkit *is*. Read it first and open only the node you need.
 - `docs/references/*.md` — one node per group of decisions
   (`distribution`, `release-flow`, `recovery`, `self-release`,
-  `version-guard`), each
-  holding the argument behind the hub's conclusions: alternatives
-  weighed, the bug that motivated it, what it costs. A decision that
-  changes is rewritten in both places.
+  `version-guard`), each holding the argument behind the hub's
+  conclusions: alternatives weighed, the bug that motivated it, what
+  it costs. A decision that changes is rewritten in both places.
 - `docs/changelog.md` — index of write-time records, newest first, one
   entry per bullet. Bodies live in `docs/changelog/YYYY-MM-DD-slug.md`.
 - `plans/` — specs and implementation plans. Prospective content only;
