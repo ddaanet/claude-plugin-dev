@@ -1549,6 +1549,66 @@ assert_eq "$(git -C "$plugin-origin.git" tag --list | sort)" "$origin_tags_befor
 assert_eq "$(cat "$GH_LOG")" "" \
     "pipefail-stripped release_tags failure publishes nothing gh log empty"
 
+echo "=== resume hint names the tag already on origin ==="
+# Item 1.2, slice 1: the control. Proves the ladder in `resume_preflight`'s
+# `git rev-parse -q --verify "refs/tags/$tag"` failure group is reached and
+# that its first branch — v$V present in origin's semver listing — is the one
+# that fires, via a `git` stub that controls `origin_release_tags`'s
+# `ls-remote --tags --sort=-v:refname origin` output rather than real tags.
+# Same stub idiom as the pipefail-stripped `tag --list` scenarios above,
+# matched positionally on `ls-remote`/`--tags` and delegating everything else
+# to the real binary.
+#
+# Slice 1 is the small-list control for Item 1.2's defect (N1): at a handful
+# of synthetic tags, `printf '%s\n' "$origin_tag_list" | grep -qxF -- "$tag"`
+# in the ladder has time to finish writing before `grep -qxF` exits on its
+# early match, so the SIGPIPE/pipefail hazard slice 2 exercises at >=1 MB does
+# not manifest here — this scenario is expected to pass against unchanged
+# `toolkit/release.sh` and establishes only that the fixture reaches the
+# ladder and that branch 1 is the one that fires.
+#
+# Origin's real copy of v1.2.3 is deleted too, so the stub is the ONLY source
+# of an origin listing: without it `origin_release_tags` comes back empty, the
+# ladder falls through to its `no_local_tags` branch ("no release was started
+# at this version" / "run `just release` instead") and both the branch-1
+# assertion and the `just release` absence below fail. Left in place, origin's
+# real tag would satisfy branch 1 by itself and every assertion here would hold
+# with the stub never consulted — measured, and the reason slice 2 could not
+# then trust its own listing size.
+new_sandbox "1.2.3"
+lose_tag "$plugin"
+git -C "$plugin" push -q origin :refs/tags/v1.2.3
+git_wrapper_dir="$sandbox/git-wrapper"
+mkdir -p "$git_wrapper_dir"
+real_git="$(command -v git)"
+# The matching tag is emitted first, and the loop's range starts past it, so
+# v1.2.3 appears exactly once: a duplicate would leave "first row matches"
+# true by accident of the loop rather than by construction.
+cat > "$git_wrapper_dir/git" <<STUB
+#!/bin/sh
+if [ "\$1" = "ls-remote" ] && [ "\$2" = "--tags" ]; then
+    printf '%040d\trefs/tags/v1.2.3\n' 0
+    seq 4 8 | while IFS= read -r n; do
+        printf '%040d\trefs/tags/v1.2.%s\n' "\$n" "\$n"
+    done
+    exit 0
+fi
+exec "$real_git" "\$@"
+STUB
+chmod +x "$git_wrapper_dir/git"
+saved_path="$PATH"
+export PATH="$git_wrapper_dir:$PATH"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+export PATH="$saved_path"
+assert_eq "$rc" "1" "resume hint names the tag already on origin exit code"
+assert_contains "$out" "origin already has v1.2.3" \
+    "resume hint names the tag already on origin"
+assert_contains "$out" "git fetch --tags" \
+    "resume hint names the tag already on origin remedy"
+assert_not_contains "$out" "just release" \
+    "resume hint names the tag already on origin must not advise a fresh release"
+assert_eq "$(cat "$GH_LOG")" "" "resume hint names the tag already on origin must not call gh"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
