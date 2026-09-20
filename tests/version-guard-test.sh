@@ -73,7 +73,9 @@ git_tagged_proj="$(mktemp -d)"
 git_vnext_proj="$(mktemp -d)"
 guard_stub127_dir="$(mktemp -d)"
 guard_stubgrep_dir="$(mktemp -d)"
-trap 'rm -rf "$proj" "$guard_err" "$git_proj" "$git_tagged_proj" "$git_vnext_proj" "$guard_stub127_dir" "$guard_stubgrep_dir"' EXIT
+guard_recordgit_dir="$(mktemp -d)"
+guard_recordgit_log="$(mktemp)"
+trap 'rm -rf "$proj" "$guard_err" "$git_proj" "$git_tagged_proj" "$git_vnext_proj" "$guard_stub127_dir" "$guard_stubgrep_dir" "$guard_recordgit_dir" "$guard_recordgit_log"' EXIT
 mkdir -p "$proj/.claude-plugin"
 cat > "$proj/.claude-plugin/plugin.json" <<'JSON'
 {
@@ -169,6 +171,27 @@ cat > "$guard_stubgrep_dir/grep" <<'SH'
 exit 2
 SH
 chmod 755 "$guard_stubgrep_dir/grep"
+
+# PATH stub for the git-tagged allow scenario (N5): a recording `git` that
+# appends one line per invocation to $guard_recordgit_log before delegating
+# to the real binary, so a scenario can assert on *whether* git ran, not
+# only on the allow/deny decision -- the property under test is work
+# ordering (the tag listing runs only after the early return at
+# proposed==current), which the decision channel cannot observe: hoisting
+# the listing above that return still allows correctly, byte-identical.
+# Arguments are joined with an ASCII Unit Separator (octal 037), not a
+# space, so an argument containing a literal space cannot be misread as an
+# argument boundary by the substring assertion that reads this log.
+# Residual bound: an argument containing a literal \037 byte -- none does,
+# anywhere in this suite -- would still be ambiguous.
+real_git="$(command -v git)"
+cat > "$guard_recordgit_dir/git" <<EOF
+#!/bin/sh
+printf '%s\037' "\$@" >> "$guard_recordgit_log"
+printf '\n' >> "$guard_recordgit_log"
+exec "$real_git" "\$@"
+EOF
+chmod 755 "$guard_recordgit_dir/git"
 
 # The hook reads CLAUDE_PROJECT_DIR, so every scenario passes it explicitly;
 # the payload `cwd` a scenario sets is deliberately not what locates the
@@ -377,6 +400,25 @@ assert_no_escape_hatch "$reason" "version-guard tagged-steady reason"
 tagged_sysmsg="$(jq -r '.systemMessage' <<<"$guard_out")"
 assert_eq "$tagged_sysmsg" "$tagless_sysmsg" \
     "version-guard systemMessage byte-identical across tagless and tagged fixtures"
+
+# N5: no scenario above touches a real git repository (they all run against
+# $proj, deliberately not a repo), so the property "the tag listing runs
+# only after the early return at proposed==current" is unpinned -- a bare
+# assert_allow cannot pin it, since the listing block absorbs every outcome
+# into a variable, never exits non-zero, writes nothing to stdout and
+# suppresses stderr. Run an allow scenario against $git_tagged_proj (a real
+# repo) with the recording git stub first on PATH, and assert the log holds
+# no `tag --list` invocation.
+echo "=== version-guard (git-tagged repo, unrelated field: allow, no tag listing) ==="
+guard_path="$guard_recordgit_dir:$PATH"
+run_guard "$(jq -nc --arg cwd "$git_tagged_proj" --arg fp "$git_tagged_proj/.claude-plugin/plugin.json" \
+    '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"\"license\": \"MIT\"", new_string:"\"license\": \"Apache-2.0\""}}')" \
+    "$git_tagged_proj"
+guard_path="$PATH"
+assert_allow "version-guard git-tagged-unrelated"
+US="$(printf '\037')"
+assert_not_contains "$(cat "$guard_recordgit_log")" "tag${US}--list" \
+    "version-guard git-tagged-unrelated: no git tag listing runs before the early return"
 
 # Slice 4: the predicate is the semver filter, not tag-list emptiness or
 # repo-ness. A fixture tagged only vnext/v1.2 (neither semver) must still
