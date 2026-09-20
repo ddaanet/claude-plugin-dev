@@ -169,6 +169,20 @@ new_sandbox
 run
 assert_contains "$out" "Release v0.1.1 complete" "default: patch bump"
 
+echo "=== vnext on ancestry is not the latest tag ==="
+# v0.1.0 ends up on HEAD~ and the non-release tag vnext on HEAD. The latest
+# RELEASE tag is still v0.1.0, so release_preflight's drift guard must stay
+# quiet and the bump must go through -- which it only does if that function
+# lists and filters tags. Asking git for the nearest reachable tag instead
+# answers "vnext", and the refusal it produces names a tag no bump can match.
+new_sandbox
+commit_in_repo work.md "ordinary work after 0.1.0"
+git -C "$repo" tag vnext
+run minor
+assert_eq "$rc" 0 "vnext: exit status"
+assert_tag v0.2.0 local "vnext"
+assert_not_contains "$out" "does not match latest tag" "vnext: no drift refusal"
+
 echo "=== an unfinished release refuses a new one ==="
 new_sandbox
 block_push
@@ -293,8 +307,9 @@ run minor
 assert_contains "$out" "does not match latest tag (v0.1.0)" "hand-written bump"
 assert_contains "$out" "holds the LAST released version" "hand-written bump: hint"
 
-# The dist lineage, because `git describe --match 'v*'` ignores it: a squatting
-# v0.2.0 reachable from HEAD is caught one guard earlier, by the drift check.
+# The dist lineage, because the X.Y.Z filter over the `v*` listing excludes it:
+# a squatting v0.2.0 reachable from HEAD is caught one guard earlier, by the
+# drift check.
 new_sandbox
 git -C "$repo" tag -a dist-v0.2.0 -m "squatter"
 run minor

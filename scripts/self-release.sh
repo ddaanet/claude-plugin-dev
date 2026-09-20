@@ -103,11 +103,30 @@ require_prior_release_published() {
 }
 
 release_preflight() {
-    local maj min pat t
-    # --match 'v*' so the dist-v* tags can never be read as the latest release:
-    # they name a separate lineage, not a version history.
-    latest_tag=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null) \
-        || latest_tag=""
+    local maj min pat t tags
+    # Lists every v* tag and filters it down, rather than asking `git describe`
+    # for "the" latest one, because describe has two failure modes here: it
+    # returns the nearest tag of ANY name reachable from HEAD, so a non-release
+    # tag like `vnext` sitting on HEAD would be read as the latest release; and
+    # it only sees tags reachable from HEAD, so a release tag off HEAD's
+    # ancestry would be invisible rather than merely unranked. `--list 'v*'
+    # --sort=-v:refname` considers every v* tag regardless of reachability,
+    # ordered by version, and the filter below narrows that to the X.Y.Z shape
+    # -- the dist-v* lineage sorts as text after "v" and is dropped there, not
+    # by the glob.
+    #
+    # Captured into a local and filtered as a second step, via a here-string
+    # rather than a pipe, for ls_remote_sha's reason above: a pipe would let a
+    # failed listing's status vanish into grep's, and a grep matching nothing
+    # in an empty repo would still report success.
+    #
+    # This duplicates the three-line tag-listing toolkit/release.sh also does
+    # for a plugin consumer's own tags. That is intentional, not an oversight:
+    # this file's header explains why the two scripts share no code, and three
+    # lines of listing is not worth a shared flow branching on which release
+    # this is.
+    tags=$(git tag --list 'v*' --sort=-v:refname) || die "git tag --list failed"
+    latest_tag=$(grep -m1 -E '^v[0-9]+\.[0-9]+\.[0-9]+$' <<< "$tags") || latest_tag=""
     latest_tag=${latest_tag#v}
     if [ -n "$latest_tag" ] && [ "$file_version" != "$latest_tag" ]; then
         # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
