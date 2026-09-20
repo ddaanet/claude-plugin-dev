@@ -341,9 +341,11 @@ assert_not_contains "$reason_minus_refusal" "9.9.9" \
 # rather than $proposed (release.sh:456-460), so in THIS branch every mention
 # of the invocation routes the agent at something nobody asked for -- which
 # is why the fix withheld the identifier instead of qualifying it. Asserted
-# over the no-tags reason alone: the steady-state message names the recipe
-# legitimately. Residual bound: prose that routes at the recipe without
-# naming it ("when the release recipe runs") still passes here.
+# here and again over the vnext reason below (slice 4), which takes the same
+# initial-release branch -- the steady-state message is the only one that
+# names the recipe legitimately, so it alone is exempt from this assertion.
+# Residual bound: prose that routes at the recipe without naming it ("when
+# the release recipe runs") still passes here.
 assert_not_contains "$reason" "just release" \
     "version-guard no-tags reason: initial-release branch names no recipe invocation"
 assert_no_escape_hatch "$reason" "version-guard no-tags reason"
@@ -351,7 +353,16 @@ assert_no_escape_hatch "$reason" "version-guard no-tags reason"
 # Slice 3: only the agent channel (permissionDecisionReason) may branch on
 # release state. systemMessage is a factual one-liner, true in both states,
 # so it must come out byte-identical for the same payload whichever fixture
-# answers it.
+# answers it. Re-invoke the hook here, deliberately fresh, rather than reuse
+# $guard_out from the no-tags run forty lines above: that capture is two
+# assertion blocks away, so a scenario inserted between would silently
+# retarget this byte-identity comparison. That is the opposite call from
+# the $reason reuse just above (slice 2) -- that reuse stays documented and
+# undisturbed because its run is immediately adjacent, with nothing able to
+# land between it and the read.
+run_guard "$(jq -nc --arg cwd "$git_proj" --arg fp "$git_proj/.claude-plugin/plugin.json" \
+    '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"1.2.3", new_string:"9.9.9"}}')" \
+    "$git_proj"
 tagless_sysmsg="$(jq -r '.systemMessage' <<<"$guard_out")"
 
 echo "=== version-guard (v1.2.3 tag: steady-state wording) ==="
@@ -379,6 +390,12 @@ assert_deny "version-guard vnext-tags"
 reason="$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<<"$guard_out")"
 assert_contains "$reason" "never been released" "version-guard vnext-tags reason: never-released wording"
 assert_not_contains "$reason" "last released version" "version-guard vnext-tags reason: no last-released wording"
+# Same initial-release branch as the no-tags case above, so the same two
+# properties apply: no escape hatch, and no recipe invocation -- this reason
+# is not the steady-state message, which alone is exempt from the latter.
+assert_no_escape_hatch "$reason" "version-guard vnext-tags reason"
+assert_not_contains "$reason" "just release" \
+    "version-guard vnext-tags reason: initial-release branch names no recipe invocation"
 
 # Slice 5: the guard clears repo-local GIT_* variables before listing tags,
 # so a leaked GIT_DIR (e.g. a `claude` process started from inside a git
