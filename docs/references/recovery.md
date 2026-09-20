@@ -214,6 +214,24 @@ instead. A listing that could not be performed refuses outright here, unlike in
 and `push_tag` need origin anyway, so continuing would only move the failure
 past the last point a check could still have caught it.
 
+The probe keys on a local list that is *entirely* empty, and partial tag loss is
+a stated bound rather than a case it covers. A clone that kept older release
+tags but lost the newest never reaches it: `release_tag_list` comes back
+non-empty, so `latest_tag` is read from a stale local newest and the drift check
+compares the manifest against that. A manifest holding the genuinely current
+version then refuses with advice to set it *back* to the stale tag and commit
+that edit — the same shape of wrong advice the probe exists to spare a fully
+tagless clone, and the one state in which that refusal's own reasoning, that a
+fetch can never have anything left to fetch, does not hold. Where the manifest
+matches the stale tag instead, only the marketplace check stands between the run
+and a bump computed from it, and it reads the state as a partial release rather
+than as a lost tag.
+
+Closing it means listing origin on every release instead of only on an empty
+local list: a network round trip, and a listing whose failure has to be
+absorbed, on the common path where the local tags are complete. The bound is
+accepted on those terms, as the fourth push route below is.
+
 ### The push route has to agree with the probe
 
 `git ls-remote origin` reads origin's *fetch* URL, while several settings can

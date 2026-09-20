@@ -131,13 +131,13 @@ the dated record of the reversal goes in the changelog.
 - **An empty local tag list is checked against origin first** — a clone can lose
   a tag origin still carries, so `release_preflight` probes origin's tags before
   the drift check and before any side effect. A listing it could not perform
-  refuses; only origin's silence may say "never released" and continue.
-- **A push redirected away from origin is refused** — `remote.origin.pushurl`,
-  `branch.<name>.pushRemote` and `remote.pushDefault` would send the release
-  where the origin probes never look. Refused when set at all rather than when
-  it "diverges", before any side effect, in both modes.
-  `url.<base>.pushInsteadOf` is a fourth such route and is deliberately not
-  checked — a stated bound, not an oversight.
+  refuses; only origin's silence may say "never released" and continue. Partial
+  tag loss — a clone keeping older release tags but not the newest — never
+  reaches the probe and is a stated bound, not an oversight.
+- **A push redirected away from origin is refused** — refused when the config
+  key is set at all rather than when it "diverges", before any side effect, in
+  both modes. Which keys carry that route, and which fourth one is a stated
+  bound instead, are in the node.
 - **`resume-release` completes one** — the last four steps are an idempotent
   block that probes remote state before acting. It completes a release; it never
   starts one, and it says so when there was nothing to do. Its no-tag refusal
@@ -188,8 +188,8 @@ the dated record of the reversal goes in the changelog.
   wording says the manifest already holds what the first release will publish,
   and names no route to any other version; only the agent channel branches, and
   a listing that failed takes the restrictive steady-state wording. Nothing
-  computed after the deny is decided may fail: a hook exiting non-2 is a
-  non-blocking error, so a crash there allows the edit it had just refused.
+  computed after the deny is decided may fail, so every status the wording
+  depends on is absorbed rather than propagated.
 
 ## Limitations
 
@@ -219,6 +219,13 @@ the dated record of the reversal goes in the changelog.
   landed as a required consumer-side recipe. Releases with such a step ship a
   `migrations/vX.Y.Z.md` note that `update.sh` prints after the pull; the
   upgrade itself never edits consumer files.
+- **The shipped scripts carry a high comment volume, accepted rather than
+  unnoticed.** Roughly half of `release.sh` is comment-only, much of it
+  write-time record rather than contract. The `dist-` tree ships no `docs/`, so
+  a consumer reading the script has no changelog to reach for, and the record
+  stays where the reader is. The cost is real: a comment that retells an
+  incident ages with the code around it and has to be rewritten when the code
+  moves.
 - **Solo-author workflow assumed.** The toolkit is built around one maintainer's
   plugins. Multi-contributor scenarios (e.g. forks proposing changes back to the
   toolkit) work mechanically but haven't been ergonomics-tested.
