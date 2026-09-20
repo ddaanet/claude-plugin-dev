@@ -940,11 +940,30 @@ for t in v1.9.0 v1.10.0 v1.11.0; do
     git -C "$plugin" push -q origin "$t"
     lose_tag "$plugin" "$t"
 done
+# Set comparison, not a named refutation: which tag the code would create is
+# itself under test, and naming one here (e.g. "creates no v1.11.1") would
+# pass vacuously against a mutation that creates the wrong one instead.
+local_tags_before="$(git -C "$plugin" tag --list 'v*' | sort)"
+origin_head_before="$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)"
 run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "1" "origin-sort exit code"
 assert_contains "$out" "v1.11.0" "origin-sort names the newest origin tag"
 assert_not_contains "$out" "v1.10.0" "origin-sort does not name the second-newest origin tag"
 assert_not_contains "$out" "v1.9.0" "origin-sort does not name the third-newest origin tag"
+# With the local tag listing empty here (every local copy was lost above),
+# a refusal that skipped the lost-tags guard would still hit the unrelated
+# "explicit bump on a plugin that has never been released" refusal a few
+# lines further down — same rc, same absence of every side effect below, so
+# only this needle tells the two apart. Verified by mutation: turning the
+# lost-tags guard's `die` into a fall-through `note` reaches that other
+# refusal here and every assertion but this one stays green.
+assert_not_contains "$out" "never been released" "origin-sort must not read as a first release"
+assert_eq "$(git -C "$plugin" tag --list 'v*' | sort)" "$local_tags_before" \
+    "origin-sort local tag set unchanged"
+assert_eq "$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)" "$origin_head_before" \
+    "origin-sort did not advance origin main"
+assert_eq "$(cat "$GH_LOG")" "" "origin-sort must not call gh"
+assert_eq "$(market_version)" "1.2.3" "origin-sort must not touch the marketplace"
 
 echo "=== release: the lost-tag probe runs before the version-drift check ==="
 new_sandbox "1.2.3"
@@ -956,12 +975,21 @@ git -C "$plugin" push -q origin main
 git -C "$plugin" tag v1.2.4
 git -C "$plugin" push -q origin v1.2.4
 lose_tag "$plugin" v1.2.4
+# Set comparison, not a named refutation — see the origin-sort scenario above.
+local_tags_before="$(git -C "$plugin" tag --list 'v*' | sort)"
+origin_head_before="$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)"
 run_in "$plugin" bash plugin-dev/release.sh
 assert_eq "$rc" "1" "probe-before-drift exit code"
 assert_contains "$out" "v1.2.4" "probe-before-drift names the lost origin tag"
 assert_contains "$out" "git fetch --tags" "probe-before-drift names the fetch remedy"
 assert_not_contains "$out" "version drift" "probe-before-drift must not read as a drift refusal"
 assert_not_contains "$out" "just resume-release" "probe-before-drift must not offer the drift recovery command"
+assert_eq "$(git -C "$plugin" tag --list 'v*' | sort)" "$local_tags_before" \
+    "probe-before-drift local tag set unchanged"
+assert_eq "$(git -C "$plugin" ls-remote origin refs/heads/main | cut -f1)" "$origin_head_before" \
+    "probe-before-drift did not advance origin main"
+assert_eq "$(cat "$GH_LOG")" "" "probe-before-drift must not call gh"
+assert_eq "$(market_version)" "1.2.3" "probe-before-drift must not touch the marketplace"
 
 echo "=== release: a listing that fails on an unreachable origin URL refuses, saying nothing was done ==="
 new_sandbox "1.2.3"
