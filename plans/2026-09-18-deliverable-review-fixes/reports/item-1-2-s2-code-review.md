@@ -1,20 +1,19 @@
 # Item 1.2 / slice 2 — code review
 
 **Scope:** `toolkit/release.sh` as changed by `a69c97f` — `resume_preflight`'s
-hint ladder membership test and its comment.
-**Date:** 2026-09-20
-**Mode:** review + fix
+hint ladder membership test and its comment. **Date:** 2026-09-20 **Mode:**
+review + fix
 
 ## Verdict
 
 **Ready.** No issues found; no fixes applied. The change is exactly the
 herestring form the runbook names, at the right site, with `-qxF --` carried
 over unchanged. Semantics are identical to the pipe form across every listing
-shape checked, the mutation reds the `at 1MB` scenario on both its
-assertions, and the file was restored byte-for-byte.
+shape checked, the mutation reds the `at 1MB` scenario on both its assertions,
+and the file was restored byte-for-byte.
 
-N1 is satisfied: the membership test no longer contains a pipe, so no
-`printf` SIGPIPE status exists for `pipefail` to promote, at any listing size.
+N1 is satisfied: the membership test no longer contains a pipe, so no `printf`
+SIGPIPE status exists for `pipefail` to promote, at any listing size.
 
 ## Evidence
 
@@ -28,23 +27,24 @@ deletion, inside `resume_preflight`'s `|| { … }` hint ladder:
 +        if grep -qxF -- "$tag" <<<"$origin_tag_list"; then
 ```
 
-`-qxF --` carried over verbatim. `grep -n '|[[:space:]]*grep' toolkit/release.sh`
-returns nothing — no `… | grep` remains anywhere in the file. The four surviving
-`printf … |` pipes (lines 329, 358, 400, 514) are `semver_tags`/`cut`/`sed -n`
-stages inside `semver_tags`, `release_tags`, `origin_release_tags` and
-`release_preflight` — none is a membership test, none is in this ladder, and all
-are Item 1.1 territory, already reviewed and out of scope. No new pipe was
-introduced; the hunk adds one herestring and nothing else.
+`-qxF --` carried over verbatim.
+`grep -n '|[[:space:]]*grep' toolkit/release.sh` returns nothing — no `… | grep`
+remains anywhere in the file. The four surviving `printf … |` pipes (lines 329,
+358, 400, 514) are `semver_tags`/`cut`/`sed -n` stages inside `semver_tags`,
+`release_tags`, `origin_release_tags` and `release_preflight` — none is a
+membership test, none is in this ladder, and all are Item 1.1 territory, already
+reviewed and out of scope. No new pipe was introduced; the hunk adds one
+herestring and nothing else.
 
 ### 2. Semantics preserved, not just the happy path
 
 `$(…)` strips trailing newlines, so `$origin_tag_list` never ends with one; both
-`printf '%s\n' "$x"` and `<<<"$x"` then append exactly one. The
-"last line has no newline" case therefore cannot arise, and the empty case is
-the same single empty line under both forms — which is what the pre-existing
-`-x` comment above the site already relies on. Verified against `/usr/bin/grep`
-(not the ugrep shell wrapper) over empty / single-entry / three-entry listings
-crossed with hit / miss / last-entry-hit tags:
+`printf '%s\n' "$x"` and `<<<"$x"` then append exactly one. The "last line has
+no newline" case therefore cannot arise, and the empty case is the same single
+empty line under both forms — which is what the pre-existing `-x` comment above
+the site already relies on. Verified against `/usr/bin/grep` (not the ugrep
+shell wrapper) over empty / single-entry / three-entry listings crossed with hit
+/ miss / last-entry-hit tags:
 
 ```
 list=''                             tag=v1.0.0 pipe=1 here=1 SAME
@@ -80,10 +80,10 @@ the file's only `grep -E … <<<` line. Correct as written.
 bash 5.2. Above the pipe-buffer threshold a herestring spills to a temp file, so
 a 1 MB listing is a real write. Measured over a 1,208,889-byte listing with
 `/usr/bin/grep`: **43 ms** on a first-line hit, **44 ms** on a full-scan miss.
-Negligible against the `git ls-remote` the same ladder already paid for, and
-~1 MB against a 2 G `/tmp` tmpfs is not a pressure point. No `$TMPDIR` or
-scratch path is baked into `release.sh`; bash resolves it, and the file already
-had a herestring at line 208 (`done <<<"$push_values"`) plus the whole of
+Negligible against the `git ls-remote` the same ladder already paid for, and ~1
+MB against a 2 G `/tmp` tmpfs is not a pressure point. No `$TMPDIR` or scratch
+path is baked into `release.sh`; bash resolves it, and the file already had a
+herestring at line 208 (`done <<<"$push_values"`) plus the whole of
 `version-guard.sh` on the same footing, so this adds no new assumption.
 
 ### 5. Whitespace safety
@@ -96,8 +96,8 @@ and after alike.
 
 ### 6. Item 1.1's functions undisturbed
 
-The commit's `toolkit/release.sh` diff is the single hunk above.
-`release_tags`, `semver_tags` and `origin_release_tags` are untouched.
+The commit's `toolkit/release.sh` diff is the single hunk above. `release_tags`,
+`semver_tags` and `origin_release_tags` are untouched.
 
 ## Mutation run
 
