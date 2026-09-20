@@ -14,7 +14,9 @@ set -euo pipefail
 # When run as this repo's own pre-commit hook, the enclosing `git commit`
 # leaks GIT_DIR/GIT_INDEX_FILE/etc. into this process's environment. The new
 # git-repo fixture below runs real git commands of its own, and a leaked
-# GIT_DIR would redirect them at this repo instead. See release-test.sh:8-13.
+# GIT_DIR would redirect them at this repo instead. See
+# `tests/release-test.sh`'s own header comment, just above its own
+# `unset $(git rev-parse --local-env-vars)` line, for the same explanation.
 # shellcheck disable=SC2046  # word-splitting is the point: a var-name list
 unset $(git rev-parse --local-env-vars)
 
@@ -362,10 +364,13 @@ assert_not_contains "$reason_minus_refusal" "9.9.9" \
 # Also slice 2, and the regression this branch actually shipped once: the
 # initial-release message must name no recipe invocation. `just release
 # {patch|minor|major}` is refused outright on a plugin that has never
-# released (release.sh:446-455) and a bare `just release` publishes $current
-# rather than $proposed (release.sh:456-460), so in THIS branch every mention
-# of the invocation routes the agent at something nobody asked for -- which
-# is why the fix withheld the identifier instead of qualifying it. Asserted
+# released (`release.sh`'s `release_preflight`, the
+# `die "'$bump_arg' bump refused: this plugin has never been released"`
+# branch) and a bare `just release` publishes $current rather than $proposed
+# (`release_preflight`'s first-release branch, `V="$manifest_version"` with
+# no bump), so in THIS branch every mention of the invocation routes the
+# agent at something nobody asked for -- which is why the fix withheld the
+# identifier instead of qualifying it. Asserted
 # here and again over the vnext reason below (slice 4), which takes the same
 # initial-release branch -- the steady-state message is the only one that
 # names the recipe legitimately, so it alone is exempt from this assertion.

@@ -97,10 +97,12 @@ catch justfile syntax errors, and then **every test under `tests/`** —
 `version-guard-test.sh`, `check-version-test.sh`, `release-test.sh`,
 `self-release-test.sh`, `update-plugin-dev-test.sh`,
 `dist-tree-test.sh` (the shipped-file list), `docs-test.sh` (the
-400-line cap over `docs/` and `plans/`, plus pointer resolution) and
+400-line cap over `docs/` and `plans/`, plus pointer resolution),
 `doc-sync-test.sh` (the install/update command blocks shared by the two
 READMEs, and the Layout list above against `toolkit/`'s actual
-contents). A green `precommit` — including the one a pre-commit hook
+contents) and `citation-test.sh` (refuses a `<script>.sh:<line>`
+citation into a tracked file outside `plans/` and `docs/changelog/`). A
+green `precommit` — including the one a pre-commit hook
 runs — is therefore evidence the whole release suite passed, not just
 the linters. **One script under test per suite file**, each carrying its
 own copy of the small assertion harness rather than sourcing a shared
