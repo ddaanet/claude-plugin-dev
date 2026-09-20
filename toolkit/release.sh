@@ -587,7 +587,12 @@ resume_preflight() {
         # character. No semver_tags-filtered line can false-positive on that BRE
         # anyway, but $V is whatever the manifest holds. -x pins the whole line,
         # so the single empty line an empty listing prints cannot match.
-        if printf '%s\n' "$origin_tag_list" | grep -qxF -- "$tag"; then
+        # Herestring, not a pipe: a pipe's `grep -qxF` can exit 0 on its first
+        # match while `printf` is still writing, and SIGPIPE-killed `printf`
+        # reports 141 over `grep`'s 0 under `pipefail`, promoting the wrong
+        # side's status. `toolkit/version-guard.sh`'s tag filter,
+        # `grep -E '…' <<<"$listing"`, is the in-repo precedent for this fix.
+        if grep -qxF -- "$tag" <<<"$origin_tag_list"; then
             # Origin already has the tag this clone is missing: the release
             # was published, and this clone just never fetched it. Resuming
             # after the fetch picks it up; starting a new release would try

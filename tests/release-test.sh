@@ -1609,6 +1609,81 @@ assert_not_contains "$out" "just release" \
     "resume hint names the tag already on origin must not advise a fresh release"
 assert_eq "$(cat "$GH_LOG")" "" "resume hint names the tag already on origin must not call gh"
 
+echo "=== resume hint names the tag already on origin at 1MB ==="
+# Item 1.2, slice 2: the genuine red. Same scenario shape as slice 1 above —
+# same `lose_tag` + origin-tag-deletion fixture, same `git` stub idiom, same
+# ladder in `resume_preflight`'s `git rev-parse -q --verify "refs/tags/$tag"`
+# failure group — sized so the ladder's
+# `printf '%s\n' "$origin_tag_list" | grep -qxF -- "$tag"` hits the
+# SIGPIPE/pipefail hazard (N1): at this size `printf` has not finished
+# writing before `grep -qxF` exits on its first-line match, so
+# `set -euo pipefail` promotes printf's SIGPIPE status 141 over grep's 0 and
+# the ladder falls through past branch 1 to "origin has release tags, but
+# none matching" — the wrong hint, advising `just release <bump>` on a
+# release that origin already has.
+new_sandbox "1.2.3"
+lose_tag "$plugin"
+git -C "$plugin" push -q origin :refs/tags/v1.2.3
+git_wrapper_dir="$sandbox/git-wrapper"
+mkdir -p "$git_wrapper_dir"
+real_git="$(command -v git)"
+
+# The rows the stub serves for `ls-remote --tags`, in one file so the stub
+# and the size guard below run the identical generator and can never drift
+# apart. One seq-backed printf, not ~100000 real `git tag` calls (minutes,
+# per the runbook) — the matching tag first, then 100000 more rows from a
+# single `seq`, each cycling the same two-conversion format string. The
+# unquoted `$(seq …)` splits on whitespace by design and is safe for exactly
+# one reason: seq emits nothing but digits and newlines.
+cat > "$sandbox/origin-tag-rows.sh" <<'ROWS'
+#!/bin/sh
+printf '%040d\trefs/tags/v1.2.3\n' 0
+printf '0000000000000000000000000000000000000000\trefs/tags/v1.2.%s\n' $(seq 4 100003)
+ROWS
+chmod +x "$sandbox/origin-tag-rows.sh"
+
+cat > "$git_wrapper_dir/git" <<STUB
+#!/bin/sh
+if [ "\$1" = "ls-remote" ] && [ "\$2" = "--tags" ]; then
+    "$sandbox/origin-tag-rows.sh"
+    exit 0
+fi
+exec "$real_git" "\$@"
+STUB
+chmod +x "$git_wrapper_dir/git"
+
+# Guard on the *post-filter* size, not the row count: origin_release_tags
+# runs the rows through `cut -f2 | sed 's|^refs/tags/||'` and then
+# semver_tags's own `grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$'` before the ladder
+# ever sees `$origin_tag_list`, and the >=1 MB bound (>=1048576 bytes) is on
+# THAT output — sizing the stub by row count alone under-sizes the fixture by
+# the ~5.7x the runbook measured (100000 tags: 6188895 raw bytes but only
+# 1088895 bytes post-filter). Measured here directly, per the slice-1 test
+# review's recommendation, so a later change that shrinks the fixture is loud
+# — this assertion fails — rather than silently no longer exercising the
+# hazard. grep's no-match 1 is absorbed exactly as semver_tags absorbs it
+# (`{ grep … || [ "$?" -eq 1 ]; }`), so a fixture that stopped matching at all
+# reports 0 bytes through this assertion instead of failing the pipeline and
+# killing the suite silently under `set -euo pipefail`.
+post_filter_size=$("$sandbox/origin-tag-rows.sh" | cut -f2 | sed 's|^refs/tags/||' \
+    | { grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || [ "$?" -eq 1 ]; } | wc -c | tr -d ' ')
+assert_eq "$([ "$post_filter_size" -ge 1048576 ] && echo yes || echo no)" "yes" \
+    "resume hint names the tag already on origin at 1MB fixture clears the post-filter 1MB bound ($post_filter_size bytes)"
+
+saved_path="$PATH"
+export PATH="$git_wrapper_dir:$PATH"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+export PATH="$saved_path"
+assert_eq "$rc" "1" "resume hint names the tag already on origin at 1MB exit code"
+assert_contains "$out" "origin already has v1.2.3" \
+    "resume hint names the tag already on origin at 1MB"
+assert_contains "$out" "git fetch --tags" \
+    "resume hint names the tag already on origin at 1MB remedy"
+assert_not_contains "$out" "just release" \
+    "resume hint names the tag already on origin at 1MB must not advise a fresh release"
+assert_eq "$(cat "$GH_LOG")" "" \
+    "resume hint names the tag already on origin at 1MB must not call gh"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
