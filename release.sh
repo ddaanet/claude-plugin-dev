@@ -513,9 +513,8 @@ release_preflight() {
     # returned), and its first line matched the semver anchor, so latest_tag
     # is always set; the -n test below is belt and braces.
     latest_tag=$(printf '%s\n' "$release_tag_list" | sed -n '1s/^v//p')
-    # One remedy, because only one works here. This hint used to offer two more
-    # and both were dead on every path that reaches it — recorded so they do not
-    # come back:
+    # One remedy. This hint used to offer two more; both are gone — recorded so
+    # they do not come back:
     #
     # `git checkout HEAD -- $manifest` is always a no-op. common_preflight
     # refuses a dirty tree before release_preflight runs, and clean_pathspecs
@@ -524,13 +523,19 @@ release_preflight() {
     # always been committed already. Reverting it therefore takes a new commit,
     # which is what the hint now says.
     #
-    # `git fetch --tags` can never have anything left to fetch. latest_tag comes
-    # from release_tag_list, the LOCAL semver tags, and the lost-tags probe
-    # above has already established that local and origin agree on the newest
-    # one (an origin tag ahead of local fires the probe's own fetch hint first;
-    # an unreachable origin dies there outright). Worse than merely useless: the
-    # probe's hint is what sends an operator to fetch, so a fetch offered here
-    # hands back the command they just ran and the two refusals close a loop.
+    # `git fetch --tags` is not the remedy for the state this refusal names.
+    # latest_tag comes from release_tag_list, the LOCAL semver tags, and this
+    # refusal fires only when that list came back non-empty — which is exactly
+    # when the lost-tags probe above did NOT run, so origin was never consulted
+    # on this path. The probe establishes nothing here. A clone missing every
+    # release tag takes the probe instead and is sent to fetch by the probe's
+    # own hint, so offering one here would only duplicate it. What is left is a
+    # clone that kept older release tags but lost the newest: there a fetch
+    # would genuinely help, and this hint still sends the operator to write the
+    # manifest back to a stale tag. That partial tag loss is a stated bound of
+    # the probe rather than an oversight — closing it means listing origin on
+    # every release and not only on an empty local list, a network round trip
+    # and a listing whose failure has to be absorbed on the common path.
     if [ -n "$latest_tag" ] && [ "$manifest_version" != "$latest_tag" ]; then
         printf 'hint: plugin.json holds the LAST released version, never the next one.\n' >&2
         # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
