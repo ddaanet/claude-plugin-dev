@@ -43,14 +43,14 @@ fail() {
 }
 assert_contains() {
     # $1=haystack $2=needle $3=label
-    if ! grep -q -- "$2" <<<"$1"; then
+    if ! printf '%s' "$1" | grep -q -- "$2"; then
         fail "$3: output did not contain '$2'"
         printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
     fi
 }
 assert_not_contains() {
     # $1=haystack $2=needle $3=label
-    if grep -q -- "$2" <<<"$1"; then
+    if printf '%s' "$1" | grep -q -- "$2"; then
         fail "$3: output contained '$2'"
         printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
     fi
@@ -100,6 +100,7 @@ check_citations() {
 
 echo "=== citation gate: self-fixture discriminates tracked from plans/ ==="
 fixture="$(mktemp -d)"
+trap 'rm -rf "$fixture"' EXIT
 git -C "$fixture" init -q
 git -C "$fixture" config user.email "citation-test@example.com"
 git -C "$fixture" config user.name "citation-test"
@@ -125,7 +126,6 @@ assert_contains "$fixture_out" "$expected_hit" \
 assert_not_contains "$fixture_out" "plans/tracked.sh" \
     "self-fixture: does not report the plans/-excluded planted citation"
 [ "$fixture_rc" -ne 0 ] || fail "self-fixture: check_citations exited 0 with a planted citation present"
-rm -rf "$fixture"
 
 echo "=== citation gate: this repo ==="
 repo_out="$(check_citations "$repo_root")" && repo_rc=0 || repo_rc=$?

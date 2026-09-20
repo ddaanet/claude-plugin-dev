@@ -416,14 +416,32 @@ assert_eq "$tagged_sysmsg" "$tagless_sysmsg" \
 # suppresses stderr. Run an allow scenario against $git_tagged_proj (a real
 # repo) with the recording git stub first on PATH, and assert the log holds
 # no `tag --list` invocation.
-echo "=== version-guard (git-tagged repo, unrelated field: allow, no tag listing) ==="
+#
+# Paired with a positive control over the SAME fixture, differing only in
+# whether the edit changes .version -- and run first, so the negative reads a
+# log the control has just proved is written. On its own the negative passes
+# whenever the log is empty, which is also what an unwired stub looks like:
+# nothing in the allow path invokes git, so a `guard_path` that stopped
+# reaching the hook (or a stub that stopped being executable) would leave the
+# assertion green while testing nothing. The control fails in exactly that
+# state.
+US="$(printf '\037')"
+echo "=== version-guard (git-tagged repo, recording stub reaches the hook) ==="
 guard_path="$guard_recordgit_dir:$PATH"
+run_guard "$(jq -nc --arg cwd "$git_tagged_proj" --arg fp "$git_tagged_proj/.claude-plugin/plugin.json" \
+    '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"1.2.3", new_string:"9.9.9"}}')" \
+    "$git_tagged_proj"
+assert_deny "version-guard git-tagged-control"
+assert_contains "$(cat "$guard_recordgit_log")" "tag${US}--list" \
+    "version-guard git-tagged-control: the recording stub logged the deny path's tag listing"
+
+echo "=== version-guard (git-tagged repo, unrelated field: allow, no tag listing) ==="
+: >"$guard_recordgit_log"
 run_guard "$(jq -nc --arg cwd "$git_tagged_proj" --arg fp "$git_tagged_proj/.claude-plugin/plugin.json" \
     '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"\"license\": \"MIT\"", new_string:"\"license\": \"Apache-2.0\""}}')" \
     "$git_tagged_proj"
 guard_path="$PATH"
 assert_allow "version-guard git-tagged-unrelated"
-US="$(printf '\037')"
 assert_not_contains "$(cat "$guard_recordgit_log")" "tag${US}--list" \
     "version-guard git-tagged-unrelated: no git tag listing runs before the early return"
 
