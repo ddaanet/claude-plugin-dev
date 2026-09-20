@@ -292,17 +292,17 @@ semver_tags() {
     # the status: capture into a variable, never `[ -z "$(…)" ]`, which
     # discards it and makes a failed listing look like an empty one.
     #
-    # Both release_tags and origin_release_tags capture their listing and
-    # check its own status before ever calling this filter, rather than
-    # piping the listing command straight in — so this absorbed status 1 is
-    # the only place either caller's safety would be at risk from a listing
-    # failure hiding behind an empty-input success here. Piping would not be
+    # That absorption is also why neither release_tags nor origin_release_tags
+    # pipes its listing command straight into this filter, and why both capture
+    # the listing and read ITS status first: a failed listing prints nothing,
+    # this filter exits 0 on the empty input, and the pipeline's own status
+    # says "no tags" rather than "listing failed" — the fail-open path into
+    # publishing over a release the caller could not see. Piping would not be
     # wrong today: `set -o pipefail` yields the RIGHTMOST non-zero stage
     # status, so a listing command's failure would still reach the caller
     # past this filter's exit 0 on empty input. But pipefail is the only
-    # thing that would carry it — with pipefail off the pipeline returns 0
-    # and the caller reads "no tags" instead of "listing failed": the
-    # fail-open path into publishing over a release it could not see.
+    # thing that would carry it, so each caller's safety would rest on one
+    # word of the `set` line at the top of the script.
     # Verified both ways (bash 5.2, git 2.47.3): piped refuses under pipefail
     # and succeeds with it off; captured refuses either way.
     { grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || [ "$?" -eq 1 ]; }
@@ -344,8 +344,9 @@ origin_release_tags() {
     #
     # `git ls-remote` reaches the network and fails routinely (unreachable
     # origin, no origin, auth) — unlike `git tag --list`, which essentially
-    # never fails. So capture its output and read ITS status, the same shape
-    # release_tags uses, rather than piping it straight into cut/sed/semver_tags.
+    # never fails. So capture its output and read ITS status rather than piping
+    # it straight into cut/sed/semver_tags — for the reason semver_tags's own
+    # comment gives, which applies to release_tags the same way.
     local listing
     listing=$(git ls-remote --tags --sort=-v:refname origin) || return 1
     # cut -f2 splits on TAB, and ls-remote emits exactly `<oid><TAB><ref>`.
