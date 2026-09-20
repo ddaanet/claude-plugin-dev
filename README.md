@@ -29,9 +29,11 @@ on contributor-side dotfiles).
   run as a `release` pre-flight, so a release refuses to start on top of
   a previous one that never finished.
 - **`version-guard.sh`** — `PreToolUse(Write|Edit)` hook. Refuses agent
-  edits that change `.claude-plugin/plugin.json`'s `.version`. The
-  release recipe owns version bumps; manual edits desync the manifest
-  from the latest tag and only get caught at release time.
+  edits that change `.claude-plugin/plugin.json`'s `.version`. Once a
+  plugin has released, the release recipe owns version bumps; a manual
+  edit desyncs the manifest from the `vX.Y.Z` tag and only gets caught
+  at release time. A first release is the exception the Conventions
+  below spell out, and the hook refuses an agent's edit there too.
 - **`install.sh`** — one-shot install script: vendors the toolkit
   (resolving the newest `dist-` tag when no ref is given), inserts the
   justfile import line, and wires the version-guard hook into
