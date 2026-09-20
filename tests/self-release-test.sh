@@ -183,6 +183,33 @@ assert_eq "$rc" 0 "vnext: exit status"
 assert_tag v0.2.0 local "vnext"
 assert_not_contains "$out" "does not match latest tag" "vnext: no drift refusal"
 
+echo "=== release tag off ancestry still triggers drift guard ==="
+# v0.9.0 sits on a branch that never merged into main, so it is unreachable
+# from HEAD -- yet it is still the latest RELEASE tag, and toolkit/VERSION
+# (0.1.0, from v0.1.0's release) must be read as stale against it. Asking git
+# for the nearest reachable tag instead makes v0.9.0 invisible, so the drift
+# guard sees only the reachable v0.1.0, which matches, and the release
+# proceeds -- the newer tag went unnoticed, not merely unranked.
+new_sandbox
+git -C "$repo" checkout -q -b abandoned
+commit_in_repo abandoned.md "on a branch that never merged"
+git -C "$repo" tag -a v0.9.0 -m "abandoned release attempt"
+git -C "$repo" checkout -q main
+git -C "$repo" branch -q -D abandoned
+# The fixture's whole point is the reachability split, and nothing downstream
+# would notice if it collapsed: were v0.9.0 reachable, `describe` would answer
+# it too and the assertions below would pass against the very shape they exist
+# to reject. Pin both directions.
+assert_tag v0.9.0 local "ancestry fixture"
+git -C "$repo" merge-base --is-ancestor v0.1.0 HEAD \
+    || fail "ancestry fixture: v0.1.0 is not reachable from HEAD"
+if git -C "$repo" merge-base --is-ancestor v0.9.0 HEAD; then
+    fail "ancestry fixture: v0.9.0 is reachable from HEAD"
+fi
+run minor
+assert_eq "$rc" 1 "ancestry: exit status"
+assert_contains "$out" "does not match latest tag (v0.9.0)" "ancestry: names off-ancestry tag"
+
 echo "=== an unfinished release refuses a new one ==="
 new_sandbox
 block_push
