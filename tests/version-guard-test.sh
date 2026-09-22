@@ -39,6 +39,9 @@ assert_contains() {
     # $1=haystack $2=needle $3=label. Match against a specific extracted
     # field (e.g. permissionDecisionReason alone), never the whole payload
     # blob -- an unrelated line can satisfy a needle and hide the miss.
+    # Residual bound: the needle is a grep BRE matched line by line --
+    # a metacharacter in it is live, and a needle that spans a newline
+    # can never match.
     if ! printf '%s' "$1" | grep -q -- "$2"; then
         fail "$3: output did not contain '$2'"
         printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
@@ -46,6 +49,9 @@ assert_contains() {
 }
 assert_not_contains() {
     # $1=haystack $2=needle $3=label
+    # Residual bound: the needle is a grep BRE matched line by line --
+    # a metacharacter in it is live, and a needle that spans a newline
+    # can never match.
     if printf '%s' "$1" | grep -q -- "$2"; then
         fail "$3: output contained '$2'"
         printf '  --- output ---\n%s\n  --------------\n' "$1" >&2

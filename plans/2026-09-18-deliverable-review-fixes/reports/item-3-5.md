@@ -330,3 +330,41 @@ no `git add memory` was needed.
   reverted, no net diff)
 - `/Users/david/code/claude-plugin-dev/tests/release-test.sh` (no change needed;
   its one citation was already converted by the Phase-1 corrector)
+
+## Erratum — 2026-09-22
+
+**Wrong line:** the section heading "### 1. `tests/version-guard-test.sh:17` —
+leaked-git-environment citation, stale". That citation —
+`See release-test.sh:8-13`, in `tests/version-guard-test.sh`'s header — was
+**not stale**. It was accurate when written and still accurate when this item
+converted it, so the heading's label is wrong; the body of the section, which
+shows the before/after text without claiming staleness, is not.
+
+**Correct statement:** the citation was introduced by commit `e229e1b` ("✅ one
+script under test per suite file"). At that commit, `tests/release-test.sh`
+lines 8–13 are exactly the leaked-git-environment comment block, ending on line
+13 with `unset $(git rev-parse --local-env-vars)`. At `9ba5dd5^` — the tree this
+item converted — the same six lines still hold the same block. Measured
+2026-09-22 with `git show e229e1b:tests/release-test.sh | sed -n '8,13p'` and
+the same read at `9ba5dd5^`. The runbook's premise for calling it stale
+(`runbook-test-suites.md`, Item 3.5: "off by one at each end — it takes in
+`set -euo pipefail` and stops short of the `unset` line") does not hold at
+either commit. It was converted anyway, correctly: the check allows no second
+convention, stale or not.
+
+**Where the accurate wording is.** This report's own opening line already says
+"the stale/accurate `<script>.sh:<line>` citations it finds", and
+`docs/changelog/2026-09-20-deliverable-review-fixes.md` ("Citing a script by
+line number is now refused, by a check") records the same mix rather than
+calling all five stale. `reports/phase-4-corrector.md` notes the heading
+discrepancy in its verification table and left it standing because `plans/` is
+frozen; this erratum is the record it pointed at, appended rather than applied
+in place.
+
+**Residual, not corrected here.** The changelog entry's count — "Four of the
+five" — inherits the runbook's label for this citation. Counting only the
+citations measured to have drifted, three of the five were stale: the
+`release.sh:780-785`, `:446-455` and `:456-460` citations. The other two were
+accurate at their introducing commits (`release.sh:138`, written in `cfb4bc2`,
+lands on `tree_is_clean "."` there). The changelog is a dated record and is not
+revised; the number is noted here instead.
