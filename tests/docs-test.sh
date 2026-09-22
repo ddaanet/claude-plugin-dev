@@ -22,10 +22,12 @@ cd "$(dirname "$0")/.."
 max_lines=400
 status=0
 
-# Every tracked markdown file under the paths `format-docs` wraps. NUL-
-# delimited, so a path containing whitespace is one path.
+# Every markdown file under the paths `format-docs` wraps, untracked ones
+# included (`-co`): a draft has to fail the cap while it is being written,
+# not on the commit that tracks it. NUL-delimited, so a path containing
+# whitespace is one path.
 md_files() {
-    git ls-files -z -- docs plans | while IFS= read -r -d '' f; do
+    git ls-files -z -co --exclude-standard -- docs plans | while IFS= read -r -d '' f; do
         case "$f" in *.md) printf '%s\0' "$f" ;; esac
     done
 }
