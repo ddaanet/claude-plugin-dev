@@ -71,19 +71,22 @@ sync_copy() {
 # for. The source path goes on additionalContext, naming the denied path too,
 # since it arrives apart from the tool result; systemMessage is the one line for
 # the human. The object is built with jq --arg, never spliced. The edited path
-# is compared as given against the physical <root>. A payload jq cannot read
+# is compared by its physical spelling against the physical <root>, so a
+# symlinked spelling of the copy is caught; the source path is derived from that
+# spelling too. A payload jq cannot read
 # stops the script on jq's status: Claude Code shows a non-blocking hook error,
 # and its own sensitive-file ask still stands before an edit into the copy.
 pre_tool() {
-    local root path rel copy="dist/plugin"
+    local root path physical rel copy="dist/plugin"
     root="$(root_dir)"
     # NotebookEdit names its target notebook_path, not file_path.
     path="$(jq -r '.tool_input.file_path // .tool_input.notebook_path // ""')"
-    case "$path" in
+    physical="$(physical_path "$path")"
+    case "$physical" in
         "$root/$copy/"*) ;;
         *) exit 0 ;;
     esac
-    rel="${path#"$root/$copy/"}"
+    rel="${physical#"$root/$copy/"}"
     jq -nc --arg path "$path" --arg src "$root/$rel" --arg copy "$copy" '{
         hookSpecificOutput: {
             hookEventName: "PreToolUse",
@@ -93,6 +96,26 @@ pre_tool() {
         },
         systemMessage: ("dogfood: blocked an edit into " + $copy + "/ — the generated copy")
     }'
+}
+
+# physical_path: the path with its nearest existing ancestor directory resolved
+# by pwd -P and the non-existent tail re-appended, since an edit may create
+# files under directories that are not there yet. Chained like root_dir: a
+# failed cd must fail the call, not print a half-resolved path.
+physical_path() {
+    local head="$1" tail="" base
+    [[ -n "$head" ]] || return 0
+    while [[ ! -d "$head" ]]; do
+        base="$(basename -- "$head")" &&
+            tail="/$base$tail" &&
+            head="$(dirname -- "$head")" || return 1
+    done
+    head="$(cd "$head" && pwd -P)" || return 1
+    if [[ "$head" == "/" ]]; then
+        printf '%s\n' "$tail"
+    else
+        printf '%s\n' "$head$tail"
+    fi
 }
 
 require_manifest() {

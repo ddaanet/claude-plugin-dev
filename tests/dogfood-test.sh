@@ -510,6 +510,51 @@ for pair in \
     assert_eq "$err" "" "pre-tool allows ${pair%%:*} prints nothing on stderr"
 done
 
+# new/ does not exist under the copy, so the physical comparison has to resolve
+# the nearest existing ancestor (dist/plugin) and re-append the rest.
+echo "=== pre-tool denies a copy path through a symlinked repo ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+ln -s "$consumer" "$sandbox/link"
+label="pre-tool denies a copy path through a symlinked repo"
+assert_absent "$consumer/dist/plugin/new" "$label: new/ is not in the copy"
+run_pre_tool Edit file_path "$sandbox/link/dist/plugin/new/file.md"
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$err" "" "$label prints nothing on stderr"
+jq_holds "$label: permissionDecision" '.hookSpecificOutput.permissionDecision == "deny"'
+# shellcheck disable=SC2016  # $p is a jq variable bound by --arg
+jq_holds "$label: additionalContext names the physical source path" \
+    '.hookSpecificOutput.additionalContext | type == "string" and contains($p)' \
+    --arg p "$root/new/file.md"
+
+# The payload spells no /dist/plugin/ at all: only resolving the path's own
+# nearest existing ancestor finds the copy. Splitting the text at /dist/plugin/
+# and resolving the part before it passes the test above and allows this one.
+echo "=== pre-tool denies a copy path through a symlink to the copy ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+ln -s "$consumer/dist/plugin" "$sandbox/copy-link"
+run_pre_tool Edit file_path "$sandbox/copy-link/new/file.md"
+label="pre-tool denies a copy path through a symlink to the copy"
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$err" "" "$label prints nothing on stderr"
+jq_holds "$label: permissionDecision" '.hookSpecificOutput.permissionDecision == "deny"'
+# shellcheck disable=SC2016  # $p is a jq variable bound by --arg
+jq_holds "$label: additionalContext names the physical source path" \
+    '.hookSpecificOutput.additionalContext | type == "string" and contains($p)' \
+    --arg p "$root/new/file.md"
+
+echo "=== pre-tool invoked through the symlink denies a physical path ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+ln -s "$consumer" "$sandbox/link"
+consumer="$sandbox/link"
+run_pre_tool Edit file_path "$root/dist/plugin/skills/demo/SKILL.md"
+assert_denied "pre-tool invoked through the symlink denies a physical path" "$root"
+
 echo "=== unknown subcommand is usage ==="
 make_consumer
 run_dogfood bogus
