@@ -546,6 +546,63 @@ jq_holds "$label: additionalContext names the physical source path" \
     '.hookSpecificOutput.additionalContext | type == "string" and contains($p)' \
     --arg p "$root/new/file.md"
 
+# nope/ and new/ do not exist, so the kernel cannot resolve the .. after them;
+# the edit lands where the .. leads. Keeping the missing tail as spelled leaves
+# the .. in the compared path: it allows the first path, into the copy, and
+# denies the second, a source path spelled through the copy.
+echo "=== pre-tool follows .. past a directory not yet created ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+label="pre-tool follows .. into the copy"
+assert_absent "$consumer/skills/nope" "$label: nope/ is not in the source"
+run_pre_tool Edit file_path "$root/skills/nope/../../dist/plugin/skills/demo/SKILL.md"
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$err" "" "$label prints nothing on stderr"
+jq_holds "$label: permissionDecision" '.hookSpecificOutput.permissionDecision == "deny"'
+# shellcheck disable=SC2016  # $p is a jq variable bound by --arg
+jq_holds "$label: additionalContext names the physical source path" \
+    '.hookSpecificOutput.additionalContext | type == "string" and contains($p)' \
+    --arg p "$root/skills/demo/SKILL.md"
+label="pre-tool follows .. out of the copy"
+assert_absent "$consumer/dist/plugin/new" "$label: new/ is not in the copy"
+run_pre_tool Edit file_path "$root/dist/plugin/new/../../../skills/demo/SKILL.md"
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$out" "" "$label prints nothing on stdout"
+assert_eq "$err" "" "$label prints nothing on stderr"
+
+# A $(...) capture strips a name's trailing newline: a dirname taken through one
+# turns lnk<newline>, a link to the copy, into lnk, a directory outside it. The
+# source path keeps the leaf's own trailing newline, pinned by the full stop
+# the message puts after it. The link named - pins that a relative cd onto it
+# does not read as cd -.
+echo "=== pre-tool keeps a trailing newline and a bare - in a name ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+nl=$'\n'
+mkdir "$sandbox/lnk"
+ln -s "$consumer/dist/plugin" "$sandbox/lnk$nl"
+label="pre-tool keeps a trailing newline"
+run_pre_tool Edit file_path "$sandbox/lnk$nl/new/file.md$nl"
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$err" "" "$label prints nothing on stderr"
+jq_holds "$label: permissionDecision" '.hookSpecificOutput.permissionDecision == "deny"'
+# shellcheck disable=SC2016  # $p is a jq variable bound by --arg
+jq_holds "$label: additionalContext names the source path, newline kept" \
+    '.hookSpecificOutput.additionalContext | type == "string" and contains($p + ".")' \
+    --arg p "$root/new/file.md$nl"
+ln -s "$consumer/dist/plugin" "$sandbox/-"
+label="pre-tool follows a link named -"
+run_pre_tool Edit file_path "$sandbox/-/new/file.md"
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$err" "" "$label prints nothing on stderr"
+jq_holds "$label: permissionDecision" '.hookSpecificOutput.permissionDecision == "deny"'
+# shellcheck disable=SC2016  # $p is a jq variable bound by --arg
+jq_holds "$label: additionalContext names the physical source path" \
+    '.hookSpecificOutput.additionalContext | type == "string" and contains($p)' \
+    --arg p "$root/new/file.md"
+
 echo "=== pre-tool invoked through the symlink denies a physical path ==="
 make_consumer
 run_dogfood sync

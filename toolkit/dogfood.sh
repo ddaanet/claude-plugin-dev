@@ -73,15 +73,20 @@ sync_copy() {
 # the human. The object is built with jq --arg, never spliced. The edited path
 # is compared by its physical spelling against the physical <root>, so a
 # symlinked spelling of the copy is caught; the source path is derived from that
-# spelling too. A payload jq cannot read
-# stops the script on jq's status: Claude Code shows a non-blocking hook error,
-# and its own sensitive-file ask still stands before an edit into the copy.
+# spelling too. A symlink at the leaf is not followed, so a file linked into the
+# copy passes here and meets Claude Code's own sensitive-file ask instead. A
+# payload jq cannot read, or a directory on the path that cannot be entered,
+# stops the script non-zero: Claude Code shows a non-blocking hook error, and
+# that same ask still stands before an edit into the copy.
 pre_tool() {
     local root path physical rel copy="dist/plugin"
     root="$(root_dir)"
-    # NotebookEdit names its target notebook_path, not file_path.
-    path="$(jq -r '.tool_input.file_path // .tool_input.notebook_path // ""')"
-    physical="$(physical_path "$path")"
+    # NotebookEdit names its target notebook_path, not file_path. Each x shields
+    # a trailing newline in the path from its capture's strip.
+    path="$(jq -j '.tool_input.file_path // .tool_input.notebook_path // ""' && printf x)"
+    path="${path%x}"
+    physical="$(physical_path "$path" && printf x)"
+    physical="${physical%x}"
     case "$physical" in
         "$root/$copy/"*) ;;
         *) exit 0 ;;
@@ -98,24 +103,47 @@ pre_tool() {
     }'
 }
 
-# physical_path: the path with its nearest existing ancestor directory resolved
-# by pwd -P and the non-existent tail re-appended, since an edit may create
-# files under directories that are not there yet. Chained like root_dir: a
-# failed cd must fail the call, not print a half-resolved path.
+# physical_path: the path where an edit would land, printed with no trailing
+# newline. A subshell walks it one name at a time, entering each existing
+# directory with cd -P, so a symlink anywhere up to the nearest existing
+# ancestor resolves. From the first missing name on, the rest is kept as
+# spelled, since an edit may create it, with each .. dropping the name before
+# it: the kernel cannot resolve a .. past a directory that is not there yet,
+# and the edit lands there whether the path is normalised first or its missing
+# directories are made first. Names are split with parameter expansion and the
+# result read from $PWD, never through a $(...) capture, which would strip a
+# name's trailing newline. Each cd is chained, since errexit is off inside
+# $(...): a failed cd must fail the call, not print a half-resolved path.
 physical_path() {
-    local head="$1" tail="" base
-    [[ -n "$head" ]] || return 0
-    while [[ ! -d "$head" ]]; do
-        base="$(basename -- "$head")" &&
-            tail="/$base$tail" &&
-            head="$(dirname -- "$head")" || return 1
-    done
-    head="$(cd "$head" && pwd -P)" || return 1
-    if [[ "$head" == "/" ]]; then
-        printf '%s\n' "$tail"
-    else
-        printf '%s\n' "$head$tail"
-    fi
+    [[ -n "$1" ]] || return 0
+    (
+        local rest="$1/" name tail=""
+        if [[ "$1" == /* ]]; then cd -P /; else cd -P .; fi || exit 1
+        while [[ -n "$rest" ]]; do
+            name="${rest%%/*}"
+            rest="${rest#*/}"
+            case "$name" in
+                "" | .) ;;
+                ..)
+                    if [[ -n "$tail" ]]; then
+                        tail="${tail%/*}"
+                    else
+                        cd -P .. || exit 1
+                    fi
+                    ;;
+                *)
+                    # An absolute operand names the directory in cd's error
+                    # and keeps one named - from reading as cd -.
+                    if [[ -z "$tail" && -d "$name" ]]; then
+                        cd -P -- "${PWD%/}/$name" || exit 1
+                    else
+                        tail="$tail/$name"
+                    fi
+                    ;;
+            esac
+        done
+        printf '%s' "${PWD%/}$tail"
+    )
 }
 
 require_manifest() {
