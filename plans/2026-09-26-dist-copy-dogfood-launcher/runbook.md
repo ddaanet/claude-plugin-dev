@@ -13,14 +13,15 @@ into prose (`reflow-joins-field-lines`).
 
 **A new `toolkit/` file fails `just precommit` until two lists name it.**
 `tests/dist-tree-test.sh` pins `toolkit/`'s contents exactly, and
-`tests/doc-sync-test.sh` requires every shipped path to appear backtick-quoted
-in `CLAUDE.md`. So the slice that first commits `toolkit/dogfood.sh` (1.1/1) and
-the one that first commits `toolkit/bin/claude` (2.1/1) each carry, in their
-GREEN commit: the path in `dist-tree-test.sh`'s `expected` list, a `CLAUDE.md`
-Layout bullet for it, and the `justfile` `precommit` wiring — `shellcheck` on
-the script, `bash -n` on its new suite, and a `bash tests/<suite>` line. That
-splits `CLAUDE.md` across three items against the prose-atomicity rule; the gate
-forces it, and Item 3.6 owns every other `CLAUDE.md` edit.
+`tests/doc-sync-test.sh` requires the backtick-quoted `toolkit/` paths in
+`CLAUDE.md` to be exactly the shipped files — so no bare `toolkit/bin/` either.
+So the slice that first commits `toolkit/dogfood.sh` (1.1/1) and the one that
+first commits `toolkit/bin/claude` (2.1/1) each carry, in their GREEN commit:
+the path in `dist-tree-test.sh`'s `expected` list, a `CLAUDE.md` Layout bullet
+for it, and the `justfile` `precommit` wiring — `shellcheck` on the script,
+`bash -n` on its new suite, and a `bash tests/<suite>` line. That splits
+`CLAUDE.md` across three items against the prose-atomicity rule; the gate forces
+it, and Item 3.6 owns every other `CLAUDE.md` edit.
 
 **Genuine red where the order cannot supply one.** Each slice's tests must fail
 on an assertion against the previous slice's GREEN. A slice whose tests already
@@ -34,7 +35,12 @@ reported with the failing assertion's output and the green line after the revert
   (`$sandbox/my consumer`): a root `.claude-plugin/plugin.json`, a `.gitignore`
   holding `/dist/plugin/`, a tracked `skills/demo/SKILL.md`, and
   `plugin-dev/dogfood.sh` (plus `plugin-dev/bin/claude` in the launcher suite)
-  copied from `toolkit/` and committed, the way a subtree vendors them.
+  copied from `toolkit/` and committed, the way a subtree vendors them. Each
+  test appends the ignore patterns it needs. `<root>` in an assertion is the
+  fixture's `pwd -P` spelling: macOS `$TMPDIR` sits under a symlink.
+- **A watchdog, not `timeout`,** bounds any run that could loop: run it in the
+  background, kill it after 10 s, fail on the kill. macOS ships no `timeout`,
+  and a macOS consumer running these suites is the check outline Risks names.
 - **A jq-less PATH** is one directory of symlinks to the commands the script
   invokes, jq excluded. Each test using it first asserts `command -v jq` fails
   under it, so the negative cannot pass for a PATH that still reaches jq.
@@ -51,10 +57,10 @@ reported with the failing assertion's output and the green line after the revert
 | D3 plugin root = repo root | 1 | 1.1 | Slice 6 refusal |
 | D4 sync on promotion only | 2, 3 | 2.1, 3.1 | No `PostToolUse` anywhere |
 | D5 one script, root from its own location | 1 | 1.1–1.3 | |
-| D6 copy guard | 1 | 1.2 | |
-| D7 `session-start` report | 1 | 1.3 | |
-| D8 loud sync failure | 1, 2 | 1.1, 2.1 | 1.1/7, 2.1/5 |
-| D9 the shim | 2 | 2.1 | |
+| D6 copy guard | 1, 2 | 1.2, 2.2 | 2.2 wires its matcher |
+| D7 `session-start` report | 1, 2 | 1.3, 2.2 | 2.2 wires it |
+| D8 loud sync failure | 1, 2, 3 | 1.1, 2.1, 3.1 | 1.1/7, 2.1/5; 3.1 inherits |
+| D9 the shim | 2, 3 | 2.1, 3.2, 3.3 | `.envrc` step, docs |
 | D10 `just dogfood` | 3 | 3.1 | |
 | D11 `install.sh` wiring | 2, 3 | 2.2, 3.3 | 3.3 documents the unedited files |
 | D12 migration note | 3 | 3.2 | |
@@ -65,6 +71,10 @@ consumer repos, gitlore's `GITLORE_AUTO_CLAUDE_PLUGIN_DIR`, cutting the release.
 consumer and stays on the task file's Remaining list.
 
 ## Phase 1: `toolkit/dogfood.sh` (type: tdd)
+
+`tests/dogfood-test.sh` is projected at 300–400 lines across the three items.
+The executor reports its count at the end of Phase 1; over 400, the split goes
+back to the planner before Phase 2, since it changes 3.6's suite list.
 
 - **Item 1.1:** `toolkit/dogfood.sh` `sync`, new suite `tests/dogfood-test.sh`.
   - Requirements: D1, D2, D3, D5, D8
@@ -117,6 +127,9 @@ consumer and stays on the task file's Remaining list.
       `<root>/dist/plugin/` mirrors the source set of D2
     - refusal → exit 1, one `dogfood: …` line on stderr naming the offending
       path, `dist/plugin/` untouched
+    - the ignore check asks git about `dist/plugin/` with the trailing slash: a
+      first sync has no directory yet, and `git check-ignore dist/plugin` then
+      misses a `/dist/plugin/` pattern (git 2.47, probed at review)
     - rsync failure → rsync's own exit status, rsync's stderr unredirected
     - any other subcommand, or none → exit 2, usage on stderr
 
@@ -222,8 +235,8 @@ consumer and stays on the task file's Remaining list.
        `CLAUDE_CODE_PLUGIN_DIRS=/elsewhere/dist/plugin` exported, the stub
        recorded exactly `<root>/dist/plugin`.
     3. Stripping by identity. `the shim strips its own entry in any spelling`:
-       PATH = `<root>/plugin-dev/bin/:<root>/plugin-dev/bin:<stubdir>`, run
-       under `timeout 10` — the stub ran, and no entry of its recorded PATH
+       PATH = `<root>/plugin-dev/bin/:<root>/plugin-dev/bin:<stubdir>:$PATH`,
+       run under the watchdog — the stub ran, and no entry of its recorded PATH
        holds a `claude` that is `-ef` the shim.
        `the shim keeps another bin/claude`: a different
        `$sandbox/other/bin/claude` stub ahead of `<stubdir>` is the one that
@@ -251,10 +264,14 @@ consumer and stays on the task file's Remaining list.
   `tests/update-plugin-dev-test.sh` scenario
   `install.sh: wires into an existing settings.json without replacing it`, whose
   fixture already holds a matcher-less `PreToolUse` entry. Step 3's jq block
-  becomes one function of (event, matcher, command), called three times;
-  `hook_cmd` for version-guard keeps its unquoted spelling, since changing it
-  would make a re-run add a duplicate.
-  - Requirements: D11
+  becomes one function of (event, matcher, command), called three times, the
+  no-settings branch included (seeded with `{}`); `hook_cmd` for version-guard
+  keeps its unquoted spelling, since changing it would make a re-run add a
+  duplicate. The header's step 3 and the `changed` line name all three hooks.
+  Out of scope: moving install.sh's scenarios into their own suite, though this
+  one passes 400 lines (outline item 4).
+  - Requirements: D6, D7, D11
+  - Depends on: Item 1.2, Item 1.3
   - Slices:
     1. External contract. `install adds the pre-tool hook once`: exactly one
        `PreToolUse` entry carries the pre-tool command, its matcher
@@ -268,10 +285,15 @@ consumer and stays on the task file's Remaining list.
        unrelated `SessionStart` hook (`echo consumer-start`); after install it
        is still present beside the new one.
     4. Idempotency ignores the matcher.
-       `an entry under another matcher counts as present`: the fixture's
-       `PreToolUse` gains an entry with matcher `Bash` carrying the exact
-       pre-tool command — install adds no second one, and the same holds for
-       version-guard's command under a matcher-less entry.
+       `an entry under another matcher counts as present`: after slice 2's
+       re-run, rewrite the matcher of the entries carrying the pre-tool and
+       version-guard commands to `Bash`, then install again — `settings.json` is
+       byte-identical (`cmp`). If 2.2/1's GREEN already passes it, the mutation
+       is restoring today's null-or-`Write|Edit` matcher test.
+    5. `a fresh settings.json carries all three hooks`: in the scenario
+       `install.sh: no ref resolves the newest dist tag`, whose fixture has no
+       `settings.json`, `.hooks.PreToolUse` carries version-guard's and the
+       pre-tool command and `.hooks.SessionStart` the session-start command.
   - Interfaces:
     - pre-tool command:
       `bash "${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh" pre-tool`
@@ -290,7 +312,8 @@ consumer and stays on the task file's Remaining list.
   contain `stub-precommit`, and the closing recap becomes
   `release.just import: ok (plain + widened + missing gate, resume-release, dogfood)`.
   Mutation gate: deleting the recipe, and adding `precommit` as its dependency,
-  each fail `just _import-check`.
+  each fail `just _import-check`. `precommit` already carries 1.1/1's and
+  2.1/1's lines; this item touches only `_import-check`.
   - Requirements: D10
   - Depends on: Item 1.1
   - Interfaces:
@@ -306,7 +329,7 @@ consumer and stays on the task file's Remaining list.
   `PATH_add .gitlore/bin`, then `direnv allow`; ignore `/dist/plugin/`; make
   `clean` spare it.
   - Requirements: D12
-  - Depends on: Item 2.2
+  - Depends on: Item 2.1, Item 2.2
   - Interfaces:
     - file `toolkit/migrations/v0.9.0.md`, one numbered step per D12 bullet
 
@@ -318,11 +341,12 @@ consumer and stays on the task file's Remaining list.
   from the repo root (project hooks do not fire from a subdirectory,
   `reports/probe-subdir-hooks.md`), and the `.mcp.json` caveat (run
   `just dogfood` from your own shell). Contents gains `dogfood.sh` and
-  `bin/claude`, and its `install.sh` bullet says it wires the version-guard and
-  both dogfood hooks; Requirements gains `rsync`. In "Installing in a plugin",
-  the prose step that wires the version-guard hook names the two dogfood hooks
-  too — prose only, no fenced block changes. The dogfood section itself stays
-  out of that section and "Updating in a plugin".
+  `bin/claude`, its `release.just` bullet names `dogfood`, and its `install.sh`
+  bullet says it wires the version-guard and both dogfood hooks; Requirements
+  gains `rsync`. In "Installing in a plugin", the prose step that wires the
+  version-guard hook names the two dogfood hooks too — prose only, no fenced
+  block changes. The dogfood section itself stays out of that section and
+  "Updating in a plugin".
   - Requirements: D4, D7, D9, D10, D11
   - Depends on: Item 2.1, Item 2.2, Item 3.1, Item 3.2
   - Interfaces:
@@ -332,7 +356,8 @@ consumer and stays on the task file's Remaining list.
   `just dogfood`, one line each, pointing at the manual's `## Dogfooding`; the
   opening summary's list of what ships gains the shim; "Installing in a
   plugin"'s prose sentence on wiring the version-guard hook names the dogfood
-  hooks too. No fenced block changes, so `tests/doc-sync-test.sh` is untouched.
+  hooks too; Requirements gains `rsync`. No fenced block changes, so
+  `tests/doc-sync-test.sh` is untouched.
   - Requirements: D9, D10
   - Depends on: Item 3.3
 
@@ -341,9 +366,14 @@ consumer and stays on the task file's Remaining list.
   and its `docs/changelog.md` line. The hub gains a Requirements bullet and a
   decision group linking the node, one-line conclusions only; the node holds
   D1–D12's arguments, why sync-on-edit was rejected, and the Q3 and subdirectory
-  probe results with CC 2.1.284. The hub's `install.sh` summary under
-  Distribution names the dogfood hooks, and Limitations gains the subdirectory
-  launch and the unprobed macOS rsync. Present tense in hub and node.
+  probe results with CC 2.1.284, and the outline Risks that stay true once
+  shipped (CC drift and its re-run procedure, benign rsync exits, repo-wide
+  promotion, the inherited variable, unguarded Bash writes, non-plugin content
+  in the copy). The hub's `install.sh` summary under Distribution, and
+  `docs/references/distribution.md`'s "Single `install.sh` handles bootstrap and
+  wire" (which says it appends one hook), name the dogfood hooks and the
+  any-matcher idempotency rule; Limitations gains the subdirectory launch and
+  the unprobed macOS rsync. Present tense in hub and nodes.
   - Requirements: D1–D12
   - Depends on: Item 3.3
   - Interfaces:
@@ -354,6 +384,9 @@ consumer and stays on the task file's Remaining list.
   and `dogfood-launcher-test.sh`; the `docs/references/` bullet's node list
   gains `dogfood`; the Layout bullets 1.1/1 and 2.1/1 added are brought to the
   shape of their neighbours, the `release.just` bullet names `dogfood`, and the
-  `install.sh` bullet says it wires the dogfood hooks beside version-guard.
+  `install.sh` bullet says it wires the dogfood hooks beside version-guard. The
+  Conventions bullet on `hook_cmd`'s single quotes extends to the two dogfood
+  commands, which quote `"${CLAUDE_PROJECT_DIR}"` where version-guard's does
+  not, and says why version-guard's stays unquoted.
   - Requirements: D5, D9, D10
   - Depends on: Item 3.5
