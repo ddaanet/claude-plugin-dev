@@ -1,12 +1,4 @@
-## Open decisions
-
-(none)
-
 ## Remaining
 
-- Nothing queued. The deliverable-review run's open findings are closed
-  (`plans/2026-09-18-deliverable-review-fixes/reports/open-findings-fixes.md`),
-  the combined-run-only `just precommit` flake is the project memory
-  `precommit-intermittent-suite-failure` with no investigation queued, the
-  fix pass gets no toolkit release, and the `/gitlore:index-audit` curation
-  pass is dropped (all decided 2026-09-22).
+- Run `/edify:runbook` on `plans/2026-09-26-dist-copy-dogfood-launcher`, turning the outline's tdd items into numbered slices with `Interfaces:` blocks for `dogfood.sh`'s subcommands.
+- Before cutting the release, run the `sync` suite on a macOS consumer: openrsync or rsync 2.6.9 may reject `--from0 --exclude-from=-` (outline Risks).
