@@ -34,6 +34,10 @@ or removing a shipped file means updating the list in
   Resolves the newest `dist-` tag when given no ref, refuses any ref
   outside the dist lineage, and prints the migration notes for every
   version the pull crossed.
+- `toolkit/dogfood.sh` — the dogfood launcher's one script, run from a
+  consumer's vendored `plugin-dev/`. `sync` mirrors the plugin tree, minus
+  git-ignored paths and `.git`, into `dist/plugin/`; the root is found from
+  the script's own location.
 - `toolkit/version-guard.sh` — `PreToolUse(Write|Edit)` hook that fires
   inside consumer plugins to refuse agent edits to
   `.claude-plugin/plugin.json`'s `.version`.

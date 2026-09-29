@@ -33,6 +33,7 @@ LICENSE
 README.md
 VERSION
 check-version.sh
+dogfood.sh
 install.sh
 release.just
 update.sh
