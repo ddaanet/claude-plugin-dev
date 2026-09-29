@@ -55,15 +55,18 @@ reported with the failing assertion's output and the green line after the revert
 | D1 a real copy | 1 | 1.1 | Slice 1 asserts a regular file, not a link |
 | D2 source set | 1 | 1.1 | Slices 1–5 |
 | D3 plugin root = repo root | 1 | 1.1 | Slice 6 refusal |
-| D4 sync on promotion only | 2, 3 | 2.1, 3.1 | No `PostToolUse` anywhere |
-| D5 one script, root from its own location | 1 | 1.1–1.3 | |
+| D4 sync on promotion only | 2, 3 | 2.1, 3.1, 3.3 | No `PostToolUse` anywhere |
+| D5 one script, root from its own location | 1, 3 | 1.1–1.3, 3.6 | |
 | D6 copy guard | 1, 2 | 1.2, 2.2 | 2.2 wires its matcher |
-| D7 `session-start` report | 1, 2 | 1.3, 2.2 | 2.2 wires it |
+| D7 `session-start` report | 1, 2, 3 | 1.3, 2.2, 3.3 | 2.2 wires it |
 | D8 loud sync failure | 1, 2, 3 | 1.1, 2.1, 3.1 | 1.1/7, 2.1/5; 3.1 inherits |
-| D9 the shim | 2, 3 | 2.1, 3.2, 3.3 | `.envrc` step, docs |
-| D10 `just dogfood` | 3 | 3.1 | |
+| D9 the shim | 2, 3 | 2.1, 3.2, 3.3, 3.4, 3.6 | `.envrc` step, docs |
+| D10 `just dogfood` | 3 | 3.1, 3.3, 3.4, 3.6 | |
 | D11 `install.sh` wiring | 2, 3 | 2.2, 3.3 | 3.3 documents the unedited files |
 | D12 migration note | 3 | 3.2 | |
+
+Item 3.5 carries D1–D12 as documentation, the node holding every decision's
+argument, so it is on no row.
 
 **Out of scope, per `outline.md` Scope/OUT:** nested roots and edify, editing
 consumer repos, gitlore's `GITLORE_AUTO_CLAUDE_PLUGIN_DIR`, cutting the release.
@@ -314,7 +317,7 @@ back to the planner before Phase 2, since it changes 3.6's suite list.
   Mutation gate: deleting the recipe, and adding `precommit` as its dependency,
   each fail `just _import-check`. `precommit` already carries 1.1/1's and
   2.1/1's lines; this item touches only `_import-check`.
-  - Requirements: D10
+  - Requirements: D4, D8, D10
   - Depends on: Item 1.1
   - Interfaces:
     - `just dogfood` → `bash "plugin-dev/dogfood.sh" sync`, no gate, starts no
@@ -328,7 +331,7 @@ back to the planner before Phase 2, since it changes 3.6's suite list.
   `precommit` shellchecks it); add `PATH_add plugin-dev/bin` after
   `PATH_add .gitlore/bin`, then `direnv allow`; ignore `/dist/plugin/`; make
   `clean` spare it.
-  - Requirements: D12
+  - Requirements: D9, D12
   - Depends on: Item 2.1, Item 2.2
   - Interfaces:
     - file `toolkit/migrations/v0.9.0.md`, one numbered step per D12 bullet
