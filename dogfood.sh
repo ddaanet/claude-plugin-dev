@@ -27,10 +27,12 @@ usage() {
 # through a pipe, a git failure would leave rsync running on a partial list,
 # copying .git and recursing into the copy. Deletions propagate: a path that
 # stops being source leaves the copy. rsync's stderr is left alone, and its
-# exit status is the script's. An entry holding a pattern character (* ? [ ] or
-# a backslash) aborts the sync before rsync runs or dist/ is touched: rsync
-# would read it as a pattern, and escaping it is inconsistent. The exit sits in
-# the pipeline's loop; pipefail carries its status out.
+# exit status is the script's. An entry holding * ? [ ] or a backslash aborts
+# the sync before rsync runs or dist/ is touched: rsync reads the first four as
+# wildcards and a backslash as an escape only when a wildcard is present, so
+# such names are refused rather than escaped. The exit leaves only the loop's
+# subshell; errexit ends the script on the pipeline's status, which is the
+# loop's 1 even when git dies of SIGPIPE (pipefail reports the rightmost).
 sync_copy() {
     local root
     root="$(root_dir)"
@@ -41,7 +43,7 @@ sync_copy() {
         while IFS= read -r -d '' entry; do
             case "$entry" in
                 *'*'* | *'?'* | *'['* | *']'* | *\\*)
-                    echo "dogfood: ignored entry '$entry' holds a pattern character; rsync would read it as a pattern" >&2
+                    printf "dogfood: ignored entry '%s' holds a pattern character (* ? [ ] or \\\\); sync refused\n" "$entry" >&2
                     exit 1
                     ;;
             esac
