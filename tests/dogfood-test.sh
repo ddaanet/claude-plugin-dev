@@ -164,6 +164,75 @@ assert_file "$consumer/dist/plugin/skills/demo/SKILL.md" \
 assert_absent "$sandbox/elsewhere/dist" "sync resolves the root: CLAUDE_PROJECT_DIR untouched"
 assert_absent "$sandbox/dist" "sync resolves the root: cwd untouched"
 
+echo "=== a committed deletion propagates ==="
+# The first sync must have put the file in the copy, else its absence after the
+# second proves nothing. The sibling SKILL.md stays, so the removal is of one
+# file and not of the whole copy.
+make_consumer
+printf 'gone soon\n' > "$consumer/skills/demo/extra.md"
+commit_all
+run_dogfood sync
+assert_eq "$rc" "0" "a committed deletion propagates: first sync exit code"
+assert_file "$consumer/dist/plugin/skills/demo/extra.md" \
+    "a committed deletion propagates: the first sync copies the file"
+git -C "$consumer" rm -q skills/demo/extra.md
+commit_all
+run_dogfood sync
+assert_eq "$rc" "0" "a committed deletion propagates: second sync exit code"
+assert_absent "$consumer/dist/plugin/skills/demo/extra.md" \
+    "a committed deletion propagates"
+assert_file "$consumer/dist/plugin/skills/demo/SKILL.md" \
+    "a committed deletion propagates: the sibling file stays"
+
+echo "=== a tracked file deleted in the worktree does not fail sync ==="
+# Deleted but not committed: the index still lists it, the worktree does not
+# have it. The first sync puts it in the copy, so its absence afterwards is
+# the sync's doing.
+make_consumer
+printf 'gone soon\n' > "$consumer/skills/demo/extra.md"
+commit_all
+run_dogfood sync
+assert_eq "$rc" "0" "a tracked file deleted in the worktree: first sync exit code"
+assert_file "$consumer/dist/plugin/skills/demo/extra.md" \
+    "a tracked file deleted in the worktree: the first sync copies the file"
+rm "$consumer/skills/demo/extra.md"
+if [[ -z "$(git -C "$consumer" ls-files skills/demo/extra.md)" ]]; then
+    fail "a tracked file deleted in the worktree: the file is no longer tracked"
+fi
+run_dogfood sync
+assert_eq "$rc" "0" "a tracked file deleted in the worktree exit code"
+assert_eq "$err" "" "a tracked file deleted in the worktree prints nothing on stderr"
+assert_absent "$consumer/dist/plugin/skills/demo/extra.md" \
+    "a tracked file deleted in the worktree: the copy lacks it"
+assert_file "$consumer/dist/plugin/skills/demo/SKILL.md" \
+    "a tracked file deleted in the worktree: the sibling file stays"
+
+echo "=== a file that becomes ignored leaves the copy ==="
+# Unlike the two deletions above, the file stays in the worktree: only its
+# leaving the source set through the ignore list can remove it from the copy,
+# which is what --delete-excluded does and --delete alone does not.
+make_consumer
+printf 'ignored soon\n' > "$consumer/skills/demo/extra.md"
+commit_all
+run_dogfood sync
+assert_eq "$rc" "0" "a file that becomes ignored: first sync exit code"
+assert_file "$consumer/dist/plugin/skills/demo/extra.md" \
+    "a file that becomes ignored: the first sync copies the file"
+git -C "$consumer" rm -q --cached skills/demo/extra.md
+printf '/skills/demo/extra.md\n' >> "$consumer/.gitignore"
+commit_all
+assert_file "$consumer/skills/demo/extra.md" \
+    "a file that becomes ignored: the file stays in the worktree"
+if ! git -C "$consumer" check-ignore -q skills/demo/extra.md; then
+    fail "a file that becomes ignored: the file is not ignored"
+fi
+run_dogfood sync
+assert_eq "$rc" "0" "a file that becomes ignored: second sync exit code"
+assert_absent "$consumer/dist/plugin/skills/demo/extra.md" \
+    "a file that becomes ignored leaves the copy"
+assert_file "$consumer/dist/plugin/skills/demo/SKILL.md" \
+    "a file that becomes ignored: the sibling file stays"
+
 echo "=== unknown subcommand is usage ==="
 make_consumer
 run_dogfood bogus

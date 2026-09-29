@@ -98,6 +98,8 @@ back to the planner before Phase 2, since it changes 3.6's suite list.
        tracked file without committing; sync exits 0 and the copy lacks it. Both
        are red against the naive `git ls-files | rsync --files-from` sync; if
        1.1/1's GREEN already passes them, the mutation is swapping in that sync.
+       `a file that becomes ignored leaves the copy`: pins `--delete-excluded`
+       (added at test review).
     3. Whitespace. `names with spaces survive`: a tracked `skills/a b/SKILL.md`
        is copied, and an ignored `out dir/x` is absent.
     4. Nested repos and the copy itself. `a nested repo's .git stays out`:
@@ -120,9 +122,8 @@ back to the planner before Phase 2, since it changes 3.6's suite list.
        `.claude-plugin/plugin.json`, no `dist/plugin/` created.
        `refuses when dist/plugin is not ignored`: `.gitignore` emptied — exit 1,
        stderr contains `/dist/plugin/`, no `dist/plugin/` created.
-       `a git failure stops sync before rsync`: the fixture's `.git` removed,
-       manifest kept — exit non-zero, no `dist/` created (added at 1.1/1's code
-       review: the pre-fix pipeline ran rsync on an empty exclude list).
+       `a git failure stops sync before rsync`: `.git` removed, manifest kept —
+       exit non-zero, no `dist/` created (from 1.1/1's code review).
     7. rsync failure. `an rsync failure keeps its status and stderr`: a stub
        `rsync` first on PATH writes `rsync: stub failure` to stderr and exits
        23; `sync` exits 23 and its stderr contains that line exactly once.
