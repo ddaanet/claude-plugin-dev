@@ -120,6 +120,9 @@ back to the planner before Phase 2, since it changes 3.6's suite list.
        `.claude-plugin/plugin.json`, no `dist/plugin/` created.
        `refuses when dist/plugin is not ignored`: `.gitignore` emptied — exit 1,
        stderr contains `/dist/plugin/`, no `dist/plugin/` created.
+       `a git failure stops sync before rsync`: the fixture's `.git` removed,
+       manifest kept — exit non-zero, no `dist/` created (added at 1.1/1's code
+       review: the pre-fix pipeline ran rsync on an empty exclude list).
     7. rsync failure. `an rsync failure keeps its status and stderr`: a stub
        `rsync` first on PATH writes `rsync: stub failure` to stderr and exits
        23; `sync` exits 23 and its stderr contains that line exactly once.
