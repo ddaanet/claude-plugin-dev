@@ -273,6 +273,49 @@ assert_absent "$consumer/dist/plugin/ lead.log" \
 assert_absent "$consumer/dist/plugin/nl"$'\n'"x.log" \
     "names with spaces survive: an ignored name holding a newline is absent"
 
+echo "=== a nested repo's .git stays out ==="
+# memory/ is a repo of its own, recorded in the consumer as a gitlink the way a
+# mounted memory submodule is: its .git is a gitfile pointing into the
+# consumer's .git/modules/, which a directory-only '.git/' exclude would copy.
+# memory/tier/ nests a second repo with a .git directory, the other shape. Each
+# copied fact.md pairs with an absent .git: a sync that skipped a nested repo
+# whole would pass the second.
+make_consumer
+mkdir -p "$consumer/.git/modules"
+git init -q --separate-git-dir "$consumer/.git/modules/memory" "$consumer/memory"
+git init -q "$consumer/memory/tier"
+printf 'a fact\n' | tee "$consumer/memory/fact.md" > "$consumer/memory/tier/fact.md"
+git -C "$consumer/memory" add fact.md
+git -C "$consumer/memory" \
+    -c user.name=fixture -c user.email=fixture@example.invalid \
+    -c commit.gpgsign=false commit -q -m fact
+git -C "$consumer" update-index --add --cacheinfo \
+    "160000,$(git -C "$consumer/memory" rev-parse HEAD),memory"
+commit_all
+assert_eq "$(git -C "$consumer" ls-files -s memory | cut -c1-6)" "160000" \
+    "a nested repo's .git stays out: memory is a gitlink in the fixture"
+assert_file "$consumer/memory/.git" \
+    "a nested repo's .git stays out: memory/.git is a gitfile in the fixture"
+run_dogfood sync
+assert_eq "$rc" "0" "a nested repo's .git stays out exit code"
+for p in memory memory/tier; do
+    assert_file "$consumer/dist/plugin/$p/fact.md" \
+        "a nested repo's .git stays out: $p/fact.md is copied"
+    assert_absent "$consumer/dist/plugin/$p/.git" "a nested repo's .git stays out: $p"
+done
+
+echo "=== sync never recurses into the copy ==="
+# Residual: /dist/plugin/ is git-ignored here (make_consumer), which slice 6
+# makes a precondition, so the ignore list excludes the copy as well and
+# dropping the script's own hard /dist/plugin/ exclude survives this test.
+make_consumer
+run_dogfood sync
+run_dogfood sync
+assert_eq "$rc" "0" "sync never recurses into the copy exit code"
+assert_file "$consumer/dist/plugin/skills/demo/SKILL.md" \
+    "sync never recurses into the copy: the copy exists"
+assert_absent "$consumer/dist/plugin/dist/plugin" "sync never recurses into the copy"
+
 echo "=== unknown subcommand is usage ==="
 make_consumer
 run_dogfood bogus
