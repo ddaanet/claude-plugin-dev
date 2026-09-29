@@ -18,6 +18,18 @@ Read each file listed below — do not rely on inline summaries.
 - memory/ddaanet/no-stderr-suppression.md — that rsync warning is not a licence
   for `2>/dev/null`
 
+### Added at `/runbook` (implementation focus)
+
+- memory/ddaanet/cc-plugin-dirs-env-var.md — the variable's format and
+  normalisation: what `session-start` compares against and what the shim exports
+- memory/ddaanet/project-hooks-launch-dir.md — why no slice tests hook firing
+  from a subdirectory: the shim still execs there, the hooks simply never run
+- memory/ddaanet/reflow-joins-field-lines.md — the runbook's field lines are
+  nested bullets, or `just format-docs` merges them into prose
+- memory/precommit-intermittent-suite-failure.md — a `release-test.sh` or
+  `version-guard-test.sh` failure inside a slice's `just precommit` is re-run
+  standalone before it is read as a regression
+
 ## Skills to load before executing
 
 - plugin-craft:hook-authoring — the three-way deny split for the copy guard;
