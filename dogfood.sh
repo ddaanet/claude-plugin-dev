@@ -34,7 +34,7 @@ usage() {
 # subshell; errexit ends the script on the pipeline's status, which is the
 # loop's 1 even when git dies of SIGPIPE (pipefail reports the rightmost).
 # Before anything else touches the tree, sync refuses a root with no plugin
-# manifest and a root whose dist/plugin/ git does not ignore; each refusal is
+# manifest and a root where git does not ignore dist/plugin/; each refusal is
 # one dogfood: line naming the path, exit 1, dist/ untouched.
 sync_copy() {
     local root
@@ -62,7 +62,7 @@ sync_copy() {
 
 require_manifest() {
     if [[ ! -f "$1/.claude-plugin/plugin.json" ]]; then
-        echo "dogfood: $1/.claude-plugin/plugin.json not found; sync refused" >&2
+        printf 'dogfood: %s/.claude-plugin/plugin.json not found; sync refused\n' "$1" >&2
         exit 1
     fi
 }
@@ -77,7 +77,7 @@ require_ignored_copy() {
     case "$status" in
         0) ;;
         1)
-            echo "dogfood: /dist/plugin/ must be git-ignored in $1; sync refused" >&2
+            printf 'dogfood: %s/dist/plugin/ is not git-ignored; sync refused\n' "$1" >&2
             exit 1
             ;;
         *) exit "$status" ;;
