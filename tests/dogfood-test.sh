@@ -425,6 +425,58 @@ assert_eq "$rc" "23" "an rsync failure: exit code is rsync's own"
 assert_eq "$(printf '%s\n' "$err" | grep -c -x 'rsync: stub failure')" "1" \
     "an rsync failure: its stderr line appears exactly once"
 
+# run_pre_tool <path>: run_dogfood pre-tool, fed an Edit payload naming <path>
+# on stdin. The payload is built with jq so a spaced path survives.
+run_pre_tool() {
+    run_dogfood pre-tool <<<"$(jq -cn --arg p "$1" '{tool_name:"Edit",tool_input:{file_path:$p}}')"
+}
+
+# jq_holds <label> <filter> [jq options...]: fail unless <filter> is true over
+# $out. Checked in jq rather than on `jq -r` text: its contains() is literal
+# where assert_contains' needle is a BRE, a non-string field cannot pass as its
+# printed JSON, and a trailing newline in a value is not lost to $(...).
+jq_holds() {
+    local label="$1" filter="$2"
+    shift 2
+    if ! printf '%s' "$out" | jq -e "$@" "$filter" >/dev/null 2>&1; then
+        fail "$label: $filter is not true over stdout '$out'"
+    fi
+}
+
+echo "=== pre-tool denies an Edit into the copy ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+run_pre_tool "$root/dist/plugin/skills/demo/SKILL.md"
+assert_eq "$rc" "0" "pre-tool denies an Edit into the copy exit code"
+assert_eq "$err" "" "pre-tool denies an Edit into the copy prints nothing on stderr"
+# Slurped, so a second value or trailing garbage after the object fails here:
+# a per-field jq reads the first object and errors only after it.
+jq_holds "deny stdout is one JSON object" 'length == 1 and (.[0] | type) == "object"' -s
+jq_holds "deny hookEventName" '.hookSpecificOutput.hookEventName == "PreToolUse"'
+jq_holds "deny permissionDecision" '.hookSpecificOutput.permissionDecision == "deny"'
+# shellcheck disable=SC2016  # $p is a jq variable bound by --arg
+jq_holds "deny reason names the denied path" \
+    '.hookSpecificOutput.permissionDecisionReason | type == "string" and contains($p)' \
+    --arg p "$root/dist/plugin/skills/demo/SKILL.md"
+# shellcheck disable=SC2016  # $p is a jq variable bound by --arg
+jq_holds "deny additionalContext names the source path" \
+    '.hookSpecificOutput.additionalContext | type == "string" and contains($p)' \
+    --arg p "$root/skills/demo/SKILL.md"
+jq_holds "deny systemMessage names the copy" \
+    '.systemMessage | type == "string" and contains("dist/plugin")'
+jq_holds "deny systemMessage is one line" \
+    '.systemMessage | type == "string" and (test("[\r\n]") | not)'
+
+echo "=== pre-tool allows a source edit ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+run_pre_tool "$root/skills/demo/SKILL.md"
+assert_eq "$rc" "0" "pre-tool allows a source edit exit code"
+assert_eq "$out" "" "pre-tool allows a source edit prints nothing on stdout"
+assert_eq "$err" "" "pre-tool allows a source edit prints nothing on stderr"
+
 echo "=== unknown subcommand is usage ==="
 make_consumer
 run_dogfood bogus
