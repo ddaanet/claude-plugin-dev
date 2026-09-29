@@ -27,7 +27,10 @@ usage() {
 # through a pipe, a git failure would leave rsync running on a partial list,
 # copying .git and recursing into the copy. Deletions propagate: a path that
 # stops being source leaves the copy. rsync's stderr is left alone, and its
-# exit status is the script's.
+# exit status is the script's. An entry holding a pattern character (* ? [ ] or
+# a backslash) aborts the sync before rsync runs or dist/ is touched: rsync
+# would read it as a pattern, and escaping it is inconsistent. The exit sits in
+# the pipeline's loop; pipefail carries its status out.
 sync_copy() {
     local root
     root="$(root_dir)"
@@ -36,6 +39,12 @@ sync_copy() {
     trap 'rm -f "$excludes"' EXIT
     git -C "$root" ls-files -z -o -i --exclude-standard --directory |
         while IFS= read -r -d '' entry; do
+            case "$entry" in
+                *'*'* | *'?'* | *'['* | *']'* | *\\*)
+                    echo "dogfood: ignored entry '$entry' holds a pattern character; rsync would read it as a pattern" >&2
+                    exit 1
+                    ;;
+            esac
             printf '/%s\0' "$entry"
         done >"$excludes"
     printf '%s\0' '.git' '/dist/plugin/' >>"$excludes"

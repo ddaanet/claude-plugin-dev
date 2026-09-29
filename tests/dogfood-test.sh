@@ -304,6 +304,48 @@ for p in memory memory/tier; do
     assert_absent "$consumer/dist/plugin/$p/.git" "a nested repo's .git stays out: $p"
 done
 
+echo "=== an ignored entry holding a pattern character aborts ==="
+# One fixture per name, so one name cannot mask another. rsync would read the
+# entry as a pattern, so the script refuses before it runs: the sentinel
+# pre-placed in the copy survives (it is not source, so --delete would remove
+# it) and the committed new.md is not copied. The name is matched as a fixed
+# string, not through assert_contains, whose needle is a live BRE.
+for name in 'a*b.log' 'a?b.log' 'a[b.log' 'a]b.log' 'a\b.log'; do
+    make_consumer
+    printf '*.log\n' >> "$consumer/.gitignore"
+    printf 'noise\n' > "$consumer/$name"
+    commit_all
+    printf 'new\n' > "$consumer/skills/demo/new.md"
+    commit_all
+    assert_eq "$(git -C "$consumer" ls-files -z -o -i --exclude-standard --directory |
+        tr '\0' '|')" "$name|" \
+        "a pattern character ($name): the fixture's ignore list"
+    mkdir -p "$consumer/dist/plugin"
+    printf 'keep\n' > "$consumer/dist/plugin/sentinel"
+    run_dogfood sync
+    assert_eq "$rc" "1" "a pattern character ($name) exit code"
+    if [[ "$err" != "dogfood: "*"$name"* || "$err" == *$'\n'* ]]; then
+        fail "a pattern character ($name): stderr is not one dogfood: line naming it: '$err'"
+    fi
+    assert_file "$consumer/dist/plugin/sentinel" \
+        "a pattern character ($name): the copy is untouched"
+    assert_absent "$consumer/dist/plugin/skills/demo/new.md" \
+        "a pattern character ($name): rsync never ran"
+done
+# Only ignore-list entries reach rsync as patterns: a tracked and an untracked
+# name holding every pattern character are source, copied as themselves.
+make_consumer
+odd='a*?[]\b.md'
+printf 'tracked\n' > "$consumer/skills/demo/$odd"
+commit_all
+printf 'untracked\n' > "$consumer/$odd"
+run_dogfood sync
+assert_eq "$rc" "0" "a pattern character outside the ignore list: exit code"
+assert_file "$consumer/dist/plugin/skills/demo/$odd" \
+    "a pattern character outside the ignore list: a tracked name is copied"
+assert_file "$consumer/dist/plugin/$odd" \
+    "a pattern character outside the ignore list: an untracked name is copied"
+
 echo "=== sync never recurses into the copy ==="
 # Residual: /dist/plugin/ is git-ignored here (make_consumer), which slice 6
 # makes a precondition, so the ignore list excludes the copy as well and
