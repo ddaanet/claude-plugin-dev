@@ -233,6 +233,46 @@ assert_absent "$consumer/dist/plugin/skills/demo/extra.md" \
 assert_file "$consumer/dist/plugin/skills/demo/SKILL.md" \
     "a file that becomes ignored: the sibling file stays"
 
+echo "=== names with spaces survive ==="
+# Each ignored name holds whitespace where a different mistake loses it, and is
+# excluded only if its entry reaches rsync whole: split apart, the pieces match
+# nothing and the file is copied.
+# - "out dir/": a wholly ignored directory, collapsed by --directory to one
+#   entry. Lost to word splitting.
+# - "skills/a b/draft x.log": a lone file in a directory that also holds
+#   tracked content, so it is listed as itself, spaces mid-path.
+# - " lead.log": lost to a read that trims leading whitespace (no IFS=).
+# - "nl<newline>x.log": lost to a newline-delimited list, where git also
+#   C-quotes the name.
+# The tracked "skills/a b/SKILL.md", sibling of the ignored draft, pairs with
+# the absences: a sync that dropped every spaced name would pass them all.
+make_consumer
+mkdir -p "$consumer/skills/a b" "$consumer/out dir"
+printf '# spaced skill\n' > "$consumer/skills/a b/SKILL.md"
+printf 'noise\n' > "$consumer/skills/a b/draft x.log"
+printf 'noise\n' > "$consumer/out dir/x"
+printf 'noise\n' > "$consumer/ lead.log"
+printf 'noise\n' > "$consumer/nl"$'\n'"x.log"
+printf '/out dir/\n*.log\n' >> "$consumer/.gitignore"
+commit_all
+# The list must hold each name in the shape described above, or an absence
+# below tests some other entry than the one it names.
+assert_eq "$(git -C "$consumer" ls-files -z -o -i --exclude-standard --directory |
+    tr '\0' '|')" " lead.log|nl"$'\n'"x.log|out dir/|skills/a b/draft x.log|" \
+    "names with spaces survive: the fixture's ignore list"
+run_dogfood sync
+assert_eq "$rc" "0" "names with spaces survive exit code"
+assert_file "$consumer/dist/plugin/skills/a b/SKILL.md" \
+    "names with spaces survive: a tracked file under a spaced directory is copied"
+assert_absent "$consumer/dist/plugin/out dir" \
+    "names with spaces survive: an ignored spaced directory is absent"
+assert_absent "$consumer/dist/plugin/skills/a b/draft x.log" \
+    "names with spaces survive: an ignored spaced file beside a tracked one is absent"
+assert_absent "$consumer/dist/plugin/ lead.log" \
+    "names with spaces survive: an ignored name with a leading space is absent"
+assert_absent "$consumer/dist/plugin/nl"$'\n'"x.log" \
+    "names with spaces survive: an ignored name holding a newline is absent"
+
 echo "=== unknown subcommand is usage ==="
 make_consumer
 run_dogfood bogus
