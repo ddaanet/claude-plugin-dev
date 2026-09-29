@@ -493,6 +493,23 @@ assert_eq "$rc" "0" "pre-tool allows a source edit exit code"
 assert_eq "$out" "" "pre-tool allows a source edit prints nothing on stdout"
 assert_eq "$err" "" "pre-tool allows a source edit prints nothing on stderr"
 
+# The outside path holds /dist/plugin/ itself, so only an anchored prefix
+# match, not a substring one, lets it through. It also lies under
+# run_dogfood's CLAUDE_PROJECT_DIR, so a root taken from there denies it.
+echo "=== pre-tool allows a path outside the copy ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+for pair in \
+    "a path outside the repo:$sandbox/elsewhere/dist/plugin/x" \
+    "a sibling of the copy:$root/dist/other" \
+    "a prefix-sharing sibling:$root/dist/plugin-old/x"; do
+    run_pre_tool Edit file_path "${pair#*:}"
+    assert_eq "$rc" "0" "pre-tool allows ${pair%%:*} exit code"
+    assert_eq "$out" "" "pre-tool allows ${pair%%:*} prints nothing on stdout"
+    assert_eq "$err" "" "pre-tool allows ${pair%%:*} prints nothing on stderr"
+done
+
 echo "=== unknown subcommand is usage ==="
 make_consumer
 run_dogfood bogus
