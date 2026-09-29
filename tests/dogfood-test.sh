@@ -425,10 +425,12 @@ assert_eq "$rc" "23" "an rsync failure: exit code is rsync's own"
 assert_eq "$(printf '%s\n' "$err" | grep -c -x 'rsync: stub failure')" "1" \
     "an rsync failure: its stderr line appears exactly once"
 
-# run_pre_tool <path>: run_dogfood pre-tool, fed an Edit payload naming <path>
-# on stdin. The payload is built with jq so a spaced path survives.
+# run_pre_tool <tool> <field> <path>: run_dogfood pre-tool, fed a payload for
+# <tool> that names <path> under .tool_input.<field> on stdin. The payload is
+# built with jq so a spaced path survives.
 run_pre_tool() {
-    run_dogfood pre-tool <<<"$(jq -cn --arg p "$1" '{tool_name:"Edit",tool_input:{file_path:$p}}')"
+    run_dogfood pre-tool <<<"$(jq -cn --arg t "$1" --arg f "$2" --arg p "$3" \
+        '{tool_name:$t,tool_input:{($f):$p}}')"
 }
 
 # jq_holds <label> <filter> [jq options...]: fail unless <filter> is true over
@@ -443,36 +445,50 @@ jq_holds() {
     fi
 }
 
+# assert_denied <label> <root>: the last pre-tool run denied an edit into
+# <root>/dist/plugin/skills/demo/SKILL.md, naming that path and its source.
+assert_denied() {
+    local label="$1" root="$2"
+    assert_eq "$rc" "0" "$label exit code"
+    assert_eq "$err" "" "$label prints nothing on stderr"
+    # Slurped, so a second value or trailing garbage after the object fails here:
+    # a per-field jq reads the first object and errors only after it.
+    jq_holds "$label: stdout is one JSON object" 'length == 1 and (.[0] | type) == "object"' -s
+    jq_holds "$label: hookEventName" '.hookSpecificOutput.hookEventName == "PreToolUse"'
+    jq_holds "$label: permissionDecision" '.hookSpecificOutput.permissionDecision == "deny"'
+    # shellcheck disable=SC2016  # $p is a jq variable bound by --arg
+    jq_holds "$label: reason names the denied path" \
+        '.hookSpecificOutput.permissionDecisionReason | type == "string" and contains($p)' \
+        --arg p "$root/dist/plugin/skills/demo/SKILL.md"
+    # shellcheck disable=SC2016  # $p is a jq variable bound by --arg
+    jq_holds "$label: additionalContext names the source path" \
+        '.hookSpecificOutput.additionalContext | type == "string" and contains($p)' \
+        --arg p "$root/skills/demo/SKILL.md"
+    jq_holds "$label: systemMessage names the copy" \
+        '.systemMessage | type == "string" and contains("dist/plugin")'
+    jq_holds "$label: systemMessage is one line" \
+        '.systemMessage | type == "string" and (test("[\r\n]") | not)'
+}
+
 echo "=== pre-tool denies an Edit into the copy ==="
 make_consumer
 run_dogfood sync
 root="$(cd "$consumer" && pwd -P)"
-run_pre_tool "$root/dist/plugin/skills/demo/SKILL.md"
-assert_eq "$rc" "0" "pre-tool denies an Edit into the copy exit code"
-assert_eq "$err" "" "pre-tool denies an Edit into the copy prints nothing on stderr"
-# Slurped, so a second value or trailing garbage after the object fails here:
-# a per-field jq reads the first object and errors only after it.
-jq_holds "deny stdout is one JSON object" 'length == 1 and (.[0] | type) == "object"' -s
-jq_holds "deny hookEventName" '.hookSpecificOutput.hookEventName == "PreToolUse"'
-jq_holds "deny permissionDecision" '.hookSpecificOutput.permissionDecision == "deny"'
-# shellcheck disable=SC2016  # $p is a jq variable bound by --arg
-jq_holds "deny reason names the denied path" \
-    '.hookSpecificOutput.permissionDecisionReason | type == "string" and contains($p)' \
-    --arg p "$root/dist/plugin/skills/demo/SKILL.md"
-# shellcheck disable=SC2016  # $p is a jq variable bound by --arg
-jq_holds "deny additionalContext names the source path" \
-    '.hookSpecificOutput.additionalContext | type == "string" and contains($p)' \
-    --arg p "$root/skills/demo/SKILL.md"
-jq_holds "deny systemMessage names the copy" \
-    '.systemMessage | type == "string" and contains("dist/plugin")'
-jq_holds "deny systemMessage is one line" \
-    '.systemMessage | type == "string" and (test("[\r\n]") | not)'
+run_pre_tool Edit file_path "$root/dist/plugin/skills/demo/SKILL.md"
+assert_denied "pre-tool denies an Edit into the copy" "$root"
+
+echo "=== pre-tool denies a NotebookEdit into the copy ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+run_pre_tool NotebookEdit notebook_path "$root/dist/plugin/skills/demo/SKILL.md"
+assert_denied "pre-tool denies a NotebookEdit into the copy" "$root"
 
 echo "=== pre-tool allows a source edit ==="
 make_consumer
 run_dogfood sync
 root="$(cd "$consumer" && pwd -P)"
-run_pre_tool "$root/skills/demo/SKILL.md"
+run_pre_tool Edit file_path "$root/skills/demo/SKILL.md"
 assert_eq "$rc" "0" "pre-tool allows a source edit exit code"
 assert_eq "$out" "" "pre-tool allows a source edit prints nothing on stdout"
 assert_eq "$err" "" "pre-tool allows a source edit prints nothing on stderr"

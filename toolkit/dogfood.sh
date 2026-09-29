@@ -77,7 +77,8 @@ sync_copy() {
 pre_tool() {
     local root path rel copy="dist/plugin"
     root="$(root_dir)"
-    path="$(jq -r '.tool_input.file_path // ""')"
+    # NotebookEdit names its target notebook_path, not file_path.
+    path="$(jq -r '.tool_input.file_path // .tool_input.notebook_path // ""')"
     case "$path" in
         "$root/$copy/"*) ;;
         *) exit 0 ;;
