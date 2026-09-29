@@ -358,6 +358,57 @@ assert_file "$consumer/dist/plugin/skills/demo/SKILL.md" \
     "sync never recurses into the copy: the copy exists"
 assert_absent "$consumer/dist/plugin/dist/plugin" "sync never recurses into the copy"
 
+echo "=== refuses without a root manifest ==="
+make_consumer
+rm "$consumer/.claude-plugin/plugin.json"
+commit_all
+run_dogfood sync
+assert_eq "$rc" "1" "no manifest exit code"
+if [[ "$err" != "dogfood: "*".claude-plugin/plugin.json"* || "$err" == *$'\n'* ]]; then
+    fail "no manifest: stderr is not one dogfood: line naming the manifest: '$err'"
+fi
+assert_absent "$consumer/dist/plugin" "no manifest: the copy is not created"
+
+echo "=== refuses when dist/plugin is not ignored ==="
+# The first-sync case: no dist/plugin/ yet. A check that drops the trailing
+# slash refuses here too; the first sync of every other test, where
+# /dist/plugin/ is ignored, is what reds it. The precondition rules out a
+# global excludes file ignoring dist/ behind the emptied .gitignore.
+make_consumer
+: > "$consumer/.gitignore"
+commit_all
+assert_absent "$consumer/dist/plugin" "not ignored: the fixture has no copy yet"
+if git -C "$consumer" check-ignore -q dist/plugin/; then
+    fail "not ignored: the fixture still ignores dist/plugin/"
+fi
+run_dogfood sync
+assert_eq "$rc" "1" "not ignored exit code"
+if [[ "$err" != "dogfood: "*"/dist/plugin/"* || "$err" == *$'\n'* ]]; then
+    fail "not ignored: stderr is not one dogfood: line naming /dist/plugin/: '$err'"
+fi
+assert_absent "$consumer/dist/plugin" "not ignored: the copy is not created"
+
+echo "=== a git failure stops sync before rsync ==="
+# A stub git first on PATH fails ls-files alone, after the refusal checks have
+# passed. Removing .git instead would fail the ignore check's own git call
+# first, leaving an unguarded ignore list green. Nothing may reach dist/: rsync
+# on a partial ignore list would copy into it.
+make_consumer
+mkdir "$sandbox/stub"
+real_git="$(command -v git)"
+cat > "$sandbox/stub/git" <<EOF
+#!/usr/bin/env bash
+for a; do [[ "\$a" == ls-files ]] && { echo 'git: stub failure' >&2; exit 128; }; done
+exec "$real_git" "\$@"
+EOF
+chmod +x "$sandbox/stub/git"
+PATH="$sandbox/stub:$PATH" run_dogfood sync
+if [[ "$rc" == "0" ]]; then
+    fail "a git failure: exit code is 0"
+fi
+assert_contains "$err" "git: stub failure" "a git failure: the run reached ls-files"
+assert_absent "$consumer/dist" "a git failure: dist/ is not created"
+
 echo "=== unknown subcommand is usage ==="
 make_consumer
 run_dogfood bogus
