@@ -33,9 +33,14 @@ usage() {
 # such names are refused rather than escaped. The exit leaves only the loop's
 # subshell; errexit ends the script on the pipeline's status, which is the
 # loop's 1 even when git dies of SIGPIPE (pipefail reports the rightmost).
+# Before anything else touches the tree, sync refuses a root with no plugin
+# manifest and a root whose dist/plugin/ git does not ignore; each refusal is
+# one dogfood: line naming the path, exit 1, dist/ untouched.
 sync_copy() {
     local root
     root="$(root_dir)"
+    require_manifest "$root"
+    require_ignored_copy "$root"
     # Not local: the EXIT trap reads it after sync_copy has returned.
     excludes="$(mktemp "${TMPDIR:-/tmp}/dogfood.XXXXXX")"
     trap 'rm -f "$excludes"' EXIT
@@ -53,6 +58,30 @@ sync_copy() {
     mkdir -p "$root/dist/plugin"
     rsync -a --delete --delete-excluded --from0 --exclude-from=- \
         "$root/" "$root/dist/plugin/" <"$excludes"
+}
+
+require_manifest() {
+    if [[ ! -f "$1/.claude-plugin/plugin.json" ]]; then
+        echo "dogfood: $1/.claude-plugin/plugin.json not found; sync refused" >&2
+        exit 1
+    fi
+}
+
+# The trailing slash matters: a first sync has no dist/plugin yet, and git
+# check-ignore on the bare name misses a /dist/plugin/ pattern. check-ignore
+# exits 1 for "not ignored" and 128 for a git error; only the 1 is a refusal,
+# a git error stops the script with git's own stderr.
+require_ignored_copy() {
+    local status=0
+    git -C "$1" check-ignore -q dist/plugin/ || status=$?
+    case "$status" in
+        0) ;;
+        1)
+            echo "dogfood: /dist/plugin/ must be git-ignored in $1; sync refused" >&2
+            exit 1
+            ;;
+        *) exit "$status" ;;
+    esac
 }
 
 # root_dir: the physical parent of this script's directory. Runs inside $(),
