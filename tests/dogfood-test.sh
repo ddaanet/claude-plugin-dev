@@ -409,6 +409,22 @@ fi
 assert_contains "$err" "git: stub failure" "a git failure: the run reached ls-files"
 assert_absent "$consumer/dist" "a git failure: dist/ is not created"
 
+echo "=== an rsync failure keeps its status and stderr ==="
+# The stub stands in for rsync alone: git runs for real, so the run reaches
+# rsync. Its status and its one stderr line must arrive unaltered.
+make_consumer
+mkdir "$sandbox/stub"
+cat > "$sandbox/stub/rsync" <<'EOF'
+#!/usr/bin/env bash
+echo 'rsync: stub failure' >&2
+exit 23
+EOF
+chmod +x "$sandbox/stub/rsync"
+PATH="$sandbox/stub:$PATH" run_dogfood sync
+assert_eq "$rc" "23" "an rsync failure: exit code is rsync's own"
+assert_eq "$(printf '%s\n' "$err" | grep -c -x 'rsync: stub failure')" "1" \
+    "an rsync failure: its stderr line appears exactly once"
+
 echo "=== unknown subcommand is usage ==="
 make_consumer
 run_dogfood bogus
