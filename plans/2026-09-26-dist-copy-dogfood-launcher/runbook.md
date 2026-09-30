@@ -274,8 +274,8 @@ for Item 1.1, `dogfood-pre-tool-test.sh`, `dogfood-session-start-test.sh`.
   no-settings branch included (seeded with `{}`); `hook_cmd` for version-guard
   keeps its unquoted spelling, since changing it would make a re-run add a
   duplicate. The header's step 3 and the `changed` line name all three hooks.
-  Out of scope: moving install.sh's scenarios into their own suite, though this
-  one passes 400 lines (outline item 4).
+  Built in `update-plugin-dev-test.sh`; the Phase 2 boundary moved it out
+  (`reports/phase-2-split.md`).
   - Requirements: D6, D7, D11
   - Depends on: Item 1.2, Item 1.3
   - Slices:

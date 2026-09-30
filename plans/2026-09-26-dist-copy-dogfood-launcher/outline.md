@@ -248,10 +248,9 @@ prose.
    - an entry with no `matcher` is still handled;
    - the new commands carry the quoted `"${CLAUDE_PROJECT_DIR}"`.
 
-   The suite is already 406 lines, over the soft 400 cap, and already holds
-   install.sh scenarios beside update.sh's. The cases are added compactly;
-   moving install.sh's scenarios into a suite of their own is a separate
-   cleanup, not this job's.
+   install.sh's scenarios first grew inside `tests/update-plugin-dev-test.sh`,
+   past the soft 400 cap; the Phase 2 boundary moved them into
+   `tests/install-test.sh` (`reports/phase-2-split.md`).
 5. **general**: the `release.just` `dogfood` recipe and shipped-tree
    bookkeeping:
    - `_import-check` still passes, and pins `dogfood` the way it pins

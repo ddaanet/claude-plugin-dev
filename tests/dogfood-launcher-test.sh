@@ -194,6 +194,17 @@ launch_dir="$sandbox/elsewhere"
 run_claude
 assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
     "the shim exports the copy"
+# The other half of the contract: session-start, reached by the same symlinked
+# spelling, accepts what the shim exported and rejects another repo's copy.
+session_start() {
+    (cd "$launch_dir" && CLAUDE_CODE_PLUGIN_DIRS="$1" \
+        bash "$shim_dir/../dogfood.sh" session-start </dev/null)
+}
+assert_eq "$(session_start "$(recorded plugin_dirs)")" "" \
+    "session-start takes the copy the shim exported"
+if [[ "$(session_start /elsewhere/dist/plugin)" != *"does not load $consumer/dist/plugin"* ]]; then
+    fail "session-start takes the copy the shim exported: another repo's copy is not rejected"
+fi
 
 echo "=== the shim unsets CDPATH ==="
 make_consumer

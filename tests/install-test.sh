@@ -296,6 +296,25 @@ assert_eq "$(jq -r --arg c "$session_cmd" '[.hooks.SessionStart[]? | (if has("ma
 quoted='"${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh"'
 assert_eq "$(jq -r --arg q "$quoted" '[.hooks[]?[]? | .hooks[]? | .command // "" | select(contains("dogfood.sh"))] | "\(length):\(map(select(contains($q))) | length)"' "$settings_json")" \
     "2:2" "the commands quote the project dir"
+# What Claude Code runs: each dogfood command as written, through sh, from a
+# project dir whose path holds a space, must reach dogfood.sh with a subcommand
+# it takes. The fixture toolkit ships no dogfood.sh, so a copy stands in.
+spaced="$sandbox/my consumer"
+mkdir -p "$spaced/plugin-dev"
+cp "$repo_root/toolkit/dogfood.sh" "$spaced/plugin-dev/"
+spaced_p="$(cd "$spaced" && pwd -P)"   # dogfood.sh names its root physically
+run_hook() {
+    # $1=event $2=payload on stdin; sets $out and $rc as run_in does.
+    local cmd
+    cmd="$(jq -r --arg e "$1" '[.hooks[$e][]? | .hooks[]? | .command | select(contains("dogfood.sh"))] | first // "false"' "$settings_json")"
+    run_in "$sandbox" env CLAUDE_PROJECT_DIR="$spaced" CLAUDE_CODE_PLUGIN_DIRS= sh -c "$cmd" <<< "$2"
+}
+run_hook PreToolUse "$(jq -nc --arg p "$spaced/dist/plugin/x" '{tool_input: {file_path: $p}}')"
+assert_eq "$rc" "0" "the written pre-tool command runs: exit code"
+assert_contains "$out" '"permissionDecision":"deny"' "the written pre-tool command runs the copy guard"
+run_hook SessionStart ''
+assert_eq "$rc" "0" "the written session-start command runs: exit code"
+assert_contains "$out" "does not load $spaced_p/dist/plugin" "the written session-start command runs the check"
 # Beside, not instead of: "install adds the session-start hook once" above
 # already places the new hook in this same array.
 assert_eq "$(jq '[.hooks.SessionStart[]? | .hooks[]? | select(.command == "echo consumer-start")] | length' "$settings_json")" \
@@ -350,6 +369,24 @@ run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolki
 if [ "$rc" -eq 0 ]; then fail "install.sh accepted a malformed settings.json"; fi
 assert_contains "$out" "parse error" "malformed settings.json refusal carries jq's parse error"
 if [ -d "$consumer/plugin-dev" ]; then fail "install.sh vendored despite the malformed settings.json"; fi
+
+# Valid JSON, so the pre-flight passes, but PreToolUse is an object where an
+# array belongs: the first jq stage fails, and the two behind it read nothing
+# and exit 0. Only pipefail carries the failure to the error branch; without it
+# the empty output would be written over the consumer's file.
+echo "=== install.sh: a settings.json it cannot wire is left as it was ==="
+new_sandbox
+mkdir -p "$consumer/.claude-plugin" "$consumer/.claude" "$consumer/plugin-dev"
+printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer/.claude-plugin/plugin.json"
+printf '{"hooks": {"PreToolUse": {"matcher": "Bash"}}}\n' > "$consumer/.claude/settings.json"
+cp "$consumer/.claude/settings.json" "$sandbox/settings.before"
+run_in "$consumer" bash "$repo_root/toolkit/install.sh"
+if [ "$rc" -eq 0 ]; then fail "install.sh reported success over a settings.json it could not wire"; fi
+assert_contains "$out" "could not wire the hooks into .claude/settings.json — nothing written." \
+    "an unwirable settings.json is reported"
+if ! cmp -s "$sandbox/settings.before" "$consumer/.claude/settings.json"; then
+    fail "an unwirable settings.json was rewritten"
+fi
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
