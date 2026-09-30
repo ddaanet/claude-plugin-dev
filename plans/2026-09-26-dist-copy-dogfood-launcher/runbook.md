@@ -137,6 +137,7 @@ for Item 1.1, `dogfood-pre-tool-test.sh`, `dogfood-session-start-test.sh`.
     - the ignore check asks git about `dist/plugin/` with the trailing slash: a
       first sync has no directory yet, and `git check-ignore dist/plugin` then
       misses a `/dist/plugin/` pattern (git 2.47, probed at review)
+    - git failure → git's status and stderr; no rsync, `dist/` untouched
     - rsync failure → rsync's own exit status, rsync's stderr unredirected
     - any other subcommand, or none → exit 2, usage on stderr
 
@@ -172,7 +173,7 @@ for Item 1.1, `dogfood-pre-tool-test.sh`, `dogfood-session-start-test.sh`.
     6. Leaf symlink, added: followed into the copy, chains too; one out allowed.
   - Interfaces:
     - `bash <root>/plugin-dev/dogfood.sh pre-tool` < PreToolUse payload → exit 0
-      always
+      per verdict; non-zero on an unreadable payload or an unenterable directory
     - edited path = `.tool_input.file_path // .tool_input.notebook_path`,
       resolved as `pwd -P` on existing dirs, `readlink -f` on a leaf link
     - under `<root>/dist/plugin/` → stdout is one object:

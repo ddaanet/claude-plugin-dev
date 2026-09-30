@@ -91,7 +91,6 @@ commit_all() {
 # run_dogfood <args...>: run the vendored script with the cwd at $sandbox and
 # CLAUDE_PROJECT_DIR naming a directory that is not the consumer. Sets $rc,
 # $out (stdout) and $err (stderr).
-# shellcheck disable=SC2034  # $out is set for the callers; no refusal scenario reads it
 run_dogfood() {
     mkdir -p "$sandbox/elsewhere"
     local errfile="$sandbox/stderr"
@@ -123,6 +122,7 @@ for name in 'a*b.log' 'a?b.log' 'a[b.log' 'a]b.log' 'a\b.log'; do
     printf 'keep\n' > "$consumer/dist/plugin/sentinel"
     run_dogfood sync
     assert_eq "$rc" "1" "a pattern character ($name) exit code"
+    assert_eq "$out" "" "a pattern character ($name) prints nothing on stdout"
     if [[ "$err" != "dogfood: "*"$name"* || "$err" == *$'\n'* ]]; then
         fail "a pattern character ($name): stderr is not one dogfood: line naming it: '$err'"
     fi
@@ -151,6 +151,7 @@ rm "$consumer/.claude-plugin/plugin.json"
 commit_all
 run_dogfood sync
 assert_eq "$rc" "1" "no manifest exit code"
+assert_eq "$out" "" "no manifest prints nothing on stdout"
 if [[ "$err" != "dogfood: "*".claude-plugin/plugin.json"* || "$err" == *$'\n'* ]]; then
     fail "no manifest: stderr is not one dogfood: line naming the manifest: '$err'"
 fi
@@ -170,6 +171,7 @@ if git -C "$consumer" check-ignore -q dist/plugin/; then
 fi
 run_dogfood sync
 assert_eq "$rc" "1" "not ignored exit code"
+assert_eq "$out" "" "not ignored prints nothing on stdout"
 if [[ "$err" != "dogfood: "*"/dist/plugin/"* || "$err" == *$'\n'* ]]; then
     fail "not ignored: stderr is not one dogfood: line naming /dist/plugin/: '$err'"
 fi

@@ -104,6 +104,7 @@ jq_holds() {
         fail "$label: $filter is not true over stdout '$out'"
     fi
 }
+
 # run_session_start: run_dogfood session-start, fed a SessionStart payload whose
 # cwd is not the consumer, as a resumed session's can be. A script taking its
 # root from the payload, even as a fallback, would name the wrong copy.
@@ -184,6 +185,19 @@ root="$(cd "$consumer" && pwd -P)"
 ln -s "$root" "$sandbox/link"
 label="session-start is silent on a symlinked spelling"
 CLAUDE_CODE_PLUGIN_DIRS="$sandbox/link/dist/plugin" run_session_start
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$out" "" "$label prints nothing on stdout"
+assert_eq "$err" "" "$label prints nothing on stderr"
+
+# A $(...) capture of the root strips the newline, so the copy it names is not
+# the entry's. $sandbox is physical, so $consumer is too.
+echo "=== session-start matches the copy of a root ending in a newline ==="
+make_consumer
+mv "$consumer" "$consumer"$'\n'
+consumer+=$'\n'
+run_dogfood sync
+label="session-start is silent on the copy of a root ending in a newline"
+CLAUDE_CODE_PLUGIN_DIRS="$consumer/dist/plugin" run_session_start
 assert_eq "$rc" "0" "$label exit code"
 assert_eq "$out" "" "$label prints nothing on stdout"
 assert_eq "$err" "" "$label prints nothing on stderr"

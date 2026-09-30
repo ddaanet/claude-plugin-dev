@@ -301,6 +301,16 @@ consumer="$sandbox/link"
 run_pre_tool Edit file_path "$root/dist/plugin/skills/demo/SKILL.md"
 assert_denied "pre-tool invoked through the symlink denies a physical path" "$root"
 
+# A $(...) capture of the root strips the newline, and the copy path no longer
+# falls under the root it names. $sandbox is physical, so $consumer is too.
+echo "=== pre-tool denies an edit into the copy of a root ending in a newline ==="
+make_consumer
+mv "$consumer" "$consumer"$'\n'
+consumer+=$'\n'
+run_dogfood sync
+run_pre_tool Edit file_path "$consumer/dist/plugin/skills/demo/SKILL.md"
+assert_denied "pre-tool denies an edit into the copy of a root ending in a newline" "$consumer"
+
 # The payload is built with the real jq before the PATH narrows: run_pre_tool
 # would call jq under it. The same payload is denied with jq on PATH first, so
 # the silence below is the missing jq and not the allow of a path outside the

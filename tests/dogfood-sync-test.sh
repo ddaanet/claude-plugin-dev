@@ -166,6 +166,17 @@ assert_file "$consumer/dist/plugin/skills/demo/SKILL.md" \
 assert_absent "$sandbox/elsewhere/dist" "sync resolves the root: CLAUDE_PROJECT_DIR untouched"
 assert_absent "$sandbox/dist" "sync resolves the root: cwd untouched"
 
+echo "=== sync keeps a root whose name ends in a newline ==="
+# A $(...) capture of the root strips the newline, naming a sibling that does
+# not exist, so the manifest check refuses there.
+make_consumer
+mv "$consumer" "$consumer"$'\n'
+consumer+=$'\n'
+run_dogfood sync
+assert_eq "$rc" "0" "a root ending in a newline: exit code"
+assert_file "$consumer/dist/plugin/skills/demo/SKILL.md" \
+    "a root ending in a newline: the copy is made inside it"
+
 echo "=== a committed deletion propagates ==="
 # The first sync must have put the file in the copy, else its absence after the
 # second proves nothing. The sibling SKILL.md stays, so the removal is of one
