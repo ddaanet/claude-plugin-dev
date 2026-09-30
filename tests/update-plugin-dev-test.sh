@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# End-to-end tests of the two subtree call sites — release.just's
-# `update-plugin-dev` recipe and install.sh's initial `subtree add` — against
-# real git repos in a temp dir. No network: the toolkit and its "memory"
-# submodule are local bare repos.
+# End-to-end tests of release.just's `update-plugin-dev` recipe (and the
+# update.sh it runs) against real git repos in a temp dir. No network: the
+# toolkit and its "memory" submodule are local bare repos. install.sh's
+# initial `subtree add` is covered by install-test.sh.
 #
 # Usage: bash tests/update-plugin-dev-test.sh   (run from repo root)
 set -euo pipefail
@@ -171,8 +171,7 @@ new_sandbox
 # Vendor the toolkit first, before the consumer mounts its own memory
 # submodule -- the ordering where the initial add has no collision to hit,
 # since the consumer has no submodule registered at "memory" yet. The other
-# ordering (memory mounted first, then install) is the install.sh scenario
-# below.
+# ordering (memory mounted first, then install) is in install-test.sh.
 run_in "$consumer" allow_file git subtree add --prefix=plugin-dev "$toolkit" dist-v1 --squash
 assert_eq "$rc" "0" "initial vendor exit code"
 assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.0" "initial vendor VERSION"
@@ -200,50 +199,14 @@ assert_eq "$(git -C "$consumer" config --get submodule.memory.url)" \
     "$sandbox/consumer-memory-origin.git" "consumer's own memory submodule registration untouched"
 assert_clean_vendor "$consumer" "update-plugin-dev"
 
-echo "=== install.sh: vendors into a consumer that already mounts a memory submodule ==="
+echo "=== update-plugin-dev refuses any ref outside the dist lineage ==="
 new_sandbox
-
-# The reverse ordering: an existing plugin repo that mounted its gitlore
-# memory submodule before adopting the toolkit. install.sh's `subtree add`
-# performs the same raw, unprefixed fetch of the toolkit's history as
-# `subtree pull`, so it hits the same on-demand recursion collision unless
-# scoped the same way.
-run_in "$consumer" allow_file git submodule add -q "$sandbox/consumer-memory-origin.git" memory
-assert_eq "$rc" "0" "consumer memory submodule mount exit code"
-git -C "$consumer" commit -qm "consumer: mount memory"
-
-# install.sh's run-in-target guard needs a plugin manifest in the cwd.
-mkdir -p "$consumer/.claude-plugin"
-printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer/.claude-plugin/plugin.json"
-git -C "$consumer" add .claude-plugin/plugin.json
-git -C "$consumer" commit -qm "consumer: plugin manifest"
-
-run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh" dist-v1
-assert_eq "$rc" "0" "install.sh exit code"
-assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.0" "install.sh vendored VERSION"
-assert_eq "$(git -C "$consumer" config --get submodule.memory.url)" \
-    "$sandbox/consumer-memory-origin.git" "consumer's own memory submodule registration untouched"
-assert_clean_vendor "$consumer" "install.sh"
-
-echo "=== both call sites refuse any ref outside the dist lineage ==="
-new_sandbox
-
-# install.sh's run-in-target guard needs a plugin manifest in the cwd.
-mkdir -p "$consumer/.claude-plugin"
-printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer/.claude-plugin/plugin.json"
-git -C "$consumer" add .claude-plugin/plugin.json
-git -C "$consumer" commit -qm "consumer: plugin manifest"
 
 # A source tag resolves to the toolkit's ROOT tree -- its memory gitlink,
 # .claude/, CLAUDE.md, its own justfile. Vendoring one is the leak this whole
-# design exists to stop, and it is silent, so both call sites must refuse it
+# design exists to stop, and it is silent, so the call site must refuse it
 # rather than warn. This is what makes the fetch-recursion collision
 # unreachable, so it is asserted rather than assumed.
-run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh" v1
-if [ "$rc" -eq 0 ]; then fail "install.sh accepted a source tag"; fi
-assert_contains "$out" "dist-v1" "install.sh refusal names the dist tag to use"
-if [ -d "$consumer/plugin-dev" ]; then fail "install.sh vendored despite refusing the ref"; fi
-
 run_in "$consumer" allow_file git subtree add --prefix=plugin-dev "$toolkit" dist-v1 --squash
 assert_eq "$rc" "0" "vendor for the update-side refusal checks"
 printf "import '%s/toolkit/release.just'\n\nprecommit:\n    @echo stub-precommit\n\nprerelease: precommit\n" \
@@ -283,57 +246,6 @@ run_in "$consumer" allow_file just --set toolkit_url "$sandbox/tagless.git" upda
 if [ "$rc" -eq 0 ]; then fail "no-ref update succeeded against a tagless remote"; fi
 assert_contains "$out" "dist-vX.Y.Z" "update tagless-remote refusal names the explicit-ref fallback"
 
-echo "=== install.sh: no ref resolves the newest dist tag ==="
-new_sandbox
-make_toolkit_release "$toolkit" v2 1.0.1
-
-mkdir -p "$consumer/.claude-plugin"
-printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer/.claude-plugin/plugin.json"
-git -C "$consumer" add .claude-plugin/plugin.json
-git -C "$consumer" commit -qm "consumer: plugin manifest"
-
-if [ -e "$consumer/.claude/settings.json" ]; then fail "anchor: the no-ref fixture already has a settings.json"; fi
-run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh"
-assert_eq "$rc" "0" "no-ref install exit code"
-
-# The three commands, shared with the existing-settings scenario below.
-# vg_cmd is exact and unquoted: consumers' settings already carry this
-# spelling, so a respelt command would be added again beside it on their next
-# install. Claude Code expands ${CLAUDE_PROJECT_DIR} at hook-fire time, so the
-# commands must land in settings.json with the variable literal, the dogfood
-# ones inside double quotes.
-# shellcheck disable=SC2016  # the ${...} is meant literal
-vg_cmd='bash ${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh'
-# shellcheck disable=SC2016
-pretool_cmd='bash "${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh" pre-tool'
-# shellcheck disable=SC2016
-session_cmd='bash "${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh" session-start'
-# One matcher=command line per hook, sorted: the order entries land in is not
-# part of the contract, a missing, extra or mis-scoped hook is.
-fresh_json="$consumer/.claude/settings.json"
-assert_eq "$(jq -r '[.hooks.PreToolUse[]? | .matcher as $m | .hooks[]? | "\($m)=\(.command)"] | sort | join("\n")' "$fresh_json")" \
-    "Write|Edit=$vg_cmd
-Write|Edit|NotebookEdit=$pretool_cmd" "a fresh settings.json carries version-guard and the pre-tool hook under PreToolUse"
-assert_eq "$(jq -r '[.hooks.SessionStart[]? | (if has("matcher") then "matcher" else "none" end) + "=" + (.hooks[]? | .command)] | join("\n")' "$fresh_json")" \
-    "none=$session_cmd" "a fresh settings.json carries the session-start hook with no matcher"
-assert_contains "$out" "dist-v2" "no-ref install names the resolved tag"
-assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.1" "no-ref install vendored the newest VERSION"
-
-# Same failure path on the install side, from a fresh consumer (install.sh
-# only resolves when plugin-dev/ is absent).
-consumer2="$sandbox/consumer2"
-git init -q -b main "$consumer2"
-git_id "$consumer2"
-git -C "$consumer2" commit --allow-empty -qm init
-mkdir -p "$consumer2/.claude-plugin"
-printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer2/.claude-plugin/plugin.json"
-git -C "$consumer2" add .claude-plugin/plugin.json
-git -C "$consumer2" commit -qm "consumer: plugin manifest"
-git init -q --bare -b main "$sandbox/tagless.git"
-run_in "$consumer2" allow_file env TOOLKIT_URL="$sandbox/tagless.git" bash "$repo_root/toolkit/install.sh"
-if [ "$rc" -eq 0 ]; then fail "no-ref install succeeded against a tagless remote"; fi
-assert_contains "$out" "dist-vX.Y.Z" "install tagless-remote refusal names the explicit-ref fallback"
-
 echo "=== update-plugin-dev: prints migration notes for the crossed range only ==="
 new_sandbox
 
@@ -361,109 +273,6 @@ fi
 assert_not_contains "$out" "NOTE-1.0.0" "below-range note not printed"
 assert_eq "$(printf '%s\n' "$out" | grep -o 'NOTE-1\.0\.[0-9]*' | tr '\n' ' ')" \
     "NOTE-1.0.1 NOTE-1.0.2 " "in-range notes print in version order"
-
-echo "=== install.sh: wires into an existing settings.json without replacing it ==="
-new_sandbox
-
-mkdir -p "$consumer/.claude-plugin" "$consumer/.claude"
-printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer/.claude-plugin/plugin.json"
-# A PreToolUse entry with no `matcher` key is legal — it matches every tool —
-# and is the ordinary shape of a hand-written block. `null | test(...)` aborts
-# jq, which used to fall through to the stub-from-scratch fallback and replace
-# the whole file with just the version-guard hook.
-cat > "$consumer/.claude/settings.json" <<'JSON'
-{
-  "permissions": {"allow": ["Bash(ls:*)"]},
-  "hooks": {
-    "PreToolUse": [{"hooks": [{"type": "command", "command": "echo consumer-hook"}]}],
-    "SessionStart": [{"hooks": [{"type": "command", "command": "echo consumer-start"}]}]
-  }
-}
-JSON
-printf 'default:\n    @echo hi\n' > "$consumer/justfile"
-git -C "$consumer" add -A
-git -C "$consumer" commit -qm "consumer: manifest, settings, justfile"
-# `ls -l | cut` and not `stat`: the mode format flag is the GNU/BSD split this
-# whole file is careful about (`stat -c` vs `stat -f`). One fixed path, and only
-# the mode column is read, so SC2012's filename concerns don't arise.
-# shellcheck disable=SC2012  # fixed path, reading the mode column only
-settings_mode="$(ls -l "$consumer/.claude/settings.json" | cut -c1-10)"
-
-run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh" dist-v1
-assert_eq "$rc" "0" "install.sh exit code over an existing settings.json"
-settings_json="$consumer/.claude/settings.json"
-assert_eq "$(jq -r '.permissions.allow[0]' "$settings_json")" \
-    "Bash(ls:*)" "install.sh kept the consumer's permissions block"
-assert_eq "$(jq '[.hooks.PreToolUse[] | .hooks[]? | select(.command == "echo consumer-hook")] | length' "$settings_json")" \
-    "1" "install.sh kept the consumer's own matcher-less hook"
-assert_eq "$(jq --arg c "$vg_cmd" '[.hooks.PreToolUse[] | .hooks[]? | select(.command == $c)] | length' "$settings_json")" \
-    "1" "install.sh added the version-guard hook"
-# One word per hook carrying the command, naming its entry's matcher: a second
-# copy under any entry, or the one copy under the wrong matcher, shows.
-assert_eq "$(jq -r --arg c "$pretool_cmd" '[.hooks.PreToolUse[]? | (.matcher // "none") as $m | .hooks[]? | select(.command == $c) | $m] | join(" ")' "$settings_json")" \
-    "Write|Edit|NotebookEdit" "install adds the pre-tool hook once"
-assert_eq "$(jq -r --arg c "$session_cmd" '[.hooks.SessionStart[]? | (if has("matcher") then "matcher=\(.matcher)" else "none" end) as $m | .hooks[]? | select(.command == $c) | $m] | join(" ")' "$settings_json")" \
-    "none" "install adds the session-start hook once"
-# Every dogfood.sh command, any event: total and quoted. An unquoted or
-# install-time-expanded spelling reds here as 2:0, not as a missing hook.
-# shellcheck disable=SC2016  # the ${...} is meant literal
-quoted='"${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh"'
-assert_eq "$(jq -r --arg q "$quoted" '[.hooks[]?[]? | .hooks[]? | .command // "" | select(contains("dogfood.sh"))] | "\(length):\(map(select(contains($q))) | length)"' "$settings_json")" \
-    "2:2" "the commands quote the project dir"
-# Beside, not instead of: "install adds the session-start hook once" above
-# already places the new hook in this same array.
-assert_eq "$(jq '[.hooks.SessionStart[]? | .hooks[]? | select(.command == "echo consumer-start")] | length' "$settings_json")" \
-    "1" "a pre-existing SessionStart entry survives"
-# mktemp creates 0600, so replacing the file with `mv` silently narrows its
-# permissions. Compared against the mode the file already had, not a literal,
-# so the assertion holds under any umask.
-# shellcheck disable=SC2012  # fixed path, reading the mode column only
-assert_eq "$(ls -l "$settings_json" | cut -c1-10)" "$settings_mode" \
-    "install.sh preserved the settings.json mode"
-# `$(cat justfile)` strips every trailing newline, so the rewrite that prepends
-# the import line has to put one back.
-if [ -n "$(tail -c1 "$consumer/justfile")" ]; then
-    fail "install.sh dropped the justfile's trailing newline"
-fi
-assert_contains "$(cat "$consumer/justfile")" "@echo hi" "install.sh kept the justfile's own content"
-
-# plugin-dev/ is vendored now, so the second run takes no ref. The copy sits
-# outside the consumer so the run under test sees the same tree as the first.
-cp "$settings_json" "$sandbox/settings.before"
-run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh"
-assert_eq "$rc" "0" "a re-run is a no-op: exit code"
-if ! cmp -s "$sandbox/settings.before" "$settings_json"; then
-    fail "a re-run is a no-op: settings.json changed"
-fi
-assert_contains "$out" "already installed, nothing to do" "a re-run is a no-op: report"
-
-# Presence is the command alone: an entry under a matcher the installer never
-# writes still counts, so the next run adds nothing beside it.
-jq --arg p "$pretool_cmd" --arg v "$vg_cmd" \
-    '.hooks.PreToolUse |= map(if any(.hooks[]?; .command == $p or .command == $v) then .matcher = "Bash" else . end)' \
-    "$settings_json" > "$sandbox/settings.rematched"
-cp "$sandbox/settings.rematched" "$settings_json"
-assert_eq "$(jq -r --arg p "$pretool_cmd" --arg v "$vg_cmd" '[.hooks.PreToolUse[]? | .matcher as $m | .hooks[]? | select(.command == $p or .command == $v) | $m] | join(" ")' "$settings_json")" \
-    "Bash Bash" "an entry under another matcher counts as present: setup"
-run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh"
-if ! cmp -s "$sandbox/settings.rematched" "$settings_json"; then
-    fail "an entry under another matcher counts as present: settings.json changed"
-fi
-# An install that stopped short of step 3 would leave the file untouched too.
-assert_contains "$out" "already installed, nothing to do" "an entry under another matcher counts as present: report"
-
-echo "=== install.sh: a malformed settings.json is reported with jq's diagnosis ==="
-new_sandbox
-mkdir -p "$consumer/.claude-plugin" "$consumer/.claude"
-printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer/.claude-plugin/plugin.json"
-printf '{"permissions": {\n' > "$consumer/.claude/settings.json"
-git -C "$consumer" add -A
-git -C "$consumer" commit -qm "consumer: manifest + broken settings"
-
-run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh" dist-v1
-if [ "$rc" -eq 0 ]; then fail "install.sh accepted a malformed settings.json"; fi
-assert_contains "$out" "parse error" "malformed settings.json refusal carries jq's parse error"
-if [ -d "$consumer/plugin-dev" ]; then fail "install.sh vendored despite the malformed settings.json"; fi
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2

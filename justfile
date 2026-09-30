@@ -6,13 +6,14 @@ _default:
 # Run all syntax + style checks on the toolkit's own scripts.
 precommit: whitespace format-docs
     shellcheck toolkit/install.sh toolkit/version-guard.sh toolkit/check-version.sh toolkit/release.sh toolkit/update.sh toolkit/dogfood.sh toolkit/bin/claude scripts/self-release.sh
-    bash -n tests/version-guard-test.sh tests/check-version-test.sh tests/release-test.sh tests/self-release-test.sh tests/update-plugin-dev-test.sh tests/dist-tree-test.sh tests/docs-test.sh tests/doc-sync-test.sh tests/citation-test.sh tests/dogfood-sync-test.sh tests/dogfood-sync-refusal-test.sh tests/dogfood-pre-tool-test.sh tests/dogfood-session-start-test.sh tests/dogfood-launcher-test.sh
+    bash -n tests/version-guard-test.sh tests/check-version-test.sh tests/release-test.sh tests/self-release-test.sh tests/update-plugin-dev-test.sh tests/install-test.sh tests/dist-tree-test.sh tests/docs-test.sh tests/doc-sync-test.sh tests/citation-test.sh tests/dogfood-sync-test.sh tests/dogfood-sync-refusal-test.sh tests/dogfood-pre-tool-test.sh tests/dogfood-session-start-test.sh tests/dogfood-launcher-test.sh
     just _import-check
     bash tests/version-guard-test.sh
     bash tests/check-version-test.sh
     bash tests/release-test.sh
     bash tests/self-release-test.sh
     bash tests/update-plugin-dev-test.sh
+    bash tests/install-test.sh
     bash tests/dist-tree-test.sh
     bash tests/docs-test.sh
     bash tests/doc-sync-test.sh

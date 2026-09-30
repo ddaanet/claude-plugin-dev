@@ -267,8 +267,7 @@ for Item 1.1, `dogfood-pre-tool-test.sh`, `dogfood-session-start-test.sh`.
       the next `claude` with argv unchanged
     - no next `claude` → exit 127, `dogfood: no other claude on PATH` on stderr
 
-- **Item 2.2:** `toolkit/install.sh` step 3, in
-  `tests/update-plugin-dev-test.sh` scenario
+- **Item 2.2:** `toolkit/install.sh` step 3, in `tests/install-test.sh` scenario
   `install.sh: wires into an existing settings.json without replacing it`, whose
   fixture already holds a matcher-less `PreToolUse` entry. Step 3's jq block
   becomes one function of (event, matcher, command), called three times, the
@@ -388,12 +387,13 @@ for Item 1.1, `dogfood-pre-tool-test.sh`, `dogfood-session-start-test.sh`.
       group heading
 
 - **Item 3.6:** `CLAUDE.md` — the Quality gate paragraph names the four dogfood
-  suites above and `dogfood-launcher-test.sh`; the `docs/references/` bullet's
-  node list gains `dogfood`; the Layout bullets 1.1/1 and 2.1/1 added are
-  brought to the shape of their neighbours, the `release.just` bullet names
-  `dogfood`, and the `install.sh` bullet says it wires the dogfood hooks beside
-  version-guard. The Conventions bullet on `hook_cmd`'s single quotes extends to
-  the two dogfood commands, which quote `"${CLAUDE_PROJECT_DIR}"` where
-  version-guard's does not, and says why version-guard's stays unquoted.
+  suites above, `dogfood-launcher-test.sh` and `install-test.sh`; the
+  `docs/references/` bullet's node list gains `dogfood`; the Layout bullets
+  1.1/1 and 2.1/1 added are brought to the shape of their neighbours, the
+  `release.just` bullet names `dogfood`, and the `install.sh` bullet says it
+  wires the dogfood hooks beside version-guard. The Conventions bullet on
+  `hook_cmd`'s single quotes extends to the two dogfood commands, which quote
+  `"${CLAUDE_PROJECT_DIR}"` where version-guard's does not, and says why
+  version-guard's stays unquoted.
   - Requirements: D5, D9, D10
   - Depends on: Item 3.5

@@ -239,10 +239,9 @@ prose.
    - a launch from a subdirectory still resolves the root and execs;
    - aborts, without exec, when `sync` fails;
    - exit 127 when no next `claude` is found.
-4. **tdd**: the `install.sh` wiring, extending
-   `tests/update-plugin-dev-test.sh`'s scenario "install.sh: wires into an
-   existing settings.json without replacing it", which already owns install.sh's
-   settings assertions. Cases:
+4. **tdd**: the `install.sh` wiring, extending `tests/install-test.sh`'s
+   scenario "install.sh: wires into an existing settings.json without replacing
+   it", which already owns install.sh's settings assertions. Cases:
    - the two entries are added once;
    - a re-run is a no-op;
    - existing settings are preserved;
