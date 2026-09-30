@@ -249,8 +249,8 @@ for Item 1.1, `dogfood-pre-tool-test.sh`, `dogfood-session-start-test.sh`.
        ran. `… keeps the rest of PATH as spelled`: a leading empty entry
        survives (2.1/1 code review).
     4. `a subdirectory launch resolves the root`: cwd `<root>/skills/demo` — the
-       stub ran, recorded `<root>/dist/plugin`, and recorded
-       `<root>/skills/demo` as its `$PWD`.
+       stub ran and recorded `<root>/dist/plugin` and that `$PWD`. From
+       `plugin-dev/bin`, an empty PATH entry is dropped (2.1/3 code review).
     5. `a failed sync aborts the launch`: manifest removed — the shim exits 1,
        stderr contains `.claude-plugin/plugin.json`, and the stub's record file
        does not exist.
