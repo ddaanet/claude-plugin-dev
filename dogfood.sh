@@ -9,9 +9,10 @@
 #                  into <root>/dist/plugin/; exit 0 on either verdict, empty
 #                  stdout when allowing
 #   session-start  SessionStart hook: warn when this session does not load
-#                  <root>/dist/plugin/
+#                  <root>/dist/plugin/, or when jq is missing; exit 0,
+#                  empty stdout when silent
 set -euo pipefail
-unset CDPATH # else cd prints its target into a $(cd … && pwd -P) capture
+unset CDPATH # else a relative cd searches it and prints its target
 
 main() {
     case "${1:-}" in
@@ -45,7 +46,8 @@ usage() {
 # one dogfood: line naming the path, exit 1, dist/ untouched.
 sync_copy() {
     local root
-    root="$(root_dir)"
+    root="$(root_dir && printf x)"
+    root="${root%x}"
     require_manifest "$root"
     require_ignored_copy "$root"
     # Not local: the EXIT trap reads it after sync_copy has returned.
@@ -89,7 +91,8 @@ sync_copy() {
 pre_tool() {
     local root path physical rel copy="dist/plugin"
     command -v jq >/dev/null || exit 0
-    root="$(root_dir)"
+    root="$(root_dir && printf x)"
+    root="${root%x}"
     # NotebookEdit names its target notebook_path, not file_path. Each x shields
     # a trailing newline in the path from its capture's strip.
     path="$(jq -j '.tool_input.file_path // .tool_input.notebook_path // ""' && printf x)"
@@ -140,7 +143,8 @@ session_start() {
         printf '%s\n' '{"systemMessage":"\u001b[0mdogfood: jq is not on PATH, so the copy guard and this check are off until it is installed"}'
         exit 0
     fi
-    root="$(root_dir)"
+    root="$(root_dir && printf x)"
+    root="${root%x}"
     copy="$root/dist/plugin"
     # Split by parameter expansion: the entries may hold spaces.
     rest="${CLAUDE_CODE_PLUGIN_DIRS:-}:"
@@ -169,14 +173,15 @@ session_start() {
 # physical_path: the path where an edit would land, printed with no trailing
 # newline. A subshell walks it one name at a time, entering each existing
 # directory with cd -P, so a symlink anywhere up to the nearest existing
-# ancestor resolves. From the first missing name on, the rest is kept as
-# spelled, since an edit may create it, with each .. dropping the name before
-# it: the kernel cannot resolve a .. past a directory that is not there yet,
-# and the edit lands there whether the path is normalised first or its missing
-# directories are made first. Names are split with parameter expansion and the
-# result read from $PWD, never through a $(...) capture, which would strip a
-# name's trailing newline. Each cd is chained, since errexit is off inside
-# $(...): a failed cd must fail the call, not print a half-resolved path.
+# ancestor resolves. From the first name that is not an existing directory on,
+# the rest is kept as spelled, since an edit may create it, with each ..
+# dropping the name before it: the kernel cannot resolve a .. past a directory
+# that is not there yet, and the edit lands there whether the path is
+# normalised first or its missing directories are made first. Names are split
+# with parameter expansion and the result read from $PWD, never through a
+# $(...) capture, which would strip a name's trailing newline. Each cd is
+# chained, since errexit is off inside $(...): a failed cd must fail the call,
+# not print a half-resolved path.
 physical_path() {
     [[ -n "$1" ]] || return 0
     (
@@ -233,13 +238,17 @@ require_ignored_copy() {
     esac
 }
 
-# root_dir: the physical parent of this script's directory. Runs inside $(),
-# where errexit is off, so each step is chained: a failed cd must fail the
+# root_dir: the physical parent of this script's directory, printed with no
+# trailing newline and read from $PWD, never through a $(...) capture, so a
+# root whose name ends in a newline keeps it; each caller shields its own
+# capture with an x. The x after dirname shields the script directory's name
+# the same way, and ?x drops dirname's own newline with it. Runs inside $(),
+# where errexit is off, so each step is chained: a failed dirname must fail the
 # call, not fall through to the parent of an empty path, which is /.
 root_dir() {
     local here
-    here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)" &&
-        (cd "$here/.." && pwd -P)
+    here="$(dirname "${BASH_SOURCE[0]}" && printf x)" &&
+        (cd -P -- "${here%?x}/.." && printf '%s' "$PWD")
 }
 
 main "$@"
