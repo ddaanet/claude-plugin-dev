@@ -433,6 +433,17 @@ run_pre_tool() {
         '{tool_name:$t,tool_input:{($f):$p}}')"
 }
 
+# make_jqless_bin <dir>: <dir> holds symlinks to the commands the script and
+# run_dogfood invoke, jq left out. A PATH of <dir> alone reaches those and not
+# jq; the caller asserts `command -v jq` fails under it.
+make_jqless_bin() {
+    local c
+    mkdir -p "$1"
+    for c in bash dirname mkdir cat; do
+        ln -s "$(command -v "$c")" "$1/$c"
+    done
+}
+
 # jq_holds <label> <filter> [jq options...]: fail unless <filter> is true over
 # $out. Checked in jq rather than on `jq -r` text: its contains() is literal
 # where assert_contains' needle is a BRE, a non-string field cannot pass as its
@@ -611,6 +622,40 @@ ln -s "$consumer" "$sandbox/link"
 consumer="$sandbox/link"
 run_pre_tool Edit file_path "$root/dist/plugin/skills/demo/SKILL.md"
 assert_denied "pre-tool invoked through the symlink denies a physical path" "$root"
+
+# The payload is built with the real jq before the PATH narrows: run_pre_tool
+# would call jq under it. The same payload is denied with jq on PATH first, so
+# the silence below is the missing jq and not the allow of a path outside the
+# copy.
+echo "=== pre-tool is silent without jq ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+make_jqless_bin "$sandbox/nojq"
+label="pre-tool is silent without jq"
+if PATH="$sandbox/nojq" command -v jq >/dev/null; then
+    fail "$label: jq is still reachable on the jq-less PATH"
+fi
+payload="$(jq -cn --arg p "$root/dist/plugin/skills/demo/SKILL.md" \
+    '{tool_name:"Edit",tool_input:{file_path:$p}}')"
+run_dogfood pre-tool <<<"$payload"
+assert_denied "$label: control with jq on PATH" "$root"
+PATH="$sandbox/nojq" run_dogfood pre-tool <<<"$payload"
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$out" "" "$label prints nothing on stdout"
+assert_eq "$err" "" "$label prints nothing on stderr"
+
+# The silence above is a jq-presence guard, not jq's stderr thrown away: with
+# jq present, a payload it cannot read still fails the hook with jq's own error.
+echo "=== pre-tool fails loudly on a payload jq cannot read ==="
+make_consumer
+label="pre-tool fails loudly on a payload jq cannot read"
+run_dogfood pre-tool <<<"not json"
+if [[ "$rc" == 0 ]]; then
+    fail "$label: exit code was 0"
+fi
+assert_eq "$out" "" "$label prints nothing on stdout"
+assert_contains "$err" "jq: " "$label shows jq's error"
 
 echo "=== unknown subcommand is usage ==="
 make_consumer
