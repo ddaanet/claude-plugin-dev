@@ -280,6 +280,18 @@ assert_file "$sandbox/rec/path" \
 assert_eq "$(recorded path)" "$stubdir:$runner_path" \
     "a launch from plugin-dev/bin drops the empty entry"
 
+echo "=== a failed sync aborts the launch ==="
+make_consumer
+rm "$consumer/.claude-plugin/plugin.json"
+run_claude
+assert_eq "$rc" "1" "a failed sync aborts the launch: the shim exits with sync's status"
+# Sync's own refusal line, root included, reaching the terminal unredirected.
+if ! grep -qF "dogfood: $consumer/.claude-plugin/plugin.json" "$sandbox/stderr"; then
+    fail "a failed sync aborts the launch: stderr does not carry sync's refusal: $(cat "$sandbox/stderr")"
+fi
+assert_absent "$sandbox/rec/argv" "a failed sync aborts the launch: the next claude did not run"
+assert_absent "$sandbox/rec/pid" "a failed sync aborts the launch: the stub left no record"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
