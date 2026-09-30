@@ -33,9 +33,10 @@ Both problems want the same answer: a single source of truth for release infra,
 vendored into each consumer plugin and enforced via a `PreToolUse` hook on
 `plugin.json`.
 
-The toolkit captures: the unified release recipe, the version-guard hook, and a
-one-shot install script. Vendored via `git subtree` so the content is versioned
-with each consumer.
+The toolkit captures: the unified release recipe, the version-guard hook, a
+one-shot install script, and a dogfood launcher that loads the plugin under
+development from a synced copy. Vendored via `git subtree` so the content is
+versioned with each consumer.
 
 ## Requirements
 
@@ -45,6 +46,12 @@ with each consumer.
   `.claude-plugin/plugin.json`'s `.version`.
 - Provide a one-shot installer that vendors the toolkit and wires it into the
   consumer's `justfile` and `.claude/settings.json`.
+- Provide a dogfood launcher: a `claude` shim that loads the consumer plugin
+  from a copy at `dist/plugin/`, so agent edits to the source meet no
+  sensitive-file prompt and a half-edited hook script never runs in the session
+  editing it. The copy changes only when promoted — at launch or by
+  `just dogfood` — and project hooks refuse agent edits to it and report a
+  session that does not load it.
 - **Reproducibility:** old consumer-plugin tags must build identically to when
   they were tagged — the toolkit content vendored at the time must be
   retrievable, not subject to drift.
@@ -81,8 +88,10 @@ the dated record of the reversal goes in the changelog.
   toolkit in one plugin would couple the toolkit's release cadence to that
   plugin's.
 - **One `install.sh` bootstraps and wires in a single invocation** — subtree
-  add, justfile import, hook into `.claude/settings.json`. It only ever adds to
-  what the consumer owns, and re-running it is a no-op.
+  add, justfile import, and the version-guard and two dogfood hooks into
+  `.claude/settings.json`. It only ever adds to what the consumer owns, a hook
+  counting as present when any entry under its event runs its command, whatever
+  the matcher, and re-running it is a no-op.
 - **The first install is `curl … | bash` at a dist tag** — a `dist-` ref's root
   tree is `toolkit/`, so one tag serves the installer and the content it
   vendors, and the resolved tag is passed through so the two are one release.
@@ -191,6 +200,40 @@ the dated record of the reversal goes in the changelog.
   computed after the deny is decided may fail, so every status the wording
   depends on is absorbed rather than propagated.
 
+### The dogfood launcher — [references/dogfood.md](references/dogfood.md)
+
+- **The session loads a real copy at `dist/plugin/`, not a symlink** — Claude
+  Code resolves inline roots through `realpath`, so a symlinked root flags the
+  source it points to.
+- **The copy is the whole repo tree minus what git ignores, every `.git` and
+  itself** — deletions propagate, and an ignored name holding an rsync pattern
+  character aborts the sync rather than being escaped.
+- **The plugin root is the repo root** — every consumer has the root layout, so
+  nested roots are out of scope.
+- **The copy syncs only on deliberate promotion: launch through the shim, or
+  `just dogfood`** — syncing on each edit would cost a sync per tool call and
+  run half-edited hook scripts in the session editing them.
+- **`dogfood.sh` carries `sync`, `pre-tool` and `session-start`, each rooted at
+  the script's own location** — never `CLAUDE_PROJECT_DIR` or a payload `cwd`,
+  which a resumed session can take from another repository.
+- **The copy guard denies an edit into `dist/plugin/`, compared on physical
+  paths, and does not rewrite it** — the agent is given the source path, since a
+  silent rewrite would hide the mapping.
+- **`session-start` reports a session that does not load the copy, and a missing
+  `jq`** — whole-entry matching on the variable; the human gets the remedy, the
+  agent the fact, and nothing refuses.
+- **A failed sync is loud** — the launch aborts before exec, `just dogfood`
+  exits non-zero, and rsync's stderr is never redirected.
+- **The shim exports `CLAUDE_CODE_PLUGIN_DIRS` rather than passing
+  `--plugin-dir`, and execs the next `claude` on PATH** — the variable reaches
+  hooks, which is what `session-start` checks.
+- **`just dogfood` syncs and does nothing else** — it starts no `claude` and
+  depends on no gate.
+- **`install.sh` wires the hooks; `.envrc`, `.gitignore` and `clean` are
+  documented, not edited** — and the sync refuses until git ignores the copy.
+- **Existing consumers migrate by a printed note** — `update.sh` does not re-run
+  `install.sh`, and breaking the hand-copied shims is accepted.
+
 ## Limitations
 
 - **Hybrid Python+plugin repos (e.g. edify)** are out of scope. Their release
@@ -226,6 +269,13 @@ the dated record of the reversal goes in the changelog.
   stays where the reader is. The cost is real: a comment that retells an
   incident ages with the code around it and has to be rewritten when the code
   moves.
+- **A dogfood session launched from a subdirectory runs without its project
+  hooks.** Claude Code reads project settings from the launch directory only, so
+  the copy loads but the copy guard, the `SessionStart` check and the
+  version-guard do not fire, and nothing reports it. The shim does not refuse;
+  the manual says to launch from the repo root.
+- **The dogfood sync is unprobed against macOS rsync.** Whether `openrsync` or
+  rsync 2.6.9 accepts the flags the sync combines is not established.
 - **Solo-author workflow assumed.** The toolkit is built around one maintainer's
   plugins. Multi-contributor scenarios (e.g. forks proposing changes back to the
   toolkit) work mechanically but haven't been ergonomics-tested.

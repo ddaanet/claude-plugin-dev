@@ -9,6 +9,13 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-09-30 — The dogfood launcher: consumers load their plugin from a synced copy](changelog/2026-09-30-dogfood-launcher.md)
+  — a session loading a plugin from its working tree prompts on every agent edit
+  and runs half-edited hook scripts; the toolkit ships a `claude` shim that
+  loads a copy at `dist/plugin/`, promoted only at launch and by `just dogfood`,
+  with a copy guard and a `SessionStart` check wired by `install.sh`. Records
+  why sync-on-edit was designed first and rejected in review, the three probe
+  sets, and where the shipped code departs from the outline
 - [2026-09-20 — The first-release pass reviewed, and what the diff does not say](changelog/2026-09-20-deliverable-review-fixes.md)
   — `/deliverable-review` of the first-release-version pass returned 6 Major, 15
   Minor and one baseline defect, executed over four phases. Three things the

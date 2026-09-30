@@ -145,13 +145,20 @@ ambiguous.
 
 `install.sh` does three things in one invocation: `git subtree add` the toolkit
 (if not already present), inject the `import` line into the consumer's
-`justfile`, and add the version-guard hook to `.claude/settings.json`.
+`justfile`, and wire three hooks into `.claude/settings.json` — the
+version-guard, and the dogfood launcher's copy guard and `SessionStart` check
+(see [dogfood.md](dogfood.md)).
 
 Everything it touches outside `plugin-dev/` belongs to the consumer, so it only
 ever adds: the justfile keeps its own content and its trailing newline, and
-`settings.json` is rewritten by a jq pass that appends one hook and preserves
-the rest of the document, its mode and its ownership. A jq failure over an
-existing `settings.json` is a hard error that leaves the file alone — never a
+`settings.json` is rewritten by one jq pass per hook, each appending its entry
+only if absent, and the write preserves the rest of the document, its mode and
+its ownership. A hook counts as present when any entry under its event carries
+its command, whatever that entry's matcher, a missing matcher included: a
+consumer may have rescoped it, and a second copy beside the rescoped one would
+run the command twice wherever the two matchers overlap. The file is written
+only when the result differs from it. A jq failure over an existing
+`settings.json` is a hard error that leaves the file alone — never a
 fall-through to writing a fresh one, which would mean an install silently
 replacing a consumer's whole configuration.
 
