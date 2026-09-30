@@ -158,8 +158,7 @@ back to the planner before Phase 2, since it changes 3.6's suite list.
        included.
     3. Paths outside the copy. `pre-tool allows a path outside the repo` (a file
        under `$sandbox`), `… a sibling of the copy` (`<root>/dist/other`), and
-       `… a prefix-sharing sibling` (`<root>/dist/plugin-old/x`): each exit 0
-       with empty stdout.
+       `… a prefix-sharing sibling` (`<root>/dist/plugin-old/x`): each allowed.
     4. Physical spelling, `new/` absent: deny, source `<root>/new/file.md`.
        `pre-tool denies a copy path through a symlinked repo`;
        `… through a symlink to the copy` (test review).
@@ -170,11 +169,12 @@ back to the planner before Phase 2, since it changes 3.6's suite list.
     5. `pre-tool is silent without jq`: the jq-less PATH, a copy-path payload —
        exit 0, stdout and stderr empty. Its guard is not a stderr discard:
        `pre-tool fails loudly on a payload jq cannot read` (test review).
+    6. Leaf symlink, added: followed into the copy, chains too; one out allowed.
   - Interfaces:
     - `bash <root>/plugin-dev/dogfood.sh pre-tool` < PreToolUse payload → exit 0
       always
     - edited path = `.tool_input.file_path // .tool_input.notebook_path`,
-      compared physically (nearest existing ancestor through `pwd -P`)
+      resolved as `pwd -P` on existing dirs, `readlink -f` on a leaf link
     - under `<root>/dist/plugin/` → stdout is one object:
       `.hookSpecificOutput.hookEventName = "PreToolUse"`,
       `.hookSpecificOutput.permissionDecision = "deny"`,
