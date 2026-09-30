@@ -76,15 +76,16 @@ sync_copy() {
 # the human. The object is built with jq --arg, never spliced. The edited path
 # is compared by its physical spelling against the physical <root>, so a
 # symlinked spelling of the copy is caught; the source path is derived from that
-# spelling too. A path that exists and ends in a symlink is resolved in full
-# with readlink -f, chains included, since Claude Code realpaths the leaf; a
-# dangling leaf link is not followed, so one pointing into the copy passes here
-# and meets Claude Code's own sensitive-file ask instead. A
-# payload jq cannot read, or a directory on the path that cannot be entered,
-# stops the script non-zero: Claude Code shows a non-blocking hook error, and
-# that same ask still stands before an edit into the copy. With no jq on PATH
-# the guard stands down in silence rather than fail every edit of the session;
-# the session-start warning is where a missing jq is reported.
+# spelling too. An existing path that ends in a symlink is resolved in full with
+# readlink -f, chains included, as Claude Code's own check resolves it. A leaf
+# link that does not resolve (dangling, looping, or through a directory that
+# cannot be entered) is compared as spelled, so a Write through a dangling one
+# into the copy is not refused here. A payload jq cannot read, or a directory on
+# the path that cannot be entered, stops the script non-zero: Claude Code shows
+# a non-blocking hook error, and its own sensitive-file ask still stands before
+# an edit into the copy. With no jq on PATH the guard stands down in silence
+# rather than fail every edit of the session; the session-start warning is
+# where a missing jq is reported.
 pre_tool() {
     local root path physical rel copy="dist/plugin"
     command -v jq >/dev/null || exit 0
