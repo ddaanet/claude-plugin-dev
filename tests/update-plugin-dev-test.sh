@@ -292,8 +292,30 @@ printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer/.claude-plug
 git -C "$consumer" add .claude-plugin/plugin.json
 git -C "$consumer" commit -qm "consumer: plugin manifest"
 
+if [ -e "$consumer/.claude/settings.json" ]; then fail "anchor: the no-ref fixture already has a settings.json"; fi
 run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh"
 assert_eq "$rc" "0" "no-ref install exit code"
+
+# The three commands, shared with the existing-settings scenario below.
+# vg_cmd is exact and unquoted: consumers' settings already carry this
+# spelling, so a respelt command would be added again beside it on their next
+# install. Claude Code expands ${CLAUDE_PROJECT_DIR} at hook-fire time, so the
+# commands must land in settings.json with the variable literal, the dogfood
+# ones inside double quotes.
+# shellcheck disable=SC2016  # the ${...} is meant literal
+vg_cmd='bash ${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh'
+# shellcheck disable=SC2016
+pretool_cmd='bash "${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh" pre-tool'
+# shellcheck disable=SC2016
+session_cmd='bash "${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh" session-start'
+# One matcher=command line per hook, sorted: the order entries land in is not
+# part of the contract, a missing, extra or mis-scoped hook is.
+fresh_json="$consumer/.claude/settings.json"
+assert_eq "$(jq -r '[.hooks.PreToolUse[]? | .matcher as $m | .hooks[]? | "\($m)=\(.command)"] | sort | join("\n")' "$fresh_json")" \
+    "Write|Edit=$vg_cmd
+Write|Edit|NotebookEdit=$pretool_cmd" "a fresh settings.json carries version-guard and the pre-tool hook under PreToolUse"
+assert_eq "$(jq -r '[.hooks.SessionStart[]? | (if has("matcher") then "matcher" else "none" end) + "=" + (.hooks[]? | .command)] | join("\n")' "$fresh_json")" \
+    "none=$session_cmd" "a fresh settings.json carries the session-start hook with no matcher"
 assert_contains "$out" "dist-v2" "no-ref install names the resolved tag"
 assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.1" "no-ref install vendored the newest VERSION"
 
@@ -374,18 +396,8 @@ assert_eq "$(jq -r '.permissions.allow[0]' "$settings_json")" \
     "Bash(ls:*)" "install.sh kept the consumer's permissions block"
 assert_eq "$(jq '[.hooks.PreToolUse[] | .hooks[]? | select(.command == "echo consumer-hook")] | length' "$settings_json")" \
     "1" "install.sh kept the consumer's own matcher-less hook"
-# Exact and unquoted: consumers' settings already carry this spelling, so a
-# respelt command would be added again beside it on their next install.
-# shellcheck disable=SC2016  # the ${...} is meant literal
-vg_cmd='bash ${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh'
 assert_eq "$(jq --arg c "$vg_cmd" '[.hooks.PreToolUse[] | .hooks[]? | select(.command == $c)] | length' "$settings_json")" \
     "1" "install.sh added the version-guard hook"
-# Claude Code expands ${CLAUDE_PROJECT_DIR} at hook-fire time, so the commands
-# must land in settings.json with the variable literal, inside double quotes.
-# shellcheck disable=SC2016  # the ${...} is meant literal
-pretool_cmd='bash "${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh" pre-tool'
-# shellcheck disable=SC2016
-session_cmd='bash "${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh" session-start'
 # One word per hook carrying the command, naming its entry's matcher: a second
 # copy under any entry, or the one copy under the wrong matcher, shows.
 assert_eq "$(jq -r --arg c "$pretool_cmd" '[.hooks.PreToolUse[]? | (.matcher // "none") as $m | .hooks[]? | select(.command == $c) | $m] | join(" ")' "$settings_json")" \

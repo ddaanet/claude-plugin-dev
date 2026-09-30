@@ -126,10 +126,11 @@ fi
 # 3. .claude/settings.json hook block. Append each hook only if not already
 # present, and write only if that changed something.
 #
-# The two cases are separate branches, not a jq failure falling through to a
-# fallback: the fallback writes a document holding nothing but the toolkit's
-# hooks, so reaching it with an existing settings.json replaces the consumer's
-# whole configuration. A hook counts as present when any entry under its event
+# Both cases run the same pipeline, over the existing file or a seed of {}, so
+# a failure only ever errors: there is no fallback that writes a stub of just
+# the toolkit's hooks, which over an existing settings.json would replace the
+# consumer's whole configuration.
+# A hook counts as present when any entry under its event
 # carries its command, whatever that entry's matcher, a missing one included:
 # the consumer may have rescoped it, and a second copy beside it would run the
 # command twice wherever the two matchers overlap.
@@ -156,19 +157,18 @@ session_cmd='bash "${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh" session-start'
 mkdir -p .claude
 tmp="$(mktemp)"
 if [ -f "$settings" ]; then
-    { add_hook PreToolUse 'Write|Edit' "$hook_cmd" < "$settings" \
-        | add_hook PreToolUse 'Write|Edit|NotebookEdit' "$pretool_cmd" \
-        | add_hook SessionStart '' "$session_cmd" > "$tmp"; } || {
-        rm -f "$tmp"
-        echo "error: could not rewrite $settings — left unchanged." >&2
-        exit 1
-    }
+    seed="$(cat "$settings")"
 else
-    jq --arg cmd "$hook_cmd" -n '
-      {hooks: {PreToolUse: [{matcher: "Write|Edit",
-                             hooks: [{type: "command", command: $cmd}]}]}}
-    ' > "$tmp"
+    seed='{}'
 fi
+{ printf '%s\n' "$seed" \
+    | add_hook PreToolUse 'Write|Edit' "$hook_cmd" \
+    | add_hook PreToolUse 'Write|Edit|NotebookEdit' "$pretool_cmd" \
+    | add_hook SessionStart '' "$session_cmd" > "$tmp"; } || {
+    rm -f "$tmp"
+    echo "error: could not rewrite $settings — left unchanged." >&2
+    exit 1
+}
 
 if [ -f "$settings" ] && cmp -s "$settings" "$tmp"; then
     rm -f "$tmp"
