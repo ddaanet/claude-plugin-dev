@@ -6,7 +6,7 @@ _default:
 # Run all syntax + style checks on the toolkit's own scripts.
 precommit: whitespace format-docs
     shellcheck toolkit/install.sh toolkit/version-guard.sh toolkit/check-version.sh toolkit/release.sh toolkit/update.sh toolkit/dogfood.sh scripts/self-release.sh
-    bash -n tests/version-guard-test.sh tests/check-version-test.sh tests/release-test.sh tests/self-release-test.sh tests/update-plugin-dev-test.sh tests/dist-tree-test.sh tests/docs-test.sh tests/doc-sync-test.sh tests/citation-test.sh tests/dogfood-test.sh
+    bash -n tests/version-guard-test.sh tests/check-version-test.sh tests/release-test.sh tests/self-release-test.sh tests/update-plugin-dev-test.sh tests/dist-tree-test.sh tests/docs-test.sh tests/doc-sync-test.sh tests/citation-test.sh tests/dogfood-sync-test.sh tests/dogfood-sync-refusal-test.sh tests/dogfood-pre-tool-test.sh tests/dogfood-session-start-test.sh
     just _import-check
     bash tests/version-guard-test.sh
     bash tests/check-version-test.sh
@@ -17,7 +17,10 @@ precommit: whitespace format-docs
     bash tests/docs-test.sh
     bash tests/doc-sync-test.sh
     bash tests/citation-test.sh
-    bash tests/dogfood-test.sh
+    bash tests/dogfood-sync-test.sh
+    bash tests/dogfood-sync-refusal-test.sh
+    bash tests/dogfood-pre-tool-test.sh
+    bash tests/dogfood-session-start-test.sh
     @echo ok
 
 # Checks that run before a release. Add slow or paid checks here.
