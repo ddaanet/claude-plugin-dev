@@ -38,6 +38,9 @@ or removing a shipped file means updating the list in
   consumer's vendored `plugin-dev/`. `sync` mirrors the plugin tree, minus
   git-ignored paths and `.git`, into `dist/plugin/`; the root is found from
   the script's own location.
+- `toolkit/bin/claude` — the dogfood shim, first on PATH once vendored.
+  Syncs the plugin tree through `dogfood.sh`, then execs the next `claude`
+  with `CLAUDE_CODE_PLUGIN_DIRS` pointing at the copy.
 - `toolkit/version-guard.sh` — `PreToolUse(Write|Edit)` hook that fires
   inside consumer plugins to refuse agent edits to
   `.claude-plugin/plugin.json`'s `.version`.

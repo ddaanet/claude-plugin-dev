@@ -32,6 +32,7 @@ expected="$(sort <<'EOF'
 LICENSE
 README.md
 VERSION
+bin/claude
 check-version.sh
 dogfood.sh
 install.sh
@@ -66,6 +67,13 @@ if [ "$actual" != "$expected" ]; then
     fail "toolkit/ does not match the shipped set"
     diff <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") \
         | sed 's/^/    /' >&2 || true
+fi
+
+# A shim without its execute bit is skipped by PATH lookup without a word.
+echo "=== toolkit/bin/claude is committed executable ==="
+shim_mode="$(git ls-files -s toolkit/bin/claude | cut -d' ' -f1)"
+if [ "$shim_mode" != "100755" ]; then
+    fail "toolkit/bin/claude index mode is '$shim_mode', not 100755"
 fi
 
 # Named separately from the exact-set check above: this is the specific
