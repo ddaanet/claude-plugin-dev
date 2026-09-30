@@ -352,7 +352,10 @@ printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer/.claude-plug
 cat > "$consumer/.claude/settings.json" <<'JSON'
 {
   "permissions": {"allow": ["Bash(ls:*)"]},
-  "hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": "echo consumer-hook"}]}]}
+  "hooks": {
+    "PreToolUse": [{"hooks": [{"type": "command", "command": "echo consumer-hook"}]}],
+    "SessionStart": [{"hooks": [{"type": "command", "command": "echo consumer-start"}]}]
+  }
 }
 JSON
 printf 'default:\n    @echo hi\n' > "$consumer/justfile"
@@ -395,6 +398,10 @@ assert_eq "$(jq -r --arg c "$session_cmd" '[.hooks.SessionStart[]? | (if has("ma
 quoted='"${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh"'
 assert_eq "$(jq -r --arg q "$quoted" '[.hooks[]?[]? | .hooks[]? | .command // "" | select(contains("dogfood.sh"))] | "\(length):\(map(select(contains($q))) | length)"' "$settings_json")" \
     "2:2" "the commands quote the project dir"
+# Beside, not instead of: "install adds the session-start hook once" above
+# already places the new hook in this same array.
+assert_eq "$(jq '[.hooks.SessionStart[]? | .hooks[]? | select(.command == "echo consumer-start")] | length' "$settings_json")" \
+    "1" "a pre-existing SessionStart entry survives"
 # mktemp creates 0600, so replacing the file with `mv` silently narrows its
 # permissions. Compared against the mode the file already had, not a literal,
 # so the assertion holds under any umask.
