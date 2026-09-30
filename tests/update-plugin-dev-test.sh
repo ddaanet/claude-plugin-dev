@@ -371,8 +371,30 @@ assert_eq "$(jq -r '.permissions.allow[0]' "$settings_json")" \
     "Bash(ls:*)" "install.sh kept the consumer's permissions block"
 assert_eq "$(jq '[.hooks.PreToolUse[] | .hooks[]? | select(.command == "echo consumer-hook")] | length' "$settings_json")" \
     "1" "install.sh kept the consumer's own matcher-less hook"
-assert_eq "$(jq '[.hooks.PreToolUse[] | .hooks[]? | select(.command | test("version-guard"))] | length' "$settings_json")" \
+# Exact and unquoted: consumers' settings already carry this spelling, so a
+# respelt command would be added again beside it on their next install.
+# shellcheck disable=SC2016  # the ${...} is meant literal
+vg_cmd='bash ${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh'
+assert_eq "$(jq --arg c "$vg_cmd" '[.hooks.PreToolUse[] | .hooks[]? | select(.command == $c)] | length' "$settings_json")" \
     "1" "install.sh added the version-guard hook"
+# Claude Code expands ${CLAUDE_PROJECT_DIR} at hook-fire time, so the commands
+# must land in settings.json with the variable literal, inside double quotes.
+# shellcheck disable=SC2016  # the ${...} is meant literal
+pretool_cmd='bash "${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh" pre-tool'
+# shellcheck disable=SC2016
+session_cmd='bash "${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh" session-start'
+# One word per hook carrying the command, naming its entry's matcher: a second
+# copy under any entry, or the one copy under the wrong matcher, shows.
+assert_eq "$(jq -r --arg c "$pretool_cmd" '[.hooks.PreToolUse[]? | (.matcher // "none") as $m | .hooks[]? | select(.command == $c) | $m] | join(" ")' "$settings_json")" \
+    "Write|Edit|NotebookEdit" "install adds the pre-tool hook once"
+assert_eq "$(jq -r --arg c "$session_cmd" '[.hooks.SessionStart[]? | (if has("matcher") then "matcher=\(.matcher)" else "none" end) as $m | .hooks[]? | select(.command == $c) | $m] | join(" ")' "$settings_json")" \
+    "none" "install adds the session-start hook once"
+# Every dogfood.sh command, any event: total and quoted. An unquoted or
+# install-time-expanded spelling reds here as 2:0, not as a missing hook.
+# shellcheck disable=SC2016  # the ${...} is meant literal
+quoted='"${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh"'
+assert_eq "$(jq -r --arg q "$quoted" '[.hooks[]?[]? | .hooks[]? | .command // "" | select(contains("dogfood.sh"))] | "\(length):\(map(select(contains($q))) | length)"' "$settings_json")" \
+    "2:2" "the commands quote the project dir"
 # mktemp creates 0600, so replacing the file with `mv` silently narrows its
 # permissions. Compared against the mode the file already had, not a literal,
 # so the assertion holds under any umask.

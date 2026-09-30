@@ -23,7 +23,7 @@
 # The script will:
 #   1. git subtree add the toolkit at plugin-dev/ (skipped if present)
 #   2. add 'import "plugin-dev/release.just"' to justfile
-#   3. wire the version-guard hook into .claude/settings.json
+#   3. wire the version-guard and dogfood hooks into .claude/settings.json
 #
 # Re-run (after the toolkit is already vendored):
 #
@@ -127,27 +127,37 @@ fi
 # present, and write only if that changed something.
 #
 # The two cases are separate branches, not a jq failure falling through to a
-# fallback: the fallback writes a document holding nothing but this hook, so
+# fallback: the fallback writes a document holding nothing but one hook, so
 # reaching it with an existing settings.json replaces the consumer's whole
-# configuration. `.matcher == null` is what used to get there — a PreToolUse
-# entry with no matcher is legal and matches every tool, but `null | test(...)`
-# aborts jq with exit 5.
+# configuration. A hook counts as present when any entry under its event
+# carries its command, whatever that entry's matcher: an entry with no matcher
+# is legal and matches every tool, so the matcher is not part of the identity.
+# An empty matcher argument omits the key, which is how SessionStart is wired.
+add_hook() {
+    jq --arg event "$1" --arg matcher "$2" --arg cmd "$3" '
+      if ([.hooks[$event][]? | .hooks[]? | select(.command == $cmd)] | length > 0)
+      then .
+      else .hooks //= {} |
+           .hooks[$event] //= [] |
+           .hooks[$event] += [
+             (if $matcher == "" then {} else {matcher: $matcher} end)
+             + {hooks: [{type: "command", command: $cmd}]}
+           ]
+      end
+    '
+}
+
+# shellcheck disable=SC2016  # ${CLAUDE_PROJECT_DIR} is for Claude Code to expand at hook-fire time, not bash now.
+pretool_cmd='bash "${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh" pre-tool'
+# shellcheck disable=SC2016  # same: expanded by Claude Code at hook-fire time.
+session_cmd='bash "${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh" session-start'
+
 mkdir -p .claude
 tmp="$(mktemp)"
 if [ -f "$settings" ]; then
-    jq --arg cmd "$hook_cmd" '
-      if ([.hooks.PreToolUse[]?
-           | select(.matcher == null or (.matcher | test("Write|Edit")))
-           | .hooks[]? | select(.command == $cmd)] | length > 0)
-      then .
-      else .hooks //= {} |
-           .hooks.PreToolUse //= [] |
-           .hooks.PreToolUse += [{
-             matcher: "Write|Edit",
-             hooks: [{type: "command", command: $cmd}]
-           }]
-      end
-    ' "$settings" > "$tmp" || {
+    { add_hook PreToolUse 'Write|Edit' "$hook_cmd" < "$settings" \
+        | add_hook PreToolUse 'Write|Edit|NotebookEdit' "$pretool_cmd" \
+        | add_hook SessionStart '' "$session_cmd" > "$tmp"; } || {
         rm -f "$tmp"
         echo "error: could not rewrite $settings — left unchanged." >&2
         exit 1
@@ -168,7 +178,7 @@ else
     # ACL, and creates a new one at the umask like any other tool would.
     cat "$tmp" > "$settings"
     rm -f "$tmp"
-    changed+=("$settings (added version-guard hook)")
+    changed+=("$settings (added version-guard and dogfood hooks)")
 fi
 
 if [ "${#changed[@]}" -eq 0 ]; then
