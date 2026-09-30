@@ -408,6 +408,16 @@ if [ -n "$(tail -c1 "$consumer/justfile")" ]; then
 fi
 assert_contains "$(cat "$consumer/justfile")" "@echo hi" "install.sh kept the justfile's own content"
 
+# plugin-dev/ is vendored now, so the second run takes no ref. The copy sits
+# outside the consumer so the run under test sees the same tree as the first.
+cp "$settings_json" "$sandbox/settings.before"
+run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh"
+assert_eq "$rc" "0" "a re-run is a no-op: exit code"
+if ! cmp -s "$sandbox/settings.before" "$settings_json"; then
+    fail "a re-run is a no-op: settings.json changed"
+fi
+assert_contains "$out" "already installed, nothing to do" "a re-run is a no-op: report"
+
 echo "=== install.sh: a malformed settings.json is reported with jq's diagnosis ==="
 new_sandbox
 mkdir -p "$consumer/.claude-plugin" "$consumer/.claude"
