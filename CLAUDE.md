@@ -21,8 +21,8 @@ or removing a shipped file means updating the list in
 
 - `toolkit/release.just` — the recipes imported into consumer plugins'
   justfiles: `release`, `resume-release`, `check-version`,
-  `update-plugin-dev`. Thin wrappers over the scripts beside it; not run
-  from this repo directly.
+  `update-plugin-dev`, `dogfood`. Thin wrappers over the scripts beside
+  it; not run from this repo directly.
 - `toolkit/release.sh` — the release flow itself. Validates state, bumps
   `.claude-plugin/plugin.json`, commits, tags, pushes, creates the GitHub
   release, and bumps the marketplace entry. `--resume` probes what already
@@ -34,21 +34,28 @@ or removing a shipped file means updating the list in
   Resolves the newest `dist-` tag when given no ref, refuses any ref
   outside the dist lineage, and prints the migration notes for every
   version the pull crossed.
-- `toolkit/dogfood.sh` — the dogfood launcher's one script, run from a
-  consumer's vendored `plugin-dev/`. `sync` mirrors the plugin tree, minus
-  git-ignored paths and `.git`, into `dist/plugin/`; the root is found from
-  the script's own location.
-- `toolkit/bin/claude` — the dogfood shim, which the consumer's `.envrc`
-  puts first on PATH as `plugin-dev/bin`. Syncs the plugin tree through
-  `dogfood.sh`, then execs the next `claude` with `CLAUDE_CODE_PLUGIN_DIRS`
-  pointing at the copy.
+- `toolkit/dogfood.sh` — the dogfood launcher's one script, with three
+  subcommands. `sync` mirrors the plugin tree, minus git-ignored paths
+  and every `.git`, into `dist/plugin/`, the copy the session loads;
+  `pre-tool` is the `PreToolUse(Write|Edit|NotebookEdit)` hook that
+  refuses agent edits into that copy and names the source path;
+  `session-start` is the `SessionStart` hook that warns when the session
+  does not load the copy or `jq` is missing. Each finds the repo root
+  from the script's own location, never from `CLAUDE_PROJECT_DIR` or a
+  hook payload's `cwd`.
+- `toolkit/bin/claude` — the dogfood shim, a `claude` that the
+  consumer's `.envrc` puts first on PATH as `PATH_add plugin-dev/bin`.
+  Runs `dogfood.sh sync`, then execs the next `claude` on PATH with its
+  arguments unchanged and `CLAUDE_CODE_PLUGIN_DIRS` set to the copy; a
+  failed sync aborts the launch.
 - `toolkit/version-guard.sh` — `PreToolUse(Write|Edit)` hook that fires
   inside consumer plugins to refuse agent edits to
   `.claude-plugin/plugin.json`'s `.version`.
 - `toolkit/install.sh` — one-shot: vendors this toolkit into a consumer
   plugin via `git subtree add`, wires the `release.just` import into the
-  consumer's `justfile`, and adds the version-guard hook to its
-  `.claude/settings.json`.
+  consumer's `justfile`, and adds the version-guard hook and, beside it,
+  the two dogfood hooks (`dogfood.sh pre-tool` and `session-start`) to
+  its `.claude/settings.json`.
 - `toolkit/README.md` — the consumer-facing manual, shipped in the dist
   tree. The place a plugin maintainer reads; keep it in step with the
   scripts above.
@@ -79,10 +86,10 @@ or removing a shipped file means updating the list in
   limitations, and a one-line conclusion per decision. States what the
   toolkit *is*. Read it first and open only the node you need.
 - `docs/references/*.md` — one node per group of decisions
-  (`distribution`, `release-flow`, `recovery`, `self-release`,
-  `version-guard`), each holding the argument behind the hub's
-  conclusions: alternatives weighed, the bug that motivated it, what
-  it costs. A decision that changes is rewritten in both places.
+  (`distribution`, `dogfood`, `release-flow`, `recovery`,
+  `self-release`, `version-guard`), each holding the argument behind
+  the hub's conclusions: alternatives weighed, the bug that motivated
+  it, what it costs. A decision that changes is rewritten in both places.
 - `docs/changelog.md` — index of write-time records, newest first, one
   entry per bullet. Bodies live in `docs/changelog/YYYY-MM-DD-slug.md`.
 - `plans/` — specs and implementation plans. Prospective content only;
@@ -103,15 +110,19 @@ Runs `bash -n` and `shellcheck` on the shell scripts, a private
 catch justfile syntax errors, and then **every test under `tests/`** —
 `version-guard-test.sh`, `check-version-test.sh`, `release-test.sh`,
 `self-release-test.sh`, `update-plugin-dev-test.sh`,
+`install-test.sh` (`install.sh`'s vendoring and settings wiring),
 `dist-tree-test.sh` (the shipped-file list), `docs-test.sh` (the
 400-line cap over `docs/` and `plans/`, plus pointer resolution),
 `doc-sync-test.sh` (the install/update command blocks shared by the two
 READMEs, and the Layout list above against `toolkit/`'s actual
-contents) and `citation-test.sh` (refuses a `<script>.sh:<line>`
-citation into a tracked file outside `plans/` and `docs/changelog/`). A
-green `precommit` — including the one a pre-commit hook
-runs — is therefore evidence the whole release suite passed, not just
-the linters. **One script under test per suite file**, each carrying its
+contents), `citation-test.sh` (refuses a `<script>.sh:<line>`
+citation into a tracked file outside `plans/` and `docs/changelog/`),
+the four `dogfood.sh` suites (`dogfood-sync-test.sh`,
+`dogfood-sync-refusal-test.sh`, `dogfood-pre-tool-test.sh`,
+`dogfood-session-start-test.sh`) and `dogfood-launcher-test.sh` (the
+`bin/claude` shim). A green `precommit` — including the one a
+pre-commit hook runs — is therefore evidence the whole release suite
+passed, not just the linters. **One script under test per suite file**, each carrying its
 own copy of the small assertion harness rather than sourcing a shared
 one: a suite that can be read and run alone is worth more than the
 duplicated six lines. It also runs `whitespace` and
@@ -168,10 +179,18 @@ split dist ref" for the reasoning.
   them. Don't soften the agent message into something an agent could
   read as instruction (e.g. "you can run X to bypass" — actively
   bad).
-- **`${CLAUDE_PROJECT_DIR}` in `install.sh`'s `hook_cmd` is
-  intentionally single-quoted.** Claude Code expands it at hook-fire
-  time, not bash at install time. The `# shellcheck disable=SC2016`
-  on that line is load-bearing.
+- **`${CLAUDE_PROJECT_DIR}` in `install.sh`'s hook commands is
+  intentionally single-quoted** — in `hook_cmd` (version-guard) and in
+  the dogfood hooks' `pretool_cmd` and `session_cmd`. Claude Code
+  expands it at hook-fire time, not bash at install time. The
+  `# shellcheck disable=SC2016` above each of the three is
+  load-bearing. Inside the single quotes, the two dogfood commands
+  double-quote `"${CLAUDE_PROJECT_DIR}"`, so a repo path with a space
+  survives the hook shell. `hook_cmd` leaves it bare, and stays so:
+  `add_hook` counts a hook as already wired when an entry under its
+  event carries the same command string, so a changed string would make
+  a re-run add a second version-guard beside every existing consumer's
+  entry.
 - **Heredocs in `install.sh` that emit example justfile content are
   unquoted** (so `$import_line` expands). That means backticks inside
   the heredoc body get parsed as command substitution by bash. Avoid
