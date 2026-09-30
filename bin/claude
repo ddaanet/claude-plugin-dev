@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Dogfood shim for a plugin that vendors this toolkit. Vendored at
+# <root>/plugin-dev/bin/claude and put first on PATH, it syncs the plugin tree
+# into <root>/dist/plugin/ and then execs the next claude on PATH with argv
+# unchanged, pointing CLAUDE_CODE_PLUGIN_DIRS at the copy. <root> is found from
+# the script's own location, never from the launch directory.
+set -euo pipefail
+unset CDPATH # else a relative cd searches it and prints its target
+
+main() {
+    local here root
+    here="$(dirname "${BASH_SOURCE[0]}" && printf x)"
+    here="${here%?x}"
+    root="$(cd -P -- "$here/../.." && printf '%s' "$PWD" && printf x)"
+    root="${root%x}"
+    bash "$root/plugin-dev/dogfood.sh" sync
+    export CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin"
+    PATH="$(path_without "$here")"
+    export PATH
+    exec claude "$@"
+}
+
+# PATH minus every entry spelled exactly as $1, so the exec finds the next claude.
+path_without() {
+    local entry out="" rest="$PATH:"
+    while [[ -n "$rest" ]]; do
+        entry="${rest%%:*}"
+        rest="${rest#*:}"
+        [[ "$entry" == "$1" ]] && continue
+        out="${out:+$out:}$entry"
+    done
+    printf '%s' "$out"
+}
+
+main "$@"
