@@ -168,7 +168,8 @@ back to the planner before Phase 2, since it changes 3.6's suite list.
        (code review).
        `pre-tool invoked through the symlink denies a physical path`.
     5. `pre-tool is silent without jq`: the jq-less PATH, a copy-path payload —
-       exit 0, stdout and stderr empty.
+       exit 0, stdout and stderr empty. Its guard is not a stderr discard:
+       `pre-tool fails loudly on a payload jq cannot read` (test review).
   - Interfaces:
     - `bash <root>/plugin-dev/dogfood.sh pre-tool` < PreToolUse payload → exit 0
       always
