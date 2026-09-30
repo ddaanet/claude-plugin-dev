@@ -76,8 +76,10 @@ sync_copy() {
 # the human. The object is built with jq --arg, never spliced. The edited path
 # is compared by its physical spelling against the physical <root>, so a
 # symlinked spelling of the copy is caught; the source path is derived from that
-# spelling too. A symlink at the leaf is not followed, so a file linked into the
-# copy passes here and meets Claude Code's own sensitive-file ask instead. A
+# spelling too. A path that exists and ends in a symlink is resolved in full
+# with readlink -f, chains included, since Claude Code realpaths the leaf; a
+# dangling leaf link is not followed, so one pointing into the copy passes here
+# and meets Claude Code's own sensitive-file ask instead. A
 # payload jq cannot read, or a directory on the path that cannot be entered,
 # stops the script non-zero: Claude Code shows a non-blocking hook error, and
 # that same ask still stands before an edit into the copy. With no jq on PATH
@@ -93,6 +95,12 @@ pre_tool() {
     path="${path%x}"
     physical="$(physical_path "$path" && printf x)"
     physical="${physical%x}"
+    # physical_path resolves directories only. -n keeps readlink's own newline
+    # out of the capture; the x shields a newline in the name.
+    if [[ -L "$physical" && -e "$physical" ]]; then
+        physical="$(readlink -fn -- "$physical" && printf x)"
+        physical="${physical%x}"
+    fi
     case "$physical" in
         "$root/$copy/"*) ;;
         *) exit 0 ;;

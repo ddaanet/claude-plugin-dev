@@ -463,6 +463,18 @@ jq_holds() {
 # <root>/dist/plugin/skills/demo/SKILL.md, naming that path and its source.
 assert_denied() {
     local label="$1" root="$2"
+    assert_denied_source "$label" "$root"
+    # shellcheck disable=SC2016  # $p is a jq variable bound by --arg
+    jq_holds "$label: reason names the denied path" \
+        '.hookSpecificOutput.permissionDecisionReason | type == "string" and contains($p)' \
+        --arg p "$root/dist/plugin/skills/demo/SKILL.md"
+}
+
+# assert_denied_source <label> <root>: the last pre-tool run denied, naming the
+# source path <root>/skills/demo/SKILL.md. The reason is not checked for a path:
+# the payload may reach the copy without spelling it.
+assert_denied_source() {
+    local label="$1" root="$2"
     assert_eq "$rc" "0" "$label exit code"
     assert_eq "$err" "" "$label prints nothing on stderr"
     # Slurped, so a second value or trailing garbage after the object fails here:
@@ -470,10 +482,6 @@ assert_denied() {
     jq_holds "$label: stdout is one JSON object" 'length == 1 and (.[0] | type) == "object"' -s
     jq_holds "$label: hookEventName" '.hookSpecificOutput.hookEventName == "PreToolUse"'
     jq_holds "$label: permissionDecision" '.hookSpecificOutput.permissionDecision == "deny"'
-    # shellcheck disable=SC2016  # $p is a jq variable bound by --arg
-    jq_holds "$label: reason names the denied path" \
-        '.hookSpecificOutput.permissionDecisionReason | type == "string" and contains($p)' \
-        --arg p "$root/dist/plugin/skills/demo/SKILL.md"
     # shellcheck disable=SC2016  # $p is a jq variable bound by --arg
     jq_holds "$label: additionalContext names the source path" \
         '.hookSpecificOutput.additionalContext | type == "string" and contains($p)' \
@@ -659,6 +667,38 @@ if [[ "$rc" == 0 ]]; then
 fi
 assert_eq "$out" "" "$label prints nothing on stdout"
 assert_contains "$err" "jq: " "$label shows jq's error"
+
+# Claude Code realpaths the leaf, so a symlink at the leaf into the copy is an
+# edit of the copy. In the chain, y.md reaches it through x.md: a one-hop
+# readlink stops at x.md. Both chain links are relative, so a hop resolved
+# against the cwd rather than the link's own directory misses the copy.
+echo "=== pre-tool follows a symlink at the leaf into the copy ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+ln -s "$root/dist/plugin/skills/demo/SKILL.md" "$root/skills/x.md"
+run_pre_tool Edit file_path "$root/skills/x.md"
+assert_denied_source "pre-tool follows a symlink at the leaf into the copy" "$root"
+
+echo "=== pre-tool follows a chain of leaf symlinks into the copy ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+ln -s ../dist/plugin/skills/demo/SKILL.md "$root/skills/x.md"
+ln -s x.md "$root/skills/y.md"
+run_pre_tool Edit file_path "$root/skills/y.md"
+assert_denied_source "pre-tool follows a chain of leaf symlinks into the copy" "$root"
+
+echo "=== pre-tool allows a leaf symlink out of the copy ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+ln -s "$root/skills/demo/SKILL.md" "$root/dist/plugin/skills/z.md"
+run_pre_tool Edit file_path "$root/dist/plugin/skills/z.md"
+label="pre-tool allows a leaf symlink out of the copy"
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$out" "" "$label prints nothing on stdout"
+assert_eq "$err" "" "$label prints nothing on stderr"
 
 # run_session_start: run_dogfood session-start, fed a SessionStart payload whose
 # cwd is not the consumer, as a resumed session's can be. A script taking its
