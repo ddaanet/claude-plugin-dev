@@ -244,10 +244,10 @@ for Item 1.1, `dogfood-pre-tool-test.sh`, `dogfood-session-start-test.sh`.
     3. Stripping by identity. `the shim strips its own entry in any spelling`:
        PATH = `<root>/plugin-dev/bin/:<root>/plugin-dev/bin:<stubdir>:$PATH`,
        run under the watchdog — the stub ran, and no entry of its recorded PATH
-       holds a `claude` that is `-ef` the shim.
-       `the shim keeps another bin/claude`: a different
+       holds a `claude` that is `-ef` the shim. `… keeps another bin/claude`: a
        `$sandbox/other/bin/claude` stub ahead of `<stubdir>` is the one that
-       ran.
+       ran. `… keeps the rest of PATH as spelled`: a leading empty entry
+       survives (2.1/1 code review).
     4. `a subdirectory launch resolves the root`: cwd `<root>/skills/demo` — the
        stub ran, recorded `<root>/dist/plugin`, and recorded
        `<root>/skills/demo` as its `$PWD`.
