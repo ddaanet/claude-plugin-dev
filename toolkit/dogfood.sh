@@ -111,13 +111,15 @@ pre_tool() {
 
 # Silent when some ":"-separated entry of CLAUDE_CODE_PLUGIN_DIRS is
 # <root>/dist/plugin, each entry compared whole, never by prefix, suffix or
-# substring. An entry that is an existing directory is resolved with pwd -P,
-# since Claude Code writes the variable back normalized and a symlinked
-# spelling must still match; any other entry is compared as spelled, trailing
-# slashes stripped. Anything else, unset included, gets one object. The payload
-# is not read. systemMessage is the one line for the human, opening with an ANSI
-# reset so Claude Code does not dim it like routine hook output; it names the
-# remedy, launching through the shim. additionalContext gives the agent the same
+# substring. An absolute entry naming a directory that can be entered is
+# resolved with physical_path, since Claude Code writes the variable back
+# normalized and a symlinked spelling must still match. Any other entry is
+# compared as spelled, trailing slashes stripped: a relative one, which Claude
+# Code drops, never matches, and one that cannot be entered puts no cd error on
+# stderr. Anything else, unset included, gets one object. The payload is not
+# read. systemMessage is the one line for the human, opening with an ANSI reset
+# so Claude Code does not dim it like routine hook output; it names the remedy,
+# launching through the shim. additionalContext gives the agent the same
 # finding as a fact and nothing to act on: no command, no way to make the
 # session load the copy. The object is built with jq --arg, never spliced.
 session_start() {
@@ -130,8 +132,10 @@ session_start() {
         entry="${rest%%:*}"
         rest="${rest#*:}"
         [[ -n "$entry" ]] || continue
-        if [[ -d "$entry" ]]; then
-            entry="$(cd -- "$entry" && pwd -P)" || continue
+        if [[ "$entry" == /* && -d "$entry" && -x "$entry" ]]; then
+            # The x shields a trailing newline from the capture's strip.
+            entry="$(physical_path "$entry" && printf x)" || continue
+            entry="${entry%x}"
         else
             while [[ "$entry" == */ ]]; do entry="${entry%/}"; done
         fi

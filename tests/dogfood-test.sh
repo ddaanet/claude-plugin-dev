@@ -737,6 +737,47 @@ assert_eq "$rc" "0" "$label exit code"
 assert_eq "$out" "" "$label prints nothing on stdout"
 assert_eq "$err" "" "$label prints nothing on stderr"
 
+# The link resolves to a sibling of the copy whose name is the copy's plus a
+# newline, so a resolution read through a $(...) capture loses the newline and
+# names the copy.
+echo "=== session-start keeps a resolved entry's trailing newline ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+mkdir "$root/dist/plugin"$'\n'
+ln -s "$root/dist/plugin"$'\n' "$sandbox/nl"
+label="session-start warns on an entry resolving to plugin<LF>"
+CLAUDE_CODE_PLUGIN_DIRS="$sandbox/nl" run_session_start
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$err" "" "$label prints nothing on stderr"
+jq_holds "$label: stdout is the warning" '.hookSpecificOutput.hookEventName == "SessionStart"'
+
+# Claude Code drops a relative entry, so it loads nothing; run_dogfood runs from
+# $sandbox, where this spelling would resolve to the copy.
+echo "=== session-start does not resolve a relative entry ==="
+make_consumer
+run_dogfood sync
+label="session-start warns on a relative entry"
+CLAUDE_CODE_PLUGIN_DIRS="my consumer/dist/plugin" run_session_start
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$err" "" "$label prints nothing on stderr"
+jq_holds "$label: stdout is the warning" '.hookSpecificOutput.hookEventName == "SessionStart"'
+
+# A directory that cannot be entered does not resolve; its neighbour still
+# names the copy. Running as root, the mode blocks nothing and this cannot red.
+echo "=== session-start passes over a directory it cannot enter ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+mkdir "$sandbox/sealed"
+chmod 000 "$sandbox/sealed"
+label="session-start is silent past a sealed directory"
+CLAUDE_CODE_PLUGIN_DIRS="$sandbox/sealed:$root/dist/plugin" run_session_start
+chmod 755 "$sandbox/sealed"
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$out" "" "$label prints nothing on stdout"
+assert_eq "$err" "" "$label prints nothing on stderr"
+
 echo "=== unknown subcommand is usage ==="
 make_consumer
 run_dogfood bogus
