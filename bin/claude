@@ -3,7 +3,8 @@
 # <root>/plugin-dev/bin/claude and put first on PATH, it syncs the plugin tree
 # into <root>/dist/plugin/ and then execs the next claude on PATH (every entry
 # whose claude is the shim itself is dropped) with argv unchanged, pointing
-# CLAUDE_CODE_PLUGIN_DIRS at the copy, with CDPATH unset.
+# CLAUDE_CODE_PLUGIN_DIRS at the copy, with CDPATH unset. With no other claude
+# on PATH it exits 127 and says so.
 # <root> is found from the script's own location, never from the launch
 # directory.
 set -euo pipefail
@@ -19,6 +20,10 @@ main() {
     export CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin"
     path="$(path_without "${BASH_SOURCE[0]}" && printf x)"
     export PATH="${path%x}"
+    if ! command -v claude >/dev/null; then
+        echo "dogfood: no other claude on PATH" >&2
+        exit 127
+    fi
     exec claude "$@"
 }
 
