@@ -109,21 +109,20 @@ pre_tool() {
     }'
 }
 
-# A session that does not load <root>/dist/plugin gets one object and otherwise
-# nothing. The verdict is checked against <root> as this script finds it, never
-# the payload's cwd, and the payload is not read. systemMessage is the one line
-# for the human, opening with an ANSI reset so Claude Code does not dim it like
-# routine hook output; it names the remedy, launching through the shim.
-# additionalContext gives the agent the same finding as a fact and nothing to
-# act on: no command, no way to make the session load the copy. The object is
-# built with jq --arg, never spliced.
+# Silent when CLAUDE_CODE_PLUGIN_DIRS is exactly <root>/dist/plugin; any other
+# value, unset included, gets one object. The payload is not read. systemMessage
+# is the one line for the human, opening with an ANSI reset so Claude Code does
+# not dim it like routine hook output; it names the remedy, launching through
+# the shim. additionalContext gives the agent the same finding as a fact and
+# nothing to act on: no command, no way to make the session load the copy. The
+# object is built with jq --arg, never spliced.
 session_start() {
     local root copy
     root="$(root_dir)"
     copy="$root/dist/plugin"
     [[ "${CLAUDE_CODE_PLUGIN_DIRS:-}" == "$copy" ]] && exit 0
     jq -nc --arg copy "$copy" '{
-        systemMessage: ("\u001b[0m" + "dogfood: this session does not load " + $copy + "; launch claude through plugin-dev/bin/claude from the repo root"),
+        systemMessage: ("\u001b[0m" + "dogfood: this session does not load " + $copy + " — launch claude through plugin-dev/bin/claude from the repo root"),
         hookSpecificOutput: {
             hookEventName: "SessionStart",
             additionalContext: ("This session does not load " + $copy + ", so plugin behaviour observed in it is not that of the promoted copy.")
