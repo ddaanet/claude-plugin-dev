@@ -819,6 +819,45 @@ label="session-start warns on <root>/dist/plugin/skills"
 CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin/skills" run_session_start
 assert_session_warns "$label" "$root"
 
+# The payload is built with the real jq before the PATH narrows, and stdout is
+# read with the suite's own jq after the run. The message is static, and only a
+# user can install jq, so it stays off hookSpecificOutput. The copy check needs
+# jq's absence to be skipped, not merely survived: the second run names the copy
+# in the variable, where the check would be silent, and still gets the message.
+# Their jq-present controls are `session-start is silent on the copy` and
+# `session-start warns when the variable is unset` above: the same fixture and
+# payload, differing only in the PATH. The sandbox path is random and may hold
+# "jq", so it is cut out of the message before the message is searched for jq.
+echo "=== session-start reports a missing jq on systemMessage only ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+make_jqless_bin "$sandbox/nojq"
+label="session-start reports a missing jq on systemMessage only"
+if PATH="$sandbox/nojq" command -v jq >/dev/null; then
+    fail "$label: jq is still reachable on the jq-less PATH"
+fi
+payload="$(jq -cn --arg cwd "$sandbox/elsewhere" \
+    '{session_id:"fixture",hook_event_name:"SessionStart",source:"resume",cwd:$cwd}')"
+for spelling in unset names-the-copy; do
+    if [[ "$spelling" == unset ]]; then
+        PATH="$sandbox/nojq" run_dogfood session-start <<<"$payload"
+    else
+        CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin" PATH="$sandbox/nojq" \
+            run_dogfood session-start <<<"$payload"
+    fi
+    assert_eq "$rc" "0" "$label ($spelling) exit code"
+    assert_eq "$err" "" "$label ($spelling) prints nothing on stderr"
+    jq_holds "$label ($spelling): stdout is one JSON object" 'length == 1 and (.[0] | type) == "object"' -s
+    jq_holds "$label ($spelling): systemMessage opens with an ANSI reset" \
+        '(.systemMessage | type) == "string" and (.systemMessage | startswith("\u001b[0m"))'
+    # shellcheck disable=SC2016  # $s is a jq variable bound by --arg
+    jq_holds "$label ($spelling): systemMessage names jq" \
+        '(.systemMessage | type) == "string" and (.systemMessage | split($s) | join("") | contains("jq"))' \
+        --arg s "$sandbox"
+    jq_holds "$label ($spelling): hookSpecificOutput is absent" 'has("hookSpecificOutput") | not'
+done
+
 echo "=== unknown subcommand is usage ==="
 make_consumer
 run_dogfood bogus
