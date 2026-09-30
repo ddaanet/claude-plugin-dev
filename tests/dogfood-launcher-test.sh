@@ -185,6 +185,12 @@ make_consumer
 run_claude
 assert_eq "$(recorded cdpath)" "<unset>" "the shim unsets CDPATH"
 
+echo "=== an inherited variable is overwritten ==="
+make_consumer
+CLAUDE_CODE_PLUGIN_DIRS=/elsewhere/dist/plugin run_claude
+assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
+    "an inherited variable is overwritten"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
