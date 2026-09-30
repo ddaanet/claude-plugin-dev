@@ -425,6 +425,21 @@ if ! cmp -s "$sandbox/settings.before" "$settings_json"; then
 fi
 assert_contains "$out" "already installed, nothing to do" "a re-run is a no-op: report"
 
+# Presence is the command alone: an entry under a matcher the installer never
+# writes still counts, so the next run adds nothing beside it.
+jq --arg p "$pretool_cmd" --arg v "$vg_cmd" \
+    '.hooks.PreToolUse |= map(if any(.hooks[]?; .command == $p or .command == $v) then .matcher = "Bash" else . end)' \
+    "$settings_json" > "$sandbox/settings.rematched"
+cp "$sandbox/settings.rematched" "$settings_json"
+assert_eq "$(jq -r --arg p "$pretool_cmd" --arg v "$vg_cmd" '[.hooks.PreToolUse[]? | .matcher as $m | .hooks[]? | select(.command == $p or .command == $v) | $m] | join(" ")' "$settings_json")" \
+    "Bash Bash" "an entry under another matcher counts as present: setup"
+run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh"
+if ! cmp -s "$sandbox/settings.rematched" "$settings_json"; then
+    fail "an entry under another matcher counts as present: settings.json changed"
+fi
+# An install that stopped short of step 3 would leave the file untouched too.
+assert_contains "$out" "already installed, nothing to do" "an entry under another matcher counts as present: report"
+
 echo "=== install.sh: a malformed settings.json is reported with jq's diagnosis ==="
 new_sandbox
 mkdir -p "$consumer/.claude-plugin" "$consumer/.claude"
