@@ -318,11 +318,15 @@ for p in memory memory/tier; do
 done
 
 echo "=== sync never recurses into the copy ==="
-# Residual: /dist/plugin/ is git-ignored here (make_consumer), which slice 6
-# makes a precondition, so the ignore list excludes the copy as well and
-# dropping the script's own hard /dist/plugin/ exclude survives this test.
+# Checked after each sync. The first is the one only the script's own hard
+# /dist/plugin/ exclude protects: the copy does not exist when git lists the
+# ignored paths, so the ignore list cannot name it. From the second on, the
+# ignore list excludes it too, and --delete-excluded clears a nested copy the
+# first sync left.
 make_consumer
 run_dogfood sync
+assert_eq "$rc" "0" "sync never recurses into the copy: first sync exit code"
+assert_absent "$consumer/dist/plugin/dist/plugin" "sync never recurses into the copy: first sync"
 run_dogfood sync
 assert_eq "$rc" "0" "sync never recurses into the copy exit code"
 assert_file "$consumer/dist/plugin/skills/demo/SKILL.md" \

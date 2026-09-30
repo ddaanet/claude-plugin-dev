@@ -121,7 +121,7 @@ make_jqless_bin() {
 jq_holds() {
     local label="$1" filter="$2"
     shift 2
-    if ! printf '%s' "$out" | jq -e "$@" "$filter" >/dev/null 2>&1; then
+    if ! printf '%s' "$out" | jq -e "$@" "$filter" >/dev/null; then
         fail "$label: $filter is not true over stdout '$out'"
     fi
 }

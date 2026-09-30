@@ -154,12 +154,11 @@ _import-check:
     fi
 
     # `dogfood` likewise depends on no gate: it only syncs the copy, and must
-    # never run a consumer's commit gate or start a `claude`.
+    # never run a consumer's commit gate or start a `claude`. The dry run is
+    # compared whole, since the stub's own path holds "claude".
     out=$(just --justfile "$tmp/plain/justfile" --dry-run dogfood 2>&1)
-    grep -q 'dogfood.sh" sync' <<< "$out" \
-        || { echo "error: dogfood did not reach dogfood.sh sync: $out" >&2; exit 1; }
-    if grep -q 'stub-precommit' <<< "$out"; then
-        echo "error: dogfood ran the commit gate" >&2
+    if [[ "$out" != 'bash "plugin-dev/dogfood.sh" sync' ]]; then
+        echo "error: dogfood ran more or less than dogfood.sh sync: $out" >&2
         exit 1
     fi
 
