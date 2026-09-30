@@ -1,8 +1,10 @@
 ## Open decisions
 
-- The migration note is planned as `toolkit/migrations/v0.9.0.md` (minor bump from 0.8.0, runbook Item 3.2). Rename it if the release picks another bump, since `update.sh` prints notes in (old, new] only.
+- The migration note is `toolkit/migrations/v0.9.0.md`; `v0.9.0` also appears in `toolkit/README.md`, `docs/references/dogfood.md` and the changelog entry. A bump other than minor means renaming all four, since `update.sh` prints notes in (old, new] only.
+- Whether `dogfood.sh sync` gets an explicit `[[ -L ]]` refusal on `dist` / `dist/plugin`. Today `require_ignored_copy`'s git-error branch is the only guard against `dist/plugin -> ..` deleting the root's `.git` via `--delete-excluded`; now pinned by `a symlinked dist/plugin is refused and the root survives`. Default: leave it.
 
 ## Remaining
 
-- `/edify:build plans/2026-09-26-dist-copy-dogfood-launcher` runs in delegated orchestrators (unnamed opus, general-purpose; unnamed executors; new orchestrator at ~200k context). Each writes `/tmp/claude/dogfood-build/orchestrator-N-report.md` with the exact next step and the carried run-summary items — resume from the highest-numbered one; it names the next step.
-- Before cutting the release, run the `sync` suites on a macOS consumer: openrsync or rsync 2.6.9 may reject `--from0 --exclude-from=-` (outline Risks).
+- `/edify:build plans/2026-09-26-dist-copy-dogfood-launcher` is complete (Finish done, no release cut). Run summary: `/tmp/claude/dogfood-build/orchestrator-3-report.md`; Finish's reviews under the job's `reports/`.
+- `/deliverable-review plans/2026-09-26-dist-copy-dogfood-launcher` on opus, in a fresh session. The strengthened `the shim exports the copy` scenario has had no separate test review.
+- Before cutting the release, run the `sync` suites (`tests/dogfood-sync-test.sh`, `tests/dogfood-sync-refusal-test.sh`) on a macOS consumer: openrsync or rsync 2.6.9 may reject `--from0 --exclude-from=-` (outline Risks).
