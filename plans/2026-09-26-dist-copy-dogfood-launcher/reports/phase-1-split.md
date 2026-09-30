@@ -1,8 +1,8 @@
 # Phase 1 split: tests/dogfood-test.sh into four suites
 
-`tests/dogfood-test.sh` (920 lines) is removed with `git rm`. Its scenarios
-now live in four self-contained suites, each with its own header, cleanup
-trap, and only the harness helpers it calls.
+`tests/dogfood-test.sh` (920 lines) is removed with `git rm`. Its scenarios now
+live in four self-contained suites, each with its own header, cleanup trap, and
+only the harness helpers it calls.
 
 | Suite | Lines | Holds |
 | --- | --- | --- |
@@ -11,44 +11,43 @@ trap, and only the harness helpers it calls.
 | `tests/dogfood-pre-tool-test.sh` | 374 | every pre-tool scenario |
 | `tests/dogfood-session-start-test.sh` | 309 | every session-start scenario |
 
-The sync suite alone would have been about 440 lines, so the second split
-at the refusal boundary was taken. `justfile` `precommit` lists the four on
-the `bash -n` line and runs them one per line in the order sync,
-sync-refusal, pre-tool, session-start.
+The sync suite alone would have been about 440 lines, so the second split at the
+refusal boundary was taken. `justfile` `precommit` lists the four on the
+`bash -n` line and runs them one per line in the order sync, sync-refusal,
+pre-tool, session-start.
 
 Choices: `assert_contains` is in sync, sync-refusal and pre-tool (the usage,
-git-failure and bad-payload scenarios); `make_decoy` only in sync;
-`assert_file` only in sync and sync-refusal; `unset CLAUDE_CODE_PLUGIN_DIRS`
-and its comment only in the session-start suite, the only one that reads it.
-The sync-refusal suite carries `# shellcheck disable=SC2034` above
-`run_dogfood`, since no scenario there reads `$out`.
+git-failure and bad-payload scenarios); `make_decoy` only in sync; `assert_file`
+only in sync and sync-refusal; `unset CLAUDE_CODE_PLUGIN_DIRS` and its comment
+only in the session-start suite, the only one that reads it. The sync-refusal
+suite carries `# shellcheck disable=SC2034` above `run_dogfood`, since no
+scenario there reads `$out`.
 
 ## Proofs
 
 1. Scenario-name set: `diff` of the sorted `echo "=== ..."` headers, old file
-   (`git show HEAD:tests/dogfood-test.sh`) against the four new suites, is
-   empty (printed `HEADERS-SAME`).
+   (`git show HEAD:tests/dogfood-test.sh`) against the four new suites, is empty
+   (printed `HEADERS-SAME`).
 2. Assertion call sites (`assert_*`, `fail`, `jq_holds`, `assert_denied*`,
-   `assert_session_warns` at line start): old 177, new 186. The +9 is all
-   helper bodies copied: the `fail` line inside `assert_eq`,
-   `assert_contains`, `assert_file`, `assert_absent` was 4 in the old file
-   and is 4 (sync) + 4 (refusal) + 3 (pre-tool, no `assert_file`) + 1
-   (session-start, `assert_eq` only) = 12, so +8; the `fail` inside
-   `jq_holds` is copied into pre-tool and session-start, +1. Scenario bodies
-   are unchanged.
+   `assert_session_warns` at line start): old 177, new 186. The +9 is all helper
+   bodies copied: the `fail` line inside `assert_eq`, `assert_contains`,
+   `assert_file`, `assert_absent` was 4 in the old file and is 4 (sync) + 4
+   (refusal) + 3 (pre-tool, no `assert_file`) + 1 (session-start, `assert_eq`
+   only) = 12, so +8; the `fail` inside `jq_holds` is copied into pre-tool and
+   session-start, +1. Scenario bodies are unchanged.
 3. Each suite passed alone from the repo root, in the foreground, ending
    `all dogfood sync scenarios passed`, `... sync refusal ...`,
-   `... pre-tool ...`, `... session-start ...`. Each also passed from
-   `/tmp` by absolute path (the old suite `cd`s to the repo root from
-   `$0`, so it already supported that; preserved).
+   `... pre-tool ...`, `... session-start ...`. Each also passed from `/tmp` by
+   absolute path (the old suite `cd`s to the repo root from `$0`, so it already
+   supported that; preserved).
 4. `bash -n` and `shellcheck` clean on all four.
-5. `just format-docs` then `just precommit` in the foreground: exit 0,
-   ending `ok`.
+5. `just format-docs` then `just precommit` in the foreground: exit 0, ending
+   `ok`.
 
 ## Grep for the old filename
 
-`git grep -n 'dogfood-test\.sh'` after the change. `justfile` no longer has
-a hit (it was the only stale hit in scope, fixed). Hits by file:
+`git grep -n 'dogfood-test\.sh'` after the change. `justfile` no longer has a
+hit (it was the only stale hit in scope, fixed). Hits by file:
 
 | Path | Hits | Classification |
 | --- | --- | --- |
