@@ -122,8 +122,15 @@ pre_tool() {
 # launching through the shim. additionalContext gives the agent the same
 # finding as a fact and nothing to act on: no command, no way to make the
 # session load the copy. The object is built with jq --arg, never spliced.
+# Without jq there is no object to build and no copy guard in pre-tool, so the
+# check is skipped and a static systemMessage says so; it stays off the agent's
+# channel, since only the human can install jq.
 session_start() {
     local root copy rest entry
+    if ! command -v jq >/dev/null; then
+        printf '%s\n' '{"systemMessage":"\u001b[0mdogfood: jq is not on PATH, so the copy guard and this check are off until it is installed"}'
+        exit 0
+    fi
     root="$(root_dir)"
     copy="$root/dist/plugin"
     # Split by parameter expansion: the entries may hold spaces.
