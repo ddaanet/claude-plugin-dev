@@ -289,14 +289,14 @@ for Item 1.1, `dogfood-pre-tool-test.sh`, `dogfood-session-start-test.sh`.
     2. `a re-run is a no-op`: a second install leaves `settings.json`
        byte-identical (`cmp`) and prints `already installed, nothing to do`.
     3. `a pre-existing SessionStart entry survives`: the fixture gains an
-       unrelated `SessionStart` hook (`echo consumer-start`); after install it
-       is still present beside the new one.
+       unrelated `SessionStart` (`echo consumer-start`); after install it is
+       still there beside the new one. 2.2/1 implements 2–4: mutation proofs.
     4. Idempotency ignores the matcher.
        `an entry under another matcher counts as present`: after slice 2's
        re-run, rewrite the matcher of the entries carrying the pre-tool and
        version-guard commands to `Bash`, then install again — `settings.json` is
-       byte-identical (`cmp`). If 2.2/1's GREEN already passes it, the mutation
-       is restoring today's null-or-`Write|Edit` matcher test.
+       byte-identical (`cmp`). The mutation restores the old
+       null-or-`Write|Edit` matcher test in `add_hook`'s presence check.
     5. `a fresh settings.json carries all three hooks`: in the scenario
        `install.sh: no ref resolves the newest dist tag`, whose fixture has no
        `settings.json`, `.hooks.PreToolUse` carries version-guard's and the
