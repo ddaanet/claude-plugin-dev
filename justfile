@@ -153,6 +153,16 @@ _import-check:
         exit 1
     fi
 
+    # `dogfood` likewise depends on no gate: it only syncs the copy, and must
+    # never run a consumer's commit gate or start a `claude`.
+    out=$(just --justfile "$tmp/plain/justfile" --dry-run dogfood 2>&1)
+    grep -q 'dogfood.sh" sync' <<< "$out" \
+        || { echo "error: dogfood did not reach dogfood.sh sync: $out" >&2; exit 1; }
+    if grep -q 'stub-precommit' <<< "$out"; then
+        echo "error: dogfood ran the commit gate" >&2
+        exit 1
+    fi
+
     # Missing `prerelease` must be a hard error naming the missing recipe --
     # this is the contract consumers are told about, so test it, don't assume.
     stub missing ""
@@ -162,4 +172,4 @@ _import-check:
     grep -q 'unknown dependency `prerelease`' <<< "$err" \
         || { echo "error: missing 'prerelease' did not name the recipe: $err" >&2; exit 1; }
 
-    echo "release.just import: ok (plain + widened + missing gate, resume-release)"
+    echo "release.just import: ok (plain + widened + missing gate, resume-release, dogfood)"
