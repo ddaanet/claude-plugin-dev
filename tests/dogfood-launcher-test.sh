@@ -173,13 +173,15 @@ assert_file "$consumer/dist/plugin/.claude-plugin/plugin.json" \
 
 # <root> comes from the shim's physical location alone: the shim is reached
 # through a symlinked spelling of the consumer, which a <root> resolved
-# logically would record, and launched from outside the consumer, which a
-# <root> taken from the launch directory would record.
+# logically would record, and launched from outside the consumer, inside
+# another repo, which a <root> taken from the launch directory or from git's
+# toplevel there would record.
 echo "=== the shim exports the copy ==="
 make_consumer
 ln -s "$consumer" "$sandbox/link"
 shim_dir="$sandbox/link/plugin-dev/bin"
 mkdir "$sandbox/elsewhere"
+git init -q "$sandbox/elsewhere"
 launch_dir="$sandbox/elsewhere"
 run_claude
 assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
@@ -247,6 +249,36 @@ run_claude
 # shellcheck disable=SC2031  # the suite's own PATH, which the launch appended
 assert_eq "$(recorded path)" ":$stubdir:$PATH" \
     "the shim keeps the rest of PATH as spelled"
+
+echo "=== a subdirectory launch resolves the root ==="
+make_consumer
+launch_dir="$consumer/skills/demo"
+run_claude
+assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
+    "a subdirectory launch resolves the root: the copy"
+assert_eq "$(recorded pwd)" "$consumer/skills/demo" \
+    "a subdirectory launch resolves the root: the shim did not change directory"
+
+# From the shim's own directory a leading empty entry is the shim: the one case
+# where dropping an empty entry is required, else the exec finds the shim again.
+# The launch appends only the runner's absolute entries: an empty or relative
+# one would name plugin-dev/bin too, and the shim rightly drops it as well.
+echo "=== a launch from plugin-dev/bin drops the empty entry ==="
+make_consumer
+launch_dir="$consumer/plugin-dev/bin"
+path_head=":$shim_dir:$stubdir"
+# shellcheck disable=SC2031  # the suite's own PATH, not run_claude's subshell's
+runner_path="" rest="$PATH:"
+while [[ -n "$rest" ]]; do
+    entry="${rest%%:*}"
+    rest="${rest#*:}"
+    [[ "$entry" == /* ]] && runner_path+="${runner_path:+:}$entry"
+done
+PATH="$runner_path" run_claude
+assert_file "$sandbox/rec/path" \
+    "a launch from plugin-dev/bin drops the empty entry: the stub ran"
+assert_eq "$(recorded path)" "$stubdir:$runner_path" \
+    "a launch from plugin-dev/bin drops the empty entry"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
