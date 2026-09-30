@@ -70,7 +70,7 @@ if [ "$actual" != "$expected" ]; then
 fi
 
 # A shim without its execute bit is skipped by PATH lookup without a word.
-echo "=== toolkit/bin/claude is committed executable ==="
+echo "=== toolkit/bin/claude is executable in the index ==="
 shim_mode="$(git ls-files -s toolkit/bin/claude | cut -d' ' -f1)"
 if [ "$shim_mode" != "100755" ]; then
     fail "toolkit/bin/claude index mode is '$shim_mode', not 100755"
@@ -89,4 +89,4 @@ if [ "$failures" -ne 0 ]; then
     exit 1
 fi
 echo
-echo "dist tree ok ($(printf '%s\n' "$expected" | wc -l | tr -d ' ') files, no gitlink)"
+echo "dist tree ok ($(printf '%s\n' "$expected" | wc -l | tr -d ' ') files, bin/claude executable, no gitlink)"
