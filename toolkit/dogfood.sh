@@ -4,10 +4,12 @@
 # location, never from CLAUDE_PROJECT_DIR or a hook payload's cwd (a resumed
 # session can carry a foreign one).
 #
-#   sync      mirror the plugin tree into <root>/dist/plugin/
-#   pre-tool  PreToolUse hook: read the payload on stdin, deny an edit into
-#             <root>/dist/plugin/; exit 0 on either verdict, empty stdout when
-#             allowing
+#   sync           mirror the plugin tree into <root>/dist/plugin/
+#   pre-tool       PreToolUse hook: read the payload on stdin, deny an edit
+#                  into <root>/dist/plugin/; exit 0 on either verdict, empty
+#                  stdout when allowing
+#   session-start  SessionStart hook: warn when this session does not load
+#                  <root>/dist/plugin/
 set -euo pipefail
 unset CDPATH # else cd prints its target into a $(cd … && pwd -P) capture
 
@@ -15,6 +17,7 @@ main() {
     case "${1:-}" in
         sync) sync_copy ;;
         pre-tool) pre_tool ;;
+        session-start) session_start ;;
         *) usage ;;
     esac
 }
@@ -103,6 +106,28 @@ pre_tool() {
             additionalContext: ("The source of " + $path + " is " + $src + ". Make the edit there.")
         },
         systemMessage: ("dogfood: blocked an edit into " + $copy + "/ — the generated copy")
+    }'
+}
+
+# A session that does not load <root>/dist/plugin gets one object and otherwise
+# nothing. The verdict is checked against <root> as this script finds it, never
+# the payload's cwd, and the payload is not read. systemMessage is the one line
+# for the human, opening with an ANSI reset so Claude Code does not dim it like
+# routine hook output; it names the remedy, launching through the shim.
+# additionalContext gives the agent the same finding as a fact and nothing to
+# act on: no command, no way to make the session load the copy. The object is
+# built with jq --arg, never spliced.
+session_start() {
+    local root copy
+    root="$(root_dir)"
+    copy="$root/dist/plugin"
+    [[ "${CLAUDE_CODE_PLUGIN_DIRS:-}" == "$copy" ]] && exit 0
+    jq -nc --arg copy "$copy" '{
+        systemMessage: ("\u001b[0m" + "dogfood: this session does not load " + $copy + "; launch claude through plugin-dev/bin/claude from the repo root"),
+        hookSpecificOutput: {
+            hookEventName: "SessionStart",
+            additionalContext: ("This session does not load " + $copy + ", so plugin behaviour observed in it is not that of the promoted copy.")
+        }
     }'
 }
 

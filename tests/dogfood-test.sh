@@ -14,6 +14,9 @@ set -euo pipefail
 unset $(git rev-parse --local-env-vars)
 
 unset CDPATH   # else `cd` may echo its target into the $(cd … && pwd) capture below
+# A parent Claude Code session exports this. The session-start tests set it per
+# run or rely on its absence, whichever session launched the suite.
+unset CLAUDE_CODE_PLUGIN_DIRS
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_root"
 
@@ -656,6 +659,46 @@ if [[ "$rc" == 0 ]]; then
 fi
 assert_eq "$out" "" "$label prints nothing on stdout"
 assert_contains "$err" "jq: " "$label shows jq's error"
+
+# run_session_start: run_dogfood session-start, fed a SessionStart payload whose
+# cwd is not the consumer, as a resumed session's can be. A script taking its
+# root from the payload, even as a fallback, would name the wrong copy.
+run_session_start() {
+    run_dogfood session-start <<<"$(jq -cn --arg cwd "$sandbox/elsewhere" \
+        '{session_id:"fixture",hook_event_name:"SessionStart",source:"resume",cwd:$cwd}')"
+}
+
+# CLAUDE_CODE_PLUGIN_DIRS is unset by the preamble; a test wanting it passes it
+# as a prefix. The warn test below is this one's positive: the same fixture,
+# differing only in the variable.
+echo "=== session-start is silent on the copy ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+label="session-start is silent on the copy"
+CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin" run_session_start
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$out" "" "$label prints nothing on stdout"
+assert_eq "$err" "" "$label prints nothing on stderr"
+
+echo "=== session-start warns when the variable is unset ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+label="session-start warns when the variable is unset"
+run_session_start
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$err" "" "$label prints nothing on stderr"
+jq_holds "$label: stdout is one JSON object" 'length == 1 and (.[0] | type) == "object"' -s
+# shellcheck disable=SC2016  # $p is a jq variable bound by --arg
+jq_holds "$label: systemMessage leads with an ANSI reset and names the copy" \
+    '.systemMessage | type == "string" and startswith("\u001b[0m") and contains($p)' \
+    --arg p "$root/dist/plugin"
+jq_holds "$label: hookEventName" '.hookSpecificOutput.hookEventName == "SessionStart"'
+# shellcheck disable=SC2016  # $p is a jq variable bound by --arg
+jq_holds "$label: additionalContext names the copy" \
+    '.hookSpecificOutput.additionalContext | type == "string" and contains($p)' \
+    --arg p "$root/dist/plugin"
 
 echo "=== unknown subcommand is usage ==="
 make_consumer
