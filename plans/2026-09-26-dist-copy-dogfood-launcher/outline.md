@@ -202,8 +202,9 @@ the subdirectory result is in `reports/probe-subdir-hooks.md`.
 Per `/runbook`: tdd = behavioural and test-driven; general = docs and wiring
 prose.
 
-1. **tdd**: `dogfood.sh sync`, in a new suite `tests/dogfood-test.sh`. The first
-   two cases are red against the naive `--files-from` sync:
+1. **tdd**: `dogfood.sh sync`, in new suites `tests/dogfood-sync-test.sh` and
+   `tests/dogfood-sync-refusal-test.sh`. The first two cases are red against the
+   naive `--files-from` sync:
    - a deletion propagates;
    - a deleted-but-tracked file does not fail the sync;
    - ignored paths stay out;
@@ -215,7 +216,8 @@ prose.
    - it refuses without a root `.claude-plugin/plugin.json`, and when
      `dist/plugin` is not git-ignored;
    - an rsync failure exits non-zero with its stderr intact.
-2. **tdd**: `dogfood.sh pre-tool` and `session-start`, in the same suite:
+2. **tdd**: `dogfood.sh pre-tool` and `session-start`, in suites of their own
+   (`tests/dogfood-pre-tool-test.sh`, `tests/dogfood-session-start-test.sh`):
    - `pre-tool` emits the three-channel deny JSON with the mapped path, for both
      `file_path` and `notebook_path` payloads;
    - `pre-tool` allows source paths and paths outside the repo;
@@ -260,7 +262,7 @@ prose.
      migration note needs no list entry, since the test already admits any
      `migrations/vX.Y.Z.md`;
    - `justfile`'s `precommit` shellchecks the new scripts, runs `bash -n` on the
-     two new suites, and runs them;
+     new suites, and runs them;
    - CLAUDE.md's Layout and Quality gate name the new files and suites, and its
      list of `docs/references/` nodes gains `dogfood`.
 6. **general**: docs and the migration note:

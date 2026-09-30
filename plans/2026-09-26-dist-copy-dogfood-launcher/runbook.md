@@ -75,11 +75,11 @@ consumer and stays on the task file's Remaining list.
 
 ## Phase 1: `toolkit/dogfood.sh` (type: tdd)
 
-`tests/dogfood-test.sh` is projected at 300–400 lines across the three items.
-The executor reports its count at the end of Phase 1; over 400, the split goes
-back to the planner before Phase 2, since it changes 3.6's suite list.
+`tests/dogfood-test.sh` passed 400 lines, so the Phase 1 boundary split it by
+subcommand: `dogfood-sync-test.sh` and `dogfood-sync-refusal-test.sh` (1.1/5–7)
+for Item 1.1, `dogfood-pre-tool-test.sh`, `dogfood-session-start-test.sh`.
 
-- **Item 1.1:** `toolkit/dogfood.sh` `sync`, new suite `tests/dogfood-test.sh`.
+- **Item 1.1:** `toolkit/dogfood.sh` `sync`, in the two sync suites.
   - Requirements: D1, D2, D3, D5, D8
   - Slices:
     1. External contract. `sync copies a tracked file`: the copy's
@@ -140,7 +140,7 @@ back to the planner before Phase 2, since it changes 3.6's suite list.
     - rsync failure → rsync's own exit status, rsync's stderr unredirected
     - any other subcommand, or none → exit 2, usage on stderr
 
-- **Item 1.2:** `toolkit/dogfood.sh` `pre-tool`, in `tests/dogfood-test.sh`.
+- **Item 1.2:** `toolkit/dogfood.sh` `pre-tool`, in the pre-tool suite.
   - Requirements: D5, D6
   - Depends on: Item 1.1
   - Slices:
@@ -184,8 +184,7 @@ back to the planner before Phase 2, since it changes 3.6's suite list.
       `.systemMessage` (one line)
     - otherwise, or with no jq on PATH → empty stdout
 
-- **Item 1.3:** `toolkit/dogfood.sh` `session-start`, in
-  `tests/dogfood-test.sh`.
+- **Item 1.3:** `toolkit/dogfood.sh` `session-start`, in its own suite.
   - Requirements: D5, D7
   - Depends on: Item 1.1
   - Slices:
@@ -387,13 +386,13 @@ back to the planner before Phase 2, since it changes 3.6's suite list.
     - node file `docs/references/dogfood.md`, linked from the hub's new decision
       group heading
 
-- **Item 3.6:** `CLAUDE.md` — the Quality gate paragraph names `dogfood-test.sh`
-  and `dogfood-launcher-test.sh`; the `docs/references/` bullet's node list
-  gains `dogfood`; the Layout bullets 1.1/1 and 2.1/1 added are brought to the
-  shape of their neighbours, the `release.just` bullet names `dogfood`, and the
-  `install.sh` bullet says it wires the dogfood hooks beside version-guard. The
-  Conventions bullet on `hook_cmd`'s single quotes extends to the two dogfood
-  commands, which quote `"${CLAUDE_PROJECT_DIR}"` where version-guard's does
-  not, and says why version-guard's stays unquoted.
+- **Item 3.6:** `CLAUDE.md` — the Quality gate paragraph names the four dogfood
+  suites above and `dogfood-launcher-test.sh`; the `docs/references/` bullet's
+  node list gains `dogfood`; the Layout bullets 1.1/1 and 2.1/1 added are
+  brought to the shape of their neighbours, the `release.just` bullet names
+  `dogfood`, and the `install.sh` bullet says it wires the dogfood hooks beside
+  version-guard. The Conventions bullet on `hook_cmd`'s single quotes extends to
+  the two dogfood commands, which quote `"${CLAUDE_PROJECT_DIR}"` where
+  version-guard's does not, and says why version-guard's stays unquoted.
   - Requirements: D5, D9, D10
   - Depends on: Item 3.5

@@ -60,3 +60,18 @@ hit (it was the only stale hit in scope, fixed). Hits by file:
 Not edited: anything in `plans/`, `docs/`, `CLAUDE.md`, READMEs. CLAUDE.md's
 Quality gate list names no dogfood suite (no hit), and `tests/dist-tree-test.sh`
 does not list tests.
+
+## Orchestrator follow-up: stale hits resolved
+
+The orchestrator ran the whole-tree grep (`git grep -n 'dogfood-test'`, which
+also matches the name without `.sh`) again after the runbook and outline edits.
+Every hit is classified below against where the tests now live.
+
+| Path | Classification | Resolution |
+| --- | --- | --- |
+| `justfile` | was stale | fixed in the split commit; no hit remains |
+| `runbook.md` Phase 1 preamble, Items 1.1, 1.2, 1.3, 3.6 | were stale | revised: the preamble records the split and names the four suites, and each item names its own suite; Item 3.6's Quality gate list now names the four dogfood suites and `dogfood-launcher-test.sh`; the one remaining hit, preamble line 78, is accurate because it names the old file as what was split |
+| `outline.md` items 1, 2 and 5 | were stale | revised: the outline is the design input every later dispatch reads, so it names the four suites; item 5's "two new suites" is now "new suites" |
+| `.claude/handoff-todo.md:3` | stale | an open decision in the handoff task frame, now settled by my human partner; left to the coordinator, which owns that file |
+| `reports/item-1-*-s*-*.md`, `outline-review.md`, `runbook-review.md`, `runbook-simplification.md`, this report | accurate-historical | dated write-time records of the suite as it then was; never revised |
+| `CLAUDE.md`, `docs/`, `README.md`, `toolkit/`, `tests/` | no hit | CLAUDE.md's Quality gate list does not yet name the dogfood suites; Item 3.6 adds them |
