@@ -700,6 +700,43 @@ jq_holds "$label: additionalContext names the copy" \
     '.hookSpecificOutput.additionalContext | type == "string" and contains($p)' \
     --arg p "$root/dist/plugin"
 
+# Each spelling below names the copy, so each is silent; the variable, and for
+# the last a link to the root, is all that differs from the warn test above.
+# The copy sits between two entries, so neither the first nor the last entry
+# alone, nor a suffix of the whole value, can stand in for splitting on ':'.
+# The link spelling is set while the script is invoked at the physical path, so
+# only an entry resolved to its physical spelling matches the root.
+echo "=== session-start matches the copy among several entries ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+label="session-start is silent on one entry of several"
+CLAUDE_CODE_PLUGIN_DIRS="/x/other:$root/dist/plugin:/y/other" run_session_start
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$out" "" "$label prints nothing on stdout"
+assert_eq "$err" "" "$label prints nothing on stderr"
+
+echo "=== session-start matches the copy with a trailing slash ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+label="session-start is silent on a trailing slash"
+CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin/" run_session_start
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$out" "" "$label prints nothing on stdout"
+assert_eq "$err" "" "$label prints nothing on stderr"
+
+echo "=== session-start matches the copy through a symlink ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+ln -s "$root" "$sandbox/link"
+label="session-start is silent on a symlinked spelling"
+CLAUDE_CODE_PLUGIN_DIRS="$sandbox/link/dist/plugin" run_session_start
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$out" "" "$label prints nothing on stdout"
+assert_eq "$err" "" "$label prints nothing on stderr"
+
 echo "=== unknown subcommand is usage ==="
 make_consumer
 run_dogfood bogus
