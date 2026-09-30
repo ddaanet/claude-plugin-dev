@@ -182,18 +182,25 @@ assert_file "$consumer/dist/plugin/.claude-plugin/plugin.json" \
 # <root> comes from the shim's physical location alone: the shim is reached
 # through a symlinked spelling of the consumer, which a <root> resolved
 # logically would record, and launched from outside the consumer, inside
-# another repo, which a <root> taken from the launch directory or from git's
-# toplevel there would record.
+# another consumer that sync accepts: a git repo with a manifest, the ignore
+# rule and dogfood.sh vendored. A <root> taken from the launch directory, from
+# git's toplevel there or from the nearest manifest above it syncs that repo
+# and records its copy, rather than aborting on a sync refusal.
 echo "=== the shim exports the copy ==="
 make_consumer
 ln -s "$consumer" "$sandbox/link"
 shim_dir="$sandbox/link/plugin-dev/bin"
-mkdir "$sandbox/elsewhere"
+mkdir -p "$sandbox/elsewhere/.claude-plugin" "$sandbox/elsewhere/plugin-dev"
 git init -q "$sandbox/elsewhere"
+printf '{"name":"decoy","version":"1.0.0"}\n' > "$sandbox/elsewhere/.claude-plugin/plugin.json"
+printf '/dist/plugin/\n' > "$sandbox/elsewhere/.gitignore"
+cp "$repo_root/toolkit/dogfood.sh" "$sandbox/elsewhere/plugin-dev/dogfood.sh"
 launch_dir="$sandbox/elsewhere"
 run_claude
 assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
     "the shim exports the copy"
+assert_absent "$sandbox/elsewhere/dist" \
+    "the shim exports the copy: the launch directory's repo is not synced"
 # The other half of the contract: session-start, reached by the same symlinked
 # spelling, accepts what the shim exported and rejects another repo's copy.
 session_start() {

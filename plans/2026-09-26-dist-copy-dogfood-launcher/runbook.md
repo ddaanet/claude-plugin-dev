@@ -169,7 +169,7 @@ for Item 1.1, `dogfood-pre-tool-test.sh`, `dogfood-session-start-test.sh`.
        `pre-tool invoked through the symlink denies a physical path`.
     5. `pre-tool is silent without jq`: the jq-less PATH, a copy-path payload —
        exit 0, stdout and stderr empty. Its guard is not a stderr discard:
-       `pre-tool fails loudly on a payload jq cannot read` (test review).
+       `pre-tool fails loudly on a payload jq cannot read` (in-session GREEN).
     6. Leaf symlink, added: followed into the copy, chains too; one out allowed.
   - Interfaces:
     - `bash <root>/plugin-dev/dogfood.sh pre-tool` < PreToolUse payload → exit 0

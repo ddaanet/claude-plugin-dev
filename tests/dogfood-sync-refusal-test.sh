@@ -198,6 +198,29 @@ fi
 assert_contains "$err" "git: stub failure" "a git failure: the run reached ls-files"
 assert_absent "$consumer/dist" "a git failure: dist/ is not created"
 
+echo "=== a symlinked dist/plugin is refused and the root survives ==="
+# dist/plugin links to the root itself, so rsync would mirror the root onto
+# itself and --delete-excluded would delete its .git. Nothing in sync checks
+# for the link: git check-ignore fails on a pathspec beyond a symbolic link
+# (exit 128), and that git error alone stops the run. The link comes after
+# commit_all, since /dist/plugin/ matches directories only and add -A would
+# track it. An explicit --git-dir keeps git from finding a parent repo once
+# .git is gone.
+make_consumer
+mkdir "$consumer/dist"
+ln -s .. "$consumer/dist/plugin"
+run_dogfood sync
+if [[ "$rc" == "0" ]]; then
+    fail "a symlinked dist/plugin: exit code is 0"
+fi
+assert_eq "$out" "" "a symlinked dist/plugin prints nothing on stdout"
+assert_contains "$err" "beyond a symbolic link" \
+    "a symlinked dist/plugin: git's diagnosis reaches stderr"
+assert_file "$consumer/.git/HEAD" "a symlinked dist/plugin: the root's .git survives"
+if ! git --git-dir="$consumer/.git" --work-tree="$consumer" diff-index --quiet HEAD --; then
+    fail "a symlinked dist/plugin: the root's tracked files changed"
+fi
+
 echo "=== an rsync failure keeps its status and stderr ==="
 # The stub stands in for rsync alone: git runs for real, so the run reaches
 # rsync. Its status and its one stderr line must arrive unaltered.
