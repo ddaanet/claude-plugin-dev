@@ -197,14 +197,14 @@ back to the planner before Phase 2, since it changes 3.6's suite list.
        `<root>/dist/plugin`; `.hookSpecificOutput.hookEventName` is
        `SessionStart`; `.hookSpecificOutput.additionalContext` contains
        `<root>/dist/plugin`.
-    2. Entry matching. Silent for `/x/other:<root>/dist/plugin` (one entry of
-       several), `<root>/dist/plugin/` (trailing slash), and
-       `$sandbox/link/dist/plugin` (symlinked spelling).
+    2. Entry matching. Silent for `/x/other:<root>/dist/plugin:/y/other`,
+       `<root>/dist/plugin/`, `$sandbox/link/dist/plugin`, and past a sealed
+       directory; warns on a relative entry and on one resolving to `plugin<LF>`
+       (code review).
     3. Mismatches warn on both channels: `<other>/dist/plugin` (another repo's
-       real copy), `/x<root>/dist/plugin` (the copy path as a substring of a
-       longer, non-existent entry), and `<root>/dist/plugin/skills` (a longer
-       real entry). An entry that does not resolve is compared literally,
-       trailing slash stripped.
+       real copy), `/x<root>/dist/plugin` (a longer, non-existent entry), and
+       `<root>/dist/plugin/skills` (a longer real entry). An unresolved entry is
+       compared literally, trailing slash stripped.
     4. `session-start reports a missing jq on systemMessage only`: the jq-less
        PATH, variable unset — stdout parses (with the suite's own jq);
        `.systemMessage` starts with `\u001b[0m` and contains `jq`;
