@@ -160,14 +160,13 @@ back to the planner before Phase 2, since it changes 3.6's suite list.
        under `$sandbox`), `… a sibling of the copy` (`<root>/dist/other`), and
        `… a prefix-sharing sibling` (`<root>/dist/plugin-old/x`): each exit 0
        with empty stdout.
-    4. Physical spelling.
-       `pre-tool denies a copy path through a symlinked repo`: `$sandbox/link` →
-       the fixture; payload `$sandbox/link/dist/plugin/new/file.md`, where
-       `new/` does not exist — deny, `additionalContext` names
-       `<root>/new/file.md` under the physical root.
-       `pre-tool invoked through the symlink denies a physical path`: script run
-       as `$sandbox/link/plugin-dev/dogfood.sh`, payload spelled physically —
-       deny.
+    4. Physical spelling, `new/` absent: deny, source `<root>/new/file.md`.
+       `pre-tool denies a copy path through a symlinked repo`;
+       `… through a symlink to the copy` (test review).
+       `pre-tool follows .. past a directory not yet created`, into the copy and
+       out of it, and `pre-tool keeps a trailing newline and a bare - in a name`
+       (code review).
+       `pre-tool invoked through the symlink denies a physical path`.
     5. `pre-tool is silent without jq`: the jq-less PATH, a copy-path payload —
        exit 0, stdout and stderr empty.
   - Interfaces:
