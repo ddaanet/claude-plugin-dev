@@ -60,6 +60,8 @@ trap cleanup EXIT
 #                dogfood.sh vendored under plugin-dev/
 #   $shim_dir    the spelling of the shim's directory put on PATH
 #   $launch_dir  the directory claude is launched from, $consumer
+#   $path_head   the PATH entries put ahead of the inherited PATH; empty means
+#                $shim_dir:$stubdir
 #   $stubdir     a stub claude that records under $sandbox/rec/ its argv, pid,
 #                PWD, PATH, CDPATH, CLAUDE_CODE_PLUGIN_DIRS and whether the
 #                copy's manifest existed as it started, then exits 0
@@ -70,6 +72,7 @@ make_consumer() {
     shim_dir="$consumer/plugin-dev/bin"
     launch_dir="$consumer"
     stubdir="$sandbox/stub"
+    path_head=""
     mkdir -p "$consumer/.claude-plugin" "$consumer/skills/demo" \
         "$consumer/plugin-dev/bin" "$stubdir" "$sandbox/rec"
     git -C "$consumer" init -q
@@ -109,7 +112,8 @@ commit_all() {
 }
 
 # run_claude <args...>: launch `claude` by PATH lookup from $launch_dir, the
-# shim first by its $shim_dir spelling, then the stub. CDPATH goes in as /tmp.
+# shim first by its $shim_dir spelling, then the stub, unless $path_head says
+# otherwise. CDPATH goes in as /tmp.
 # Bounded by a watchdog: run in the background and killed after 10 s, which
 # fails the test. Sets $rc and $launch_pid, the pid `claude` was launched as;
 # stdout and stderr are left in $sandbox/stdout and $sandbox/stderr.
@@ -119,7 +123,8 @@ run_claude() {
     set +e
     (
         cd "$launch_dir"
-        export PATH="$shim_dir:$stubdir:$PATH"
+        # shellcheck disable=SC2030  # the subshell's PATH is the point
+        export PATH="${path_head:-$shim_dir:$stubdir}:$PATH"
         export CDPATH=/tmp
         exec claude "$@"
     ) >"$outfile" 2>"$errfile" &
@@ -190,6 +195,58 @@ make_consumer
 CLAUDE_CODE_PLUGIN_DIRS=/elsewhere/dist/plugin run_claude
 assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
     "an inherited variable is overwritten"
+
+# The shim is on PATH twice ahead of the stub, once with a trailing slash, and
+# twice behind it, through a symlinked directory and a /./ spelling. The stub's
+# PATH may hold no entry whose claude is the shim. An entry behind the stub is
+# never hopped through, so only the first hop can strip it, and only -ef, not
+# a normalised spelling, recognises it.
+echo "=== the shim strips its own entry in any spelling ==="
+make_consumer
+ln -s "$consumer" "$sandbox/link"
+path_head="$shim_dir/:$shim_dir:$stubdir:$sandbox/link/plugin-dev/bin"
+path_head+=":$consumer/plugin-dev/./bin"
+run_claude
+assert_file "$sandbox/rec/path" \
+    "the shim strips its own entry in any spelling: the stub ran"
+left=0 stubs=0
+if [[ -f "$sandbox/rec/path" ]]; then
+    IFS=: read -r -a entries < "$sandbox/rec/path" || true
+    for entry in "${entries[@]}"; do
+        [[ -n "$entry" && "$entry/claude" -ef "$shim_dir/claude" ]] && left=$((left + 1))
+        [[ -n "$entry" && "$entry/claude" -ef "$stubdir/claude" ]] && stubs=$((stubs + 1))
+    done
+fi
+assert_eq "$stubs" "1" \
+    "the shim strips its own entry in any spelling: the recorded PATH splits to the stub's entry"
+assert_eq "$left" "0" \
+    "the shim strips its own entry in any spelling: entries of the shim left on PATH"
+
+echo "=== the shim keeps another bin/claude ==="
+make_consumer
+mkdir -p "$sandbox/other tools/bin"
+cat > "$sandbox/other tools/bin/claude" <<OTHER
+#!/usr/bin/env bash
+printf ran > "$sandbox/rec/other"
+exit 0
+OTHER
+chmod +x "$sandbox/other tools/bin/claude"
+path_head="$shim_dir:$sandbox/other tools/bin:$stubdir"
+run_claude
+assert_eq "$(recorded other)" "ran" \
+    "the shim keeps another bin/claude: the one ahead of the stub ran"
+assert_absent "$sandbox/rec/argv" \
+    "the shim keeps another bin/claude: the stub behind it did not"
+
+# A leading empty entry is the working directory: dropping it would change
+# which claude a later lookup finds.
+echo "=== the shim keeps the rest of PATH as spelled ==="
+make_consumer
+path_head=":$shim_dir:$stubdir"
+run_claude
+# shellcheck disable=SC2031  # the suite's own PATH, which the launch appended
+assert_eq "$(recorded path)" ":$stubdir:$PATH" \
+    "the shim keeps the rest of PATH as spelled"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
