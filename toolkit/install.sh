@@ -126,15 +126,16 @@ fi
 # 3. .claude/settings.json hook block. Append each hook only if not already
 # present, and write only if that changed something.
 #
-# Both cases run the same pipeline, over the existing file or a seed of {}, so
-# a failure only ever errors: there is no fallback that writes a stub of just
-# the toolkit's hooks, which over an existing settings.json would replace the
-# consumer's whole configuration.
-# A hook counts as present when any entry under its event
-# carries its command, whatever that entry's matcher, a missing one included:
-# the consumer may have rescoped it, and a second copy beside it would run the
-# command twice wherever the two matchers overlap.
-# An empty matcher argument omits the key, which is how SessionStart is wired.
+# An existing file and a missing one run the same pipeline, the missing one
+# seeded with {}, so a failure in any stage takes the one error branch: there
+# is no fallback that writes a stub of just the toolkit's hooks, which over an
+# existing settings.json would replace the consumer's whole configuration.
+#
+# A hook counts as present when any entry under its event carries its command,
+# whatever that entry's matcher, a missing one included: the consumer may have
+# rescoped it, and a second copy beside it would run the command twice wherever
+# the two matchers overlap. An empty matcher argument omits the key, which is
+# how SessionStart is wired.
 add_hook() {
     jq --arg event "$1" --arg matcher "$2" --arg cmd "$3" '
       if ([.hooks[$event][]? | .hooks[]? | select(.command == $cmd)] | length > 0)
@@ -156,17 +157,12 @@ session_cmd='bash "${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh" session-start'
 
 mkdir -p .claude
 tmp="$(mktemp)"
-if [ -f "$settings" ]; then
-    seed="$(cat "$settings")"
-else
-    seed='{}'
-fi
-{ printf '%s\n' "$seed" \
+{ if [ -f "$settings" ]; then cat "$settings"; else echo '{}'; fi \
     | add_hook PreToolUse 'Write|Edit' "$hook_cmd" \
     | add_hook PreToolUse 'Write|Edit|NotebookEdit' "$pretool_cmd" \
     | add_hook SessionStart '' "$session_cmd" > "$tmp"; } || {
     rm -f "$tmp"
-    echo "error: could not rewrite $settings — left unchanged." >&2
+    echo "error: could not wire the hooks into $settings — nothing written." >&2
     exit 1
 }
 
