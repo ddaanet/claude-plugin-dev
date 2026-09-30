@@ -62,6 +62,8 @@ trap cleanup EXIT
 #   $launch_dir  the directory claude is launched from, $consumer
 #   $path_head   the PATH entries put ahead of the inherited PATH; empty means
 #                $shim_dir:$stubdir
+#   $path_exact  when set, the whole PATH, nothing inherited appended; empty
+#                means $path_head's rule
 #   $stubdir     a stub claude that records under $sandbox/rec/ its argv, pid,
 #                PWD, PATH, CDPATH, CLAUDE_CODE_PLUGIN_DIRS and whether the
 #                copy's manifest existed as it started, then exits 0
@@ -73,6 +75,7 @@ make_consumer() {
     launch_dir="$consumer"
     stubdir="$sandbox/stub"
     path_head=""
+    path_exact=""
     mkdir -p "$consumer/.claude-plugin" "$consumer/skills/demo" \
         "$consumer/plugin-dev/bin" "$stubdir" "$sandbox/rec"
     git -C "$consumer" init -q
@@ -113,7 +116,8 @@ commit_all() {
 
 # run_claude <args...>: launch `claude` by PATH lookup from $launch_dir, the
 # shim first by its $shim_dir spelling, then the stub, unless $path_head says
-# otherwise. CDPATH goes in as /tmp.
+# otherwise, or $path_exact, when set, is the whole PATH. CDPATH goes in as
+# /tmp.
 # Bounded by a watchdog: run in the background and killed after 10 s, which
 # fails the test. Sets $rc and $launch_pid, the pid `claude` was launched as;
 # stdout and stderr are left in $sandbox/stdout and $sandbox/stderr.
@@ -124,7 +128,11 @@ run_claude() {
     (
         cd "$launch_dir"
         # shellcheck disable=SC2030  # the subshell's PATH is the point
-        export PATH="${path_head:-$shim_dir:$stubdir}:$PATH"
+        if [[ -n "${path_exact:-}" ]]; then
+            export PATH="$path_exact"
+        else
+            export PATH="${path_head:-$shim_dir:$stubdir}:$PATH"
+        fi
         export CDPATH=/tmp
         exec claude "$@"
     ) >"$outfile" 2>"$errfile" &
@@ -291,6 +299,32 @@ if ! grep -qF "dogfood: $consumer/.claude-plugin/plugin.json" "$sandbox/stderr";
 fi
 assert_absent "$sandbox/rec/argv" "a failed sync aborts the launch: the next claude did not run"
 assert_absent "$sandbox/rec/pid" "a failed sync aborts the launch: the stub left no record"
+
+# The whole PATH is the shim's directory and a directory of symlinks to the
+# commands the shim and sync run: no claude, and nothing inherited that could
+# hold one. The negative only means something if a lookup under this PATH finds
+# the shim, and one under what the shim leaves of it finds nothing. Bash's own
+# exec failure also exits 127, and so does a sync missing a command, so stderr
+# must be the shim's one line and nothing else.
+echo "=== no next claude exits 127 ==="
+make_consumer
+mkdir "$sandbox/tools"
+for tool in bash dirname git rsync mktemp rm mkdir; do
+    ln -s "$(command -v "$tool")" "$sandbox/tools/$tool"
+done
+path_exact="$shim_dir:$sandbox/tools"
+found="$(PATH="$path_exact" command -v claude || true)"
+assert_eq "$found" "$shim_dir/claude" \
+    "no next claude exits 127: the shim is the claude on the PATH"
+found="$(PATH="$sandbox/tools" command -v claude || true)"
+assert_eq "$found" "" \
+    "no next claude exits 127: the PATH without the shim holds no claude"
+run_claude
+assert_eq "$rc" "127" "no next claude exits 127"
+assert_eq "$(cat "$sandbox/stderr")" "dogfood: no other claude on PATH" \
+    "no next claude exits 127: stderr is the shim's one line"
+assert_file "$consumer/dist/plugin/.claude-plugin/plugin.json" \
+    "no next claude exits 127: the sync ran, so the 127 is not a sync failure"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
