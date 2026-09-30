@@ -123,15 +123,16 @@ EOF
     changed+=("justfile (created)")
 fi
 
-# 3. .claude/settings.json hook block. Append the hook only if not already
+# 3. .claude/settings.json hook block. Append each hook only if not already
 # present, and write only if that changed something.
 #
 # The two cases are separate branches, not a jq failure falling through to a
-# fallback: the fallback writes a document holding nothing but one hook, so
-# reaching it with an existing settings.json replaces the consumer's whole
-# configuration. A hook counts as present when any entry under its event
-# carries its command, whatever that entry's matcher: an entry with no matcher
-# is legal and matches every tool, so the matcher is not part of the identity.
+# fallback: the fallback writes a document holding nothing but the toolkit's
+# hooks, so reaching it with an existing settings.json replaces the consumer's
+# whole configuration. A hook counts as present when any entry under its event
+# carries its command, whatever that entry's matcher, a missing one included:
+# the consumer may have rescoped it, and a second copy beside it would run the
+# command twice wherever the two matchers overlap.
 # An empty matcher argument omits the key, which is how SessionStart is wired.
 add_hook() {
     jq --arg event "$1" --arg matcher "$2" --arg cmd "$3" '
@@ -178,7 +179,7 @@ else
     # ACL, and creates a new one at the umask like any other tool would.
     cat "$tmp" > "$settings"
     rm -f "$tmp"
-    changed+=("$settings (added version-guard and dogfood hooks)")
+    changed+=("$settings (wired the version-guard and dogfood hooks)")
 fi
 
 if [ "${#changed[@]}" -eq 0 ]; then
