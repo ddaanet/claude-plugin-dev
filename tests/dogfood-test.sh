@@ -668,6 +668,24 @@ run_session_start() {
         '{session_id:"fixture",hook_event_name:"SessionStart",source:"resume",cwd:$cwd}')"
 }
 
+# assert_session_warns <label> <root>: the last run_session_start printed one
+# object, the warning on both channels, each naming <root>/dist/plugin.
+assert_session_warns() {
+    local label="$1" copy="$2/dist/plugin"
+    assert_eq "$rc" "0" "$label exit code"
+    assert_eq "$err" "" "$label prints nothing on stderr"
+    jq_holds "$label: stdout is one JSON object" 'length == 1 and (.[0] | type) == "object"' -s
+    # shellcheck disable=SC2016  # $p is a jq variable bound by --arg
+    jq_holds "$label: systemMessage leads with an ANSI reset and names the copy" \
+        '.systemMessage | type == "string" and startswith("\u001b[0m") and contains($p)' \
+        --arg p "$copy"
+    jq_holds "$label: hookEventName" '.hookSpecificOutput.hookEventName == "SessionStart"'
+    # shellcheck disable=SC2016  # $p is a jq variable bound by --arg
+    jq_holds "$label: additionalContext names the copy" \
+        '.hookSpecificOutput.additionalContext | type == "string" and contains($p)' \
+        --arg p "$copy"
+}
+
 # CLAUDE_CODE_PLUGIN_DIRS is unset by the preamble; a test wanting it passes it
 # as a prefix. The warn test below is this one's positive: the same fixture,
 # differing only in the variable.
@@ -687,18 +705,7 @@ run_dogfood sync
 root="$(cd "$consumer" && pwd -P)"
 label="session-start warns when the variable is unset"
 run_session_start
-assert_eq "$rc" "0" "$label exit code"
-assert_eq "$err" "" "$label prints nothing on stderr"
-jq_holds "$label: stdout is one JSON object" 'length == 1 and (.[0] | type) == "object"' -s
-# shellcheck disable=SC2016  # $p is a jq variable bound by --arg
-jq_holds "$label: systemMessage leads with an ANSI reset and names the copy" \
-    '.systemMessage | type == "string" and startswith("\u001b[0m") and contains($p)' \
-    --arg p "$root/dist/plugin"
-jq_holds "$label: hookEventName" '.hookSpecificOutput.hookEventName == "SessionStart"'
-# shellcheck disable=SC2016  # $p is a jq variable bound by --arg
-jq_holds "$label: additionalContext names the copy" \
-    '.hookSpecificOutput.additionalContext | type == "string" and contains($p)' \
-    --arg p "$root/dist/plugin"
+assert_session_warns "$label" "$root"
 
 # Each spelling below names the copy, so each is silent; the variable, and for
 # the last a link to the root, is all that differs from the warn test above.
@@ -777,6 +784,40 @@ chmod 755 "$sandbox/sealed"
 assert_eq "$rc" "0" "$label exit code"
 assert_eq "$out" "" "$label prints nothing on stdout"
 assert_eq "$err" "" "$label prints nothing on stderr"
+
+# Each entry below names something other than the copy, so each warns. The
+# other repo's copy is real and synced, so an entry that merely is an existing
+# plugin directory, or ends in /dist/plugin, does not match; the /x entry does
+# not exist, so it is compared literally and a substring does not match; the
+# skills entry is a real directory inside the copy, so a prefix does not match.
+echo "=== session-start warns on another repo's real copy ==="
+make_consumer
+run_dogfood sync
+other_root="$(cd "$consumer" && pwd -P)"
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+[[ -d "$other_root/dist/plugin" ]] || fail "fixture: the other repo's copy does not exist"
+label="session-start warns on another repo's copy"
+CLAUDE_CODE_PLUGIN_DIRS="$other_root/dist/plugin" run_session_start
+assert_session_warns "$label" "$root"
+
+echo "=== session-start warns on a longer, non-existent entry ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+label="session-start warns on /x<root>/dist/plugin"
+CLAUDE_CODE_PLUGIN_DIRS="/x$root/dist/plugin" run_session_start
+assert_session_warns "$label" "$root"
+
+echo "=== session-start warns on a longer, real entry ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+[[ -d "$root/dist/plugin/skills" ]] || fail "fixture: the copy has no skills directory"
+label="session-start warns on <root>/dist/plugin/skills"
+CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin/skills" run_session_start
+assert_session_warns "$label" "$root"
 
 echo "=== unknown subcommand is usage ==="
 make_consumer
