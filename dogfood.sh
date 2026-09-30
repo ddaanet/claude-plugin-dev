@@ -77,9 +77,12 @@ sync_copy() {
 # copy passes here and meets Claude Code's own sensitive-file ask instead. A
 # payload jq cannot read, or a directory on the path that cannot be entered,
 # stops the script non-zero: Claude Code shows a non-blocking hook error, and
-# that same ask still stands before an edit into the copy.
+# that same ask still stands before an edit into the copy. With no jq on PATH
+# the guard stands down in silence rather than fail every edit of the session;
+# the session-start warning is where a missing jq is reported.
 pre_tool() {
     local root path physical rel copy="dist/plugin"
+    command -v jq >/dev/null || exit 0
     root="$(root_dir)"
     # NotebookEdit names its target notebook_path, not file_path. Each x shields
     # a trailing newline in the path from its capture's strip.
