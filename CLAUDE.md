@@ -122,7 +122,8 @@ the four `dogfood.sh` suites (`dogfood-sync-test.sh`,
 `dogfood-session-start-test.sh`) and `dogfood-launcher-test.sh` (the
 `bin/claude` shim). A green `precommit` — including the one a
 pre-commit hook runs — is therefore evidence the whole release suite
-passed, not just the linters. **One script under test per suite file**, each carrying its
+passed, not just the linters. **One script under test per suite
+file**, each carrying its
 own copy of the small assertion harness rather than sourcing a shared
 one: a suite that can be read and run alone is worth more than the
 duplicated six lines. It also runs `whitespace` and

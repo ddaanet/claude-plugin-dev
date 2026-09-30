@@ -249,7 +249,8 @@ unaffected.
 
 ### Hooks
 
-`install.sh` wires two hooks into `.claude/settings.json`:
+`install.sh` wires two dogfood hooks into `.claude/settings.json`, beside the
+version-guard:
 
 - **Copy guard** — `PreToolUse` on `Write|Edit|NotebookEdit`. Refuses an edit
   into `dist/plugin/`, a spelling through a symlink included, and gives the
@@ -265,9 +266,9 @@ unaffected.
 
   The first means the session started past the shim (no direnv, an IDE or the
   desktop app, an absolute path to `claude`), or inherited another repo's
-  `CLAUDE_CODE_PLUGIN_DIRS`, as a `claude` started from a dogfood session's Bash
-  does. The agent is told the same, as a fact. After the second, Claude Code's
-  own sensitive-file prompt still stops a copy edit.
+  `CLAUDE_CODE_PLUGIN_DIRS`, as a `claude` started from another plugin's dogfood
+  session does. The agent is told the same, as a fact. After the second, Claude
+  Code's own sensitive-file prompt still stops a copy edit.
 
 ## Conventions
 

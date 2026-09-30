@@ -10,12 +10,13 @@ half-edited hook runs in the session that is editing it.
 
 The consumers made it worse, not better. Every one keeps its manifest at the
 repo root, four of them — craft, cwd-safety, handoff and sandbox-lies — launched
-through hand-copied `.bin/claude` shims, and craft's, cwd-safety's and handoff's
-passed the repo root as the plugin root, which made every edit anywhere in those
-repos a sensitive-file edit. The copies had already drifted: craft's unset
-`CDPATH`, handoff's and cwd-safety's did not. The requirements came in as a
-brief from an edify session,
-`plans/2026-09-26-brief-dist-copy-dogfood-launcher.md`.
+through hand-copied `.bin/claude` shims, and cwd-safety's, handoff's and
+sandbox-lies's passed the repo root as the plugin root, which made every edit
+anywhere in those repos a sensitive-file edit. craft's had already moved to a
+stopgap copy of its own, `.claude-plugin/` and `skills/` only, rebuilt at each
+launch. The copies had drifted: craft's and sandbox-lies's unset `CDPATH`,
+handoff's and cwd-safety's did not. The requirements came in as a brief from an
+edify session, `plans/2026-09-26-brief-dist-copy-dogfood-launcher.md`.
 
 ## What landed
 

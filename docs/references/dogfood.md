@@ -98,13 +98,13 @@ subagent's tool calls does not arise.
 
 **Rejected: sync on edit.** A project `PostToolUse` hook matching
 `Write|Edit|NotebookEdit|Bash`, with `PostToolUseFailure` for failing Bash
-calls, re-ran the sync after each call, gated by an environment marker so that
-only a session launched through the shim synced, and serialized by a `mkdir`
-lock with a stale-lock break. It cost a sync on every tool call — a no-op sync
+calls, would re-run the sync after each call, gated by an environment marker so
+that only a session launched through the shim syncs, and serialized by a `mkdir`
+lock with a stale-lock break. It costs a sync on every tool call — a no-op sync
 measured 60 to 108 ms across four consumers, `git ls-files` included
 ([research Q2](../../plans/2026-09-26-dist-copy-dogfood-launcher/reports/research-probes.md))
-— and it made half-edited hook scripts live in the session editing them. The
-marker and the lock each carried a failure mode of their own, a killed sync
+— and it makes half-edited hook scripts live in the session editing them. The
+marker and the lock each carry a failure mode of their own, a killed sync
 stranding its lock among them, that promotion-only syncing does not have.
 
 ## One script, three subcommands, rooted at its own location
