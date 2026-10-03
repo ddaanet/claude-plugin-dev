@@ -153,6 +153,30 @@ assert_file "$consumer/dist/plugin/.claude-plugin/plugin.json" \
 assert_absent "$consumer/dist/plugin/build.log" "sync leaves out an ignored file"
 assert_absent "$consumer/dist/plugin/.git" "sync leaves out .git"
 
+# Each ignore-list entry is anchored at the root. Unanchored, build.log would
+# also drop the tracked skills/demo/build.log, and a name opening with "- " or
+# "+ " would be read by rsync as a rule, not a name, and copied.
+echo "=== sync anchors each ignored entry at the root ==="
+make_consumer
+printf '/build.log\n/- dash file\n/+ plus file\n' >> "$consumer/.gitignore"
+printf 'noise\n' > "$consumer/build.log"
+printf 'tracked\n' > "$consumer/skills/demo/build.log"
+printf 'noise\n' > "$consumer/- dash file"
+printf 'noise\n' > "$consumer/+ plus file"
+git -C "$consumer" add -A
+git -C "$consumer" -c user.name=fixture -c user.email=fixture@example.invalid \
+    -c commit.gpgsign=false commit -q -m anchors
+run_dogfood sync
+assert_eq "$rc" "0" "sync anchors each ignored entry exit code"
+assert_file "$consumer/dist/plugin/skills/demo/build.log" \
+    "sync anchors each ignored entry: a tracked file named like a root-level ignored one is copied"
+assert_absent "$consumer/dist/plugin/build.log" \
+    "sync anchors each ignored entry: the root-level ignored file is left out"
+assert_absent "$consumer/dist/plugin/- dash file" \
+    "sync anchors each ignored entry: an ignored name opening with '- ' is left out"
+assert_absent "$consumer/dist/plugin/+ plus file" \
+    "sync anchors each ignored entry: an ignored name opening with '+ ' is left out"
+
 echo "=== sync resolves the root from its own location ==="
 # The cwd and CLAUDE_PROJECT_DIR are both valid plugin roots, so a script that
 # prefers either one, falling back to its own location, syncs the decoy.
