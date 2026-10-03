@@ -339,11 +339,69 @@ echo "=== pre-tool fails loudly on a payload jq cannot read ==="
 make_consumer
 label="pre-tool fails loudly on a payload jq cannot read"
 run_dogfood pre-tool <<<"not json"
-if [[ "$rc" == 0 ]]; then
-    fail "$label: exit code was 0"
-fi
+# Exactly 1: Claude Code blocks the tool call on exit 2, and jq's own status
+# varies by version (5 on a parse error in jq 1.7, 2 in jq 1.6).
+assert_eq "$rc" "1" "$label exit code"
 assert_eq "$out" "" "$label prints nothing on stdout"
 assert_contains "$err" "jq: " "$label shows jq's error"
+
+# jq 1.6 exits 2 on a parse error, and exit 2 blocks the tool call under Claude
+# Code. The stub stands in for that jq; its directory name holds a space.
+echo "=== pre-tool maps a jq exit of 2 to a non-blocking status ==="
+make_consumer
+label="pre-tool maps a jq exit of 2 to a non-blocking status"
+mkdir -p "$sandbox/stub bin"
+cat > "$sandbox/stub bin/jq" <<'STUB'
+#!/bin/sh
+echo "jq: stub parse error" >&2
+exit 2
+STUB
+chmod +x "$sandbox/stub bin/jq"
+if [[ "$(PATH="$sandbox/stub bin:$PATH" command -v jq)" != "$sandbox/stub bin/jq" ]]; then
+    fail "$label: the stub is not the jq found first on PATH"
+fi
+PATH="$sandbox/stub bin:$PATH" run_dogfood pre-tool <<<"not json"
+assert_eq "$rc" "1" "$label exit code"
+assert_eq "$out" "" "$label prints nothing on stdout"
+assert_contains "$err" "jq: stub parse error" "$label keeps the stub's diagnostic on stderr"
+
+# The second jq call, the one building the deny, fails too: mapping only the
+# payload read passes both scenarios above and lets this one exit 2. The stub
+# hands every call to the real jq except one whose filter builds the decision,
+# so the payload is read and the path judged as in production; its diagnostic
+# on stderr is what shows the deny build was reached. The payload is built
+# before the stub goes on PATH, and denied first with the real jq.
+echo "=== pre-tool maps a jq failure building the deny to a non-blocking status ==="
+make_consumer
+run_dogfood sync
+root="$(cd "$consumer" && pwd -P)"
+label="pre-tool maps a jq failure building the deny to a non-blocking status"
+payload="$(jq -cn --arg p "$root/dist/plugin/skills/demo/SKILL.md" \
+    '{tool_name:"Edit",tool_input:{file_path:$p}}')"
+run_dogfood pre-tool <<<"$payload"
+assert_denied "$label: control with the real jq" "$root"
+real_jq="$(command -v jq)"
+mkdir -p "$sandbox/stub bin"
+cat > "$sandbox/stub bin/jq" <<STUB
+#!/bin/sh
+for a in "\$@"; do
+    case "\$a" in
+        *permissionDecision*)
+            echo "jq: stub failure building the deny" >&2
+            exit 2
+            ;;
+    esac
+done
+exec "$real_jq" "\$@"
+STUB
+chmod +x "$sandbox/stub bin/jq"
+if [[ "$(PATH="$sandbox/stub bin:$PATH" command -v jq)" != "$sandbox/stub bin/jq" ]]; then
+    fail "$label: the stub is not the jq found first on PATH"
+fi
+PATH="$sandbox/stub bin:$PATH" run_dogfood pre-tool <<<"$payload"
+assert_eq "$rc" "1" "$label exit code"
+assert_eq "$out" "" "$label prints nothing on stdout"
+assert_contains "$err" "jq: stub failure building the deny" "$label keeps the stub's diagnostic on stderr"
 
 # Claude Code realpaths the leaf, so a symlink at the leaf into the copy is an
 # edit of the copy. In the chain, y.md reaches it through x.md: a one-hop
