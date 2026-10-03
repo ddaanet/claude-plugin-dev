@@ -45,9 +45,11 @@ or removing a shipped file means updating the list in
   hook payload's `cwd`.
 - `toolkit/bin/claude` — the dogfood shim, a `claude` that the
   consumer's `.envrc` puts first on PATH as `PATH_add plugin-dev/bin`.
-  Runs `dogfood.sh sync`, then execs the next `claude` on PATH with its
-  arguments unchanged and `CLAUDE_CODE_PLUGIN_DIRS` set to the copy; a
-  failed sync aborts the launch.
+  Runs `dogfood.sh sync` unless `CLAUDE_CODE_PLUGIN_DIRS` already names
+  that copy, as it does for a `claude` started inside a dogfood session
+  of the same repo, then execs the next `claude` on PATH with its
+  arguments unchanged and the variable set to the copy; a failed sync
+  aborts the launch.
 - `toolkit/version-guard.sh` — `PreToolUse(Write|Edit)` hook that fires
   inside consumer plugins to refuse agent edits to
   `.claude-plugin/plugin.json`'s `.version`.

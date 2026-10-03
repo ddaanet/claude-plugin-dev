@@ -124,7 +124,7 @@ every child, so the rule needs no state of its own:
 - a launch from a plain shell syncs, `claude -c` included;
 - a `claude -p` an agent runs inside a dogfood session of the same repository
   inherits the variable and skips the sync;
-- a session in repository A running `claude` in repository B syncs B;
+- a session in repository A whose `claude` reaches repository B's shim syncs B;
 - any other value syncs, a list carrying the copy among other entries included:
   the match is on the whole value, the one shape the shim exports.
 
@@ -308,9 +308,10 @@ missing ignore entry cannot pass unnoticed: `sync` refuses until git ignores
 `update.sh` does not re-run `install.sh`, so a consumer upgrading into the
 launcher gets the steps from `migrations/v0.9.0.md`: re-run the installer from
 the human's own shell, since the agent's sandboxed Bash cannot write
-`.claude/settings.json`; delete any hand-copied `.bin/claude`, its `PATH_add`,
-and any recipe line naming it; add `PATH_add plugin-dev/bin` last; ignore
-`/dist/plugin/` and make `clean` spare it.
+`.claude/settings.json`; delete any hand-copied `.bin/claude` and its
+`PATH_add`, and drop the `.bin` reference from each recipe line, deleting the
+line only when that reference is all it checks; add `PATH_add plugin-dev/bin`
+last; ignore `/dist/plugin/` and make `clean` spare it.
 
 Those steps break any hand-copied `.bin/claude` shim a consumer carries, and
 deliberately so: backward compatibility is not a constraint on what the toolkit

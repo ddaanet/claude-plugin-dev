@@ -222,8 +222,9 @@ the dated record of the reversal goes in the changelog.
   outside a dogfood session of the same repository, or `just dogfood`** —
   syncing on each edit would cost a sync per tool call and run half-edited hook
   scripts in the session editing them. A `claude` started inside a dogfood
-  session already carries the variable naming this copy, so it skips the sync
-  rather than re-promote the tree under that live session; no rule reads argv.
+  session of the same repository already carries the variable naming this copy,
+  so it skips the sync rather than re-promote the tree under that live session;
+  no rule reads argv.
 - **`dogfood.sh` carries `sync`, `pre-tool` and `session-start`, each rooted at
   the script's own location** — never `CLAUDE_PROJECT_DIR` or a payload `cwd`,
   which a resumed session can take from another repository.

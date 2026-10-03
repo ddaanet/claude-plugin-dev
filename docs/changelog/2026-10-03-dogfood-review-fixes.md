@@ -26,9 +26,10 @@ My human partner took none of them. The shim now runs `dogfood.sh sync` unless
 it computes, and exports the variable in every case. A launch from a plain shell
 syncs, `claude -c` included; a `claude -p` an agent runs inside a dogfood
 session of the same repository inherits the variable and skips the sync; a
-session in repository A running `claude` in repository B syncs B. There is no
-`-p`/`--print` rule, so a `just prerelease` my human partner runs from their own
-terminal still syncs on each eval's `claude -p`, accepted as a deliberate act.
+session in repository A whose `claude` reaches repository B's shim syncs B.
+There is no `-p`/`--print` rule, so a `just prerelease` my human partner runs
+from their own terminal still syncs on each eval's `claude -p`, accepted as a
+deliberate act.
 
 The variable already says whether a live dogfood session of this repository sits
 underneath, which is the question that matters, and it reaches every child with
