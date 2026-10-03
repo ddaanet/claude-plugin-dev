@@ -11,7 +11,8 @@
 # under the live session. Any other value, or none, syncs; the variable is
 # exported in every case.
 # <root> is found from the script's own location, never from the launch
-# directory.
+# directory, and resolved physically: the variable carries the physical path, so
+# a nested claude reaching the shim through a symlinked spelling still matches.
 set -euo pipefail
 unset CDPATH # else a relative cd searches it and prints its target
 
