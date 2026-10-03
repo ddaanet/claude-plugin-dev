@@ -5,6 +5,11 @@
 # whose claude is the shim itself is dropped) with argv unchanged, pointing
 # CLAUDE_CODE_PLUGIN_DIRS at the copy, with CDPATH unset. With no other claude
 # on PATH it exits 127 and says so.
+# The sync is skipped when CLAUDE_CODE_PLUGIN_DIRS already equals
+# <root>/dist/plugin exactly: a claude an agent runs inside a dogfood session of
+# this same repo inherits the variable, and must not re-promote the working tree
+# under the live session. Any other value, or none, syncs; the variable is
+# exported in every case.
 # <root> is found from the script's own location, never from the launch
 # directory.
 set -euo pipefail
@@ -16,7 +21,9 @@ main() {
     here="${here%?x}"
     root="$(cd -P -- "$here/../.." && printf '%s' "$PWD" && printf x)"
     root="${root%x}"
-    bash "$root/plugin-dev/dogfood.sh" sync
+    if [[ "${CLAUDE_CODE_PLUGIN_DIRS-}" != "$root/dist/plugin" ]]; then
+        bash "$root/plugin-dev/dogfood.sh" sync
+    fi
     export CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin"
     path="$(path_without "${BASH_SOURCE[0]}" && printf x)"
     export PATH="${path%x}"
