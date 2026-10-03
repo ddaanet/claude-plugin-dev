@@ -9,6 +9,13 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-03 — The dogfood launcher reviewed: a `claude` inside a dogfood session does not promote](changelog/2026-10-03-dogfood-review-fixes.md)
+  — the shim synced on every `claude` it fronted, so a scripted `claude -p` an
+  agent ran inside a dogfood session re-promoted the tree under it; it now skips
+  the sync when `CLAUDE_CODE_PLUGIN_DIRS` already names its own copy, with no
+  argv rule and no opt-out. Also records the rest of the review's fixes: a
+  failed launch sync says `claude` was not started, `pre-tool` never exits 2 on
+  a `jq` failure, four test gaps pinned, and the doc fixes m2 and m4–m9
 - [2026-09-30 — The dogfood launcher: consumers load their plugin from a synced copy](changelog/2026-09-30-dogfood-launcher.md)
   — a session loading a plugin from its working tree prompts on every agent edit
   and runs half-edited hook scripts; the toolkit ships a `claude` shim that

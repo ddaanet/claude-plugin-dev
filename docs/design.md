@@ -33,6 +33,13 @@ Both problems want the same answer: a single source of truth for release infra,
 vendored into each consumer plugin and enforced via a `PreToolUse` hook on
 `plugin.json`.
 
+Developing a plugin raises a third problem, in the session doing the work.
+Claude Code treats every path under a loaded plugin root as a sensitive file, so
+a session that loads the plugin from its own working tree prompts on every agent
+edit to it. It also runs whatever is on disk, so a half-edited hook script runs
+in the session editing it. Consumers worked around this with hand-copied
+launcher shims, which drifted the way the release recipes had.
+
 The toolkit captures: the unified release recipe, the version-guard hook, a
 one-shot install script, and a dogfood launcher that loads the plugin under
 development from a synced copy. Vendored via `git subtree` so the content is
@@ -49,9 +56,10 @@ versioned with each consumer.
 - Provide a dogfood launcher: a `claude` shim that loads the consumer plugin
   from a copy at `dist/plugin/`, so agent edits to the source meet no
   sensitive-file prompt and a half-edited hook script never runs in the session
-  editing it. The copy changes only when promoted — at launch or by
-  `just dogfood` — and project hooks refuse agent edits to it and report a
-  session that does not load it.
+  editing it. The copy changes only when promoted — at a launch that is not
+  already inside a dogfood session of the same repository, or by `just dogfood`
+  — and project hooks refuse agent edits to it and report a session that does
+  not load it.
 - **Reproducibility:** old consumer-plugin tags must build identically to when
   they were tagged — the toolkit content vendored at the time must be
   retrievable, not subject to drift.
@@ -210,9 +218,12 @@ the dated record of the reversal goes in the changelog.
   character aborts the sync rather than being escaped.
 - **The plugin root is the repo root** — every consumer has the root layout, so
   nested roots are out of scope.
-- **The copy syncs only on deliberate promotion: launch through the shim, or
-  `just dogfood`** — syncing on each edit would cost a sync per tool call and
-  run half-edited hook scripts in the session editing them.
+- **The copy syncs only on deliberate promotion: a launch through the shim from
+  outside a dogfood session of the same repository, or `just dogfood`** —
+  syncing on each edit would cost a sync per tool call and run half-edited hook
+  scripts in the session editing them. A `claude` started inside a dogfood
+  session already carries the variable naming this copy, so it skips the sync
+  rather than re-promote the tree under that live session; no rule reads argv.
 - **`dogfood.sh` carries `sync`, `pre-tool` and `session-start`, each rooted at
   the script's own location** — never `CLAUDE_PROJECT_DIR` or a payload `cwd`,
   which a resumed session can take from another repository.
@@ -222,11 +233,15 @@ the dated record of the reversal goes in the changelog.
 - **`session-start` reports a session that does not load the copy, and a missing
   `jq`** — whole-entry matching on the variable; the human gets the remedy, the
   agent the fact, and nothing refuses.
-- **A failed sync is loud** — the launch aborts before exec, `just dogfood`
-  exits non-zero, and rsync's stderr is never redirected.
+- **A failed sync is loud** — the launch aborts before exec with the sync's
+  status and one line saying `claude` was not started, `just dogfood` exits
+  non-zero, and rsync's stderr is never redirected.
 - **The shim exports `CLAUDE_CODE_PLUGIN_DIRS` rather than passing
   `--plugin-dir`, and execs the next `claude` on PATH** — the variable reaches
-  hooks, which is what `session-start` checks.
+  hooks, which is what `session-start` checks, and children, which is how a
+  nested `claude` knows it is inside this repository's dogfood session. The shim
+  syncs unless the variable already equals its own physical copy path, and
+  exports it in every case.
 - **`just dogfood` syncs and does nothing else** — it starts no `claude` and
   depends on no gate.
 - **`install.sh` wires the hooks; `.envrc`, `.gitignore` and `clean` are
