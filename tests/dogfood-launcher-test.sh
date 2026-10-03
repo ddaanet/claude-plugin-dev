@@ -204,6 +204,23 @@ assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
 assert_eq "$(recorded pid)" "$launch_pid" \
     "a variable equal to this copy skips the sync: the next claude still ran"
 
+# The comparison is a literal string match: a consumer root holding a glob
+# metacharacter, as the right-hand side of an unquoted [[ != ]] would read it,
+# must still match the copy the shim exported and skip the sync. The root's
+# brackets form a character class that matches its own letters but not the
+# spelling "my [consumer]", so an unquoted comparison misses and syncs.
+echo "=== a variable equal to a glob-named copy skips the sync ==="
+make_consumer
+mv "$consumer" "$sandbox/my [consumer]"
+consumer="$sandbox/my [consumer]"
+shim_dir="$consumer/plugin-dev/bin"
+launch_dir="$consumer"
+CLAUDE_CODE_PLUGIN_DIRS="$consumer/dist/plugin" run_claude
+assert_eq "$rc" "0" "a variable equal to a glob-named copy skips the sync: exit code"
+assert_absent "$consumer/dist" "a variable equal to a glob-named copy skips the sync: no copy made"
+assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
+    "a variable equal to a glob-named copy skips the sync: the next claude still gets the copy"
+
 # <root> comes from the shim's physical location alone: the shim is reached
 # through a symlinked spelling of the consumer, which a <root> resolved
 # logically would record, and launched from outside the consumer, inside
@@ -221,22 +238,13 @@ printf '{"name":"decoy","version":"1.0.0"}\n' > "$sandbox/elsewhere/.claude-plug
 printf '/dist/plugin/\n' > "$sandbox/elsewhere/.gitignore"
 cp "$repo_root/toolkit/dogfood.sh" "$sandbox/elsewhere/plugin-dev/dogfood.sh"
 launch_dir="$sandbox/elsewhere"
-run_claude
+# CLAUDE_PROJECT_DIR names the same decoy, as a session started elsewhere can
+# leave it: a <root> taken from it would sync the decoy and export its copy.
+CLAUDE_PROJECT_DIR="$sandbox/elsewhere" run_claude
 assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
     "the shim exports the copy"
 assert_absent "$sandbox/elsewhere/dist" \
     "the shim exports the copy: the launch directory's repo is not synced"
-# The other half of the contract: session-start, reached by the same symlinked
-# spelling, accepts what the shim exported and rejects another repo's copy.
-session_start() {
-    (cd "$launch_dir" && CLAUDE_CODE_PLUGIN_DIRS="$1" \
-        bash "$shim_dir/../dogfood.sh" session-start </dev/null)
-}
-assert_eq "$(session_start "$(recorded plugin_dirs)")" "" \
-    "session-start takes the copy the shim exported"
-if [[ "$(session_start /elsewhere/dist/plugin)" != *"does not load $consumer/dist/plugin"* ]]; then
-    fail "session-start takes the copy the shim exported: another repo's copy is not rejected"
-fi
 
 echo "=== the shim unsets CDPATH ==="
 make_consumer
