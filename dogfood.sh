@@ -85,7 +85,10 @@ sync_copy() {
 # into the copy is not refused here. A payload jq cannot read, or a directory on
 # the path that cannot be entered, stops the script non-zero: Claude Code shows
 # a non-blocking hook error, and its own sensitive-file ask still stands before
-# an edit into the copy. With no jq on PATH the guard stands down in silence
+# an edit into the copy. Any jq failure, reading the payload or building the
+# deny, exits 1 with jq's own stderr kept: exit 2 from a PreToolUse hook blocks
+# the tool call, and jq 1.6 exits 2 on a parse error, so jq's status is never
+# passed through. With no jq on PATH the guard stands down in silence
 # rather than fail every edit of the session; the session-start warning is
 # where a missing jq is reported.
 pre_tool() {
@@ -95,7 +98,7 @@ pre_tool() {
     root="${root%x}"
     # NotebookEdit names its target notebook_path, not file_path. Each x shields
     # a trailing newline in the path from its capture's strip.
-    path="$(jq -j '.tool_input.file_path // .tool_input.notebook_path // ""' && printf x)"
+    path="$(jq -j '.tool_input.file_path // .tool_input.notebook_path // ""' && printf x)" || exit 1
     path="${path%x}"
     physical="$(physical_path "$path" && printf x)"
     physical="${physical%x}"
@@ -118,7 +121,7 @@ pre_tool() {
             additionalContext: ("The source of " + $path + " is " + $src + ". Make the edit there.")
         },
         systemMessage: ("dogfood: blocked an edit into " + $copy + "/ — the generated copy")
-    }'
+    }' || exit 1
 }
 
 # Silent when some ":"-separated entry of CLAUDE_CODE_PLUGIN_DIRS is
