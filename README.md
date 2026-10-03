@@ -227,8 +227,8 @@ A failed sync aborts the launch. The sync's own errors are followed by
 `dogfood: sync failed, so claude was not started`, and the shim exits with the
 sync's status. While the sync stays broken, start a session from the repo root
 by the next `claude`'s absolute path: the first line of `which -a claude` that
-does not end in `plugin-dev/bin/claude`. That session does not load the copy, and the
-`SessionStart` check says so.
+does not end in `plugin-dev/bin/claude`. That session does not load the copy,
+and the `SessionStart` check says so.
 
 From a subdirectory the session still loads the copy, but no project hook fires:
 Claude Code reads `.claude/settings.json` from the launch directory only. That
