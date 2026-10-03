@@ -181,6 +181,9 @@ assert_file "$consumer/dist/plugin/.claude-plugin/plugin.json" \
     "the shim syncs before exec"
 assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
     "the shim syncs before exec: the variable unset, the next claude gets the copy"
+# The other half of a failed sync's not-started line: a launch whose sync
+# succeeds leaves stderr empty.
+assert_eq "$(cat "$sandbox/stderr")" "" "the shim syncs before exec: stderr is empty"
 
 # A session already loading this repo's copy is a dogfood session of it: a
 # claude an agent runs inside it inherits the variable and must not sync. The
@@ -352,8 +355,39 @@ assert_eq "$rc" "1" "a failed sync aborts the launch: the shim exits with sync's
 if ! grep -qF "dogfood: $consumer/.claude-plugin/plugin.json" "$sandbox/stderr"; then
     fail "a failed sync aborts the launch: stderr does not carry sync's refusal: $(cat "$sandbox/stderr")"
 fi
+# The shim's own line, once, beside sync's: the terminal learns claude was not
+# started, not only that a sync refused. claude must stand as a word: sync's
+# line names the root, and both .claude-plugin and a $TMPDIR such as
+# /tmp/claude-1000 spell it inside a path.
+not_started_re="^dogfood: (.*[[:space:]\`'])?claude[[:space:]\`'].*not started"
+shim_lines="$(grep -cE "$not_started_re" "$sandbox/stderr" || true)"
+assert_eq "$shim_lines" "1" \
+    "a failed sync aborts the launch: one dogfood: line says claude was not started"
+assert_eq "$(cat "$sandbox/stdout")" "" "a failed sync aborts the launch: stdout is empty"
 assert_absent "$sandbox/rec/argv" "a failed sync aborts the launch: the next claude did not run"
 assert_absent "$sandbox/rec/pid" "a failed sync aborts the launch: the stub left no record"
+
+# Sync exits with rsync's status, and the shim with sync's: an rsync failing 23
+# tells a status passed through from a fixed exit 1, which the refusal above
+# cannot.
+echo "=== a failed rsync keeps its status ==="
+make_consumer
+mkdir "$sandbox/failing rsync"
+cat > "$sandbox/failing rsync/rsync" <<'RSYNC'
+#!/usr/bin/env bash
+printf 'rsync: stub failure (code 23)\n' >&2
+exit 23
+RSYNC
+chmod +x "$sandbox/failing rsync/rsync"
+path_head="$shim_dir:$sandbox/failing rsync:$stubdir"
+run_claude
+assert_eq "$rc" "23" "a failed rsync keeps its status: the shim exits with rsync's status"
+if ! grep -qxF 'rsync: stub failure (code 23)' "$sandbox/stderr"; then
+    fail "a failed rsync keeps its status: stderr does not carry rsync's line: $(cat "$sandbox/stderr")"
+fi
+assert_eq "$(grep -cE "$not_started_re" "$sandbox/stderr" || true)" "1" \
+    "a failed rsync keeps its status: one dogfood: line says claude was not started"
+assert_absent "$sandbox/rec/argv" "a failed rsync keeps its status: the next claude did not run"
 
 # The whole PATH is the shim's directory and a directory of symlinks to the
 # commands the shim and sync run: no claude, and nothing inherited that could
