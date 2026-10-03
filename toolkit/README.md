@@ -37,7 +37,8 @@ dotfiles).
   `dist/plugin/`. `pre-tool` is the `PreToolUse` hook that refuses edits into
   that copy, and `session-start` the `SessionStart` hook that warns when a
   session does not load it. See [Dogfooding](#dogfooding).
-- **`bin/claude`** — the dogfood shim. First on PATH, it syncs the copy, points
+- **`bin/claude`** — the dogfood shim. First on PATH, it syncs the copy unless
+  it runs inside a dogfood session of the same repo, points
   `CLAUDE_CODE_PLUGIN_DIRS` at `dist/plugin/`, and execs the next `claude` on
   PATH.
 - **`install.sh`** — one-shot install script: vendors the toolkit (resolving the
@@ -130,6 +131,10 @@ git add plugin-dev justfile .claude/settings.json
 git commit -m "add claude-plugin-dev toolkit"
 ```
 
+Then follow [Dogfooding](#dogfooding) → [Setup](#setup). The `SessionStart`
+hook the install wired warns on every session until the shim is on PATH, and the
+sync refuses to run until git ignores the copy.
+
 ## Updating in a plugin
 
 ```sh
@@ -205,8 +210,25 @@ session loads its skills and hooks from there.
 
 Launch `claude` from the repo root. The shim syncs the copy, then execs the next
 `claude` on PATH with its arguments unchanged and `CLAUDE_CODE_PLUGIN_DIRS` set
-to `<root>/dist/plugin`, replacing any inherited value. A failed sync aborts the
-launch, and with no other `claude` on PATH the shim exits 127.
+to `<root>/dist/plugin`, replacing any inherited value. With no other `claude`
+on PATH the shim exits 127.
+
+The shim skips the sync when `CLAUDE_CODE_PLUGIN_DIRS` already equals
+`<root>/dist/plugin`, the value a dogfood session of this repo passes to
+everything it starts:
+
+- a launch from a plain shell syncs, a `claude -c` relaunch included;
+- a `claude` run inside a dogfood session of the same repo, such as an agent's
+  `claude -p`, skips the sync and loads the copy as it stands;
+- a `just prerelease` run from your own terminal has no dogfood session
+  underneath, so each `claude -p` it starts, an eval's for one, syncs.
+
+A failed sync aborts the launch. The sync's own errors are followed by
+`dogfood: sync failed, so claude was not started`, and the shim exits with the
+sync's status. While the sync stays broken, start a session from the repo root
+by the next `claude`'s absolute path: the first line of `which -a claude` that
+does not end in `plugin-dev/bin/claude`. That session does not load the copy, and the
+`SessionStart` check says so.
 
 From a subdirectory the session still loads the copy, but no project hook fires:
 Claude Code reads `.claude/settings.json` from the launch directory only. That
@@ -217,8 +239,9 @@ version-guard, and nothing reports their absence.
 
 The copy lags the source by design. A session runs what was last promoted, not
 the working tree, and a Read of a path under `dist/plugin/` returns the promoted
-content. Every launch through the shim promotes, a `claude -c` relaunch
-included. Mid-session, promote with:
+content. A launch through the shim from your own shell promotes, a `claude -c`
+relaunch included; a `claude` run inside the session does not (see
+[Launching](#launching)). Mid-session, promote with:
 
 ```sh
 just dogfood
@@ -232,6 +255,11 @@ live then depends on what changed:
 - **Skill bodies** — after `/reload-plugins` in the session.
 - **Agent definitions and hook events** — only in a new session. Exit and
   relaunch through the shim; `claude -c` keeps the conversation.
+- **Commands** — read at session start, so a relaunch through the shim makes
+  them live. Whether `/reload-plugins` does too is unverified.
+- **`.mcp.json` and output styles** — whether `/reload-plugins` picks them up is
+  unverified. A relaunch through the shim does, since it re-reads everything
+  Claude Code reads at start.
 
 The sync copies everything git does not ignore, tracked or not, minus every
 `.git` and `dist/plugin/` itself, and deletes from the copy what left the
@@ -241,10 +269,15 @@ git does not ignore `dist/plugin/`, and when an ignored path's name holds `*`,
 they come, and a failure exits non-zero. A file vanishing mid-sync, or two syncs
 colliding, fails the same way; a re-run repairs it.
 
-If your plugin ships a `.mcp.json`, run `just dogfood` from your own shell, not
-through an agent's Bash tool. The command sandbox masks `.mcp.json` in the
-project root, so a sandboxed sync warns `skipping non-regular file` and keeps
-the copy's old one, or copies an empty file. The shim runs in your shell and is
+Run `just dogfood` from your own shell, not through an agent's Bash tool,
+whether or not your plugin ships a `.mcp.json`. The command sandbox masks a set
+of dotfiles in the project root, `.mcp.json` among them, and a sandboxed sync
+does not skip the masks. A character-device mask makes rsync warn
+`skipping non-regular file` and keep the copy's old `.mcp.json`, so a changed
+MCP config goes stale. A zero-byte mask is copied as an empty file, which puts
+an empty `.mcp.json` into the copy of a plugin that ships none; it stays until
+the next sync from your shell deletes it, and how Claude Code reads an empty
+`.mcp.json` is unverified. A launch through the shim runs in your shell and is
 unaffected.
 
 ### Hooks

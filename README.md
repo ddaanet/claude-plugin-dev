@@ -19,8 +19,19 @@ development; the mismatch surfaced days later, when a release failed.
 
 Both problems have one answer: a single source of truth for release infra,
 vendored into each plugin at a tag, with the invariant enforced by a
-`PreToolUse` hook. See [docs/design.md](docs/design.md) for the full rationale,
-including the alternatives that were rejected.
+`PreToolUse` hook.
+
+Developing a plugin raises a third problem, in the session doing the work.
+Claude Code treats every file under a loaded plugin root as sensitive, so a
+session that loads the plugin from its own working tree prompts on every agent
+edit to it, and it runs whatever is on disk, so a half-edited hook script runs
+in the session editing it. Plugins worked around this with hand-copied launcher
+shims, which drifted the way the release recipes had. The toolkit's `claude`
+shim loads the plugin from a synced copy instead, which only a deliberate
+promotion changes.
+
+See [docs/design.md](docs/design.md) for the full rationale, including the
+alternatives that were rejected.
 
 ## What a consumer plugin gets
 
@@ -100,6 +111,11 @@ Commit the result:
 git add plugin-dev justfile .claude/settings.json
 git commit -m "add claude-plugin-dev toolkit"
 ```
+
+Then follow the manual's [Dogfooding](toolkit/README.md#dogfooding) →
+[Setup](toolkit/README.md#setup). The `SessionStart` hook the install wired
+warns on every session until the shim is on PATH, and the sync refuses to run
+until git ignores the copy.
 
 ## Updating in a plugin
 
