@@ -173,11 +173,33 @@ assert_eq "$(recorded pid)" "$launch_pid" \
 echo "=== the shim syncs before exec ==="
 make_consumer
 assert_absent "$consumer/dist" "the fixture starts with no copy"
+unset CLAUDE_CODE_PLUGIN_DIRS
 run_claude
 assert_eq "$(recorded copy)" "present" \
     "the shim syncs before exec: the copy existed as the next claude started"
 assert_file "$consumer/dist/plugin/.claude-plugin/plugin.json" \
     "the shim syncs before exec"
+assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
+    "the shim syncs before exec: the variable unset, the next claude gets the copy"
+
+# A session already loading this repo's copy is a dogfood session of it: a
+# claude an agent runs inside it inherits the variable and must not sync. The
+# variable is the physical copy the shim exports, and the shim is reached
+# through a symlinked spelling of the consumer: a match taken against a <root>
+# resolved logically would miss and sync.
+echo "=== a variable equal to this copy skips the sync ==="
+make_consumer
+ln -s "$consumer" "$sandbox/link"
+shim_dir="$sandbox/link/plugin-dev/bin"
+CLAUDE_CODE_PLUGIN_DIRS="$consumer/dist/plugin" run_claude
+assert_eq "$rc" "0" "a variable equal to this copy skips the sync: exit code"
+assert_absent "$consumer/dist" "a variable equal to this copy skips the sync: no copy made"
+assert_eq "$(recorded copy)" "absent" \
+    "a variable equal to this copy skips the sync: no copy as the next claude started"
+assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
+    "a variable equal to this copy skips the sync: the next claude still gets the copy"
+assert_eq "$(recorded pid)" "$launch_pid" \
+    "a variable equal to this copy skips the sync: the next claude still ran"
 
 # <root> comes from the shim's physical location alone: the shim is reached
 # through a symlinked spelling of the consumer, which a <root> resolved
@@ -223,6 +245,21 @@ make_consumer
 CLAUDE_CODE_PLUGIN_DIRS=/elsewhere/dist/plugin run_claude
 assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
     "an inherited variable is overwritten"
+assert_eq "$(recorded copy)" "present" \
+    "an inherited variable naming another path still syncs"
+assert_file "$consumer/dist/plugin/.claude-plugin/plugin.json" \
+    "an inherited variable naming another path still syncs"
+
+# Only a variable equal to this copy skips the sync: one listing the copy as
+# an entry beside another plugin directory, as session-start would match it,
+# still syncs and is replaced.
+echo "=== a variable listing this copy among others syncs ==="
+make_consumer
+CLAUDE_CODE_PLUGIN_DIRS="$consumer/dist/plugin:/elsewhere/dist/plugin" run_claude
+assert_eq "$(recorded copy)" "present" \
+    "a variable listing this copy among others syncs"
+assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
+    "a variable listing this copy among others syncs: the next claude gets the copy alone"
 
 # The shim is on PATH twice ahead of the stub, once with a trailing slash, and
 # twice behind it, through a symlinked directory and a /./ spelling. The stub's
