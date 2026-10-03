@@ -173,7 +173,6 @@ assert_eq "$(recorded pid)" "$launch_pid" \
 echo "=== the shim syncs before exec ==="
 make_consumer
 assert_absent "$consumer/dist" "the fixture starts with no copy"
-unset CLAUDE_CODE_PLUGIN_DIRS
 run_claude
 assert_eq "$(recorded copy)" "present" \
     "the shim syncs before exec: the copy existed as the next claude started"

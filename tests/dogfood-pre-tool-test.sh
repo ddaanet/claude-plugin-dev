@@ -95,15 +95,20 @@ run_dogfood() {
     err="$(cat "$errfile")"
 }
 
-# run_pre_tool <tool> <field> <path>: run_dogfood pre-tool, fed a payload for
-# <tool> that names <path> under .tool_input.<field> on stdin. The payload is
-# built with jq so a spaced path survives, and carries a cwd that is a real
-# directory but not the consumer: a root taken from the payload's cwd would
-# judge every path against the decoy and give the wrong verdict.
+# run_pre_tool <tool> <field> <path>: run_dogfood pre-tool, fed
+# pre_tool_payload <tool> <field> <path> on stdin.
 run_pre_tool() {
-    run_dogfood pre-tool <<<"$(jq -cn --arg t "$1" --arg f "$2" --arg p "$3" \
-        --arg cwd "$sandbox/elsewhere" \
-        '{tool_name:$t,cwd:$cwd,tool_input:{($f):$p}}')"
+    run_dogfood pre-tool <<<"$(pre_tool_payload "$@")"
+}
+
+# pre_tool_payload <tool> <field> <path>: a payload for <tool> that names <path>
+# under .tool_input.<field>. It is built with jq so a spaced path survives, and
+# carries a cwd that is a real directory but not the consumer: a root taken from
+# the payload's cwd would judge every path against the decoy and give the wrong
+# verdict.
+pre_tool_payload() {
+    jq -cn --arg t "$1" --arg f "$2" --arg p "$3" --arg cwd "$sandbox/elsewhere" \
+        '{tool_name:$t,cwd:$cwd,tool_input:{($f):$p}}'
 }
 
 # make_jqless_bin <dir>: <dir> holds symlinks to the commands the script and
@@ -327,9 +332,7 @@ label="pre-tool is silent without jq"
 if PATH="$sandbox/nojq" command -v jq >/dev/null; then
     fail "$label: jq is still reachable on the jq-less PATH"
 fi
-payload="$(jq -cn --arg p "$root/dist/plugin/skills/demo/SKILL.md" \
-    --arg cwd "$sandbox/elsewhere" \
-    '{tool_name:"Edit",cwd:$cwd,tool_input:{file_path:$p}}')"
+payload="$(pre_tool_payload Edit file_path "$root/dist/plugin/skills/demo/SKILL.md")"
 run_dogfood pre-tool <<<"$payload"
 assert_denied "$label: control with jq on PATH" "$root"
 PATH="$sandbox/nojq" run_dogfood pre-tool <<<"$payload"
@@ -380,9 +383,7 @@ make_consumer
 run_dogfood sync
 root="$(cd "$consumer" && pwd -P)"
 label="pre-tool maps a jq failure building the deny to a non-blocking status"
-payload="$(jq -cn --arg p "$root/dist/plugin/skills/demo/SKILL.md" \
-    --arg cwd "$sandbox/elsewhere" \
-    '{tool_name:"Edit",cwd:$cwd,tool_input:{file_path:$p}}')"
+payload="$(pre_tool_payload Edit file_path "$root/dist/plugin/skills/demo/SKILL.md")"
 run_dogfood pre-tool <<<"$payload"
 assert_denied "$label: control with the real jq" "$root"
 real_jq="$(command -v jq)"

@@ -193,7 +193,9 @@ assert_eq "$err" "" "$label prints nothing on stderr"
 # spelling of the repo, as a hook command's path can be, while the variable
 # carries the physical copy. A root resolved logically, from the invocation
 # spelling, names $sandbox/link/dist/plugin and misses it. $consumer is pointed
-# at the link, the spelling run_dogfood invokes the script through.
+# at the link, the spelling run_dogfood invokes the script through. The same
+# invocation with another repo's copy in the variable is the silence's
+# positive, and its warning must name the physical copy.
 echo "=== session-start invoked through a symlinked repo matches the physical copy ==="
 make_consumer
 run_dogfood sync
@@ -205,6 +207,9 @@ CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin" run_session_start
 assert_eq "$rc" "0" "$label exit code"
 assert_eq "$out" "" "$label prints nothing on stdout"
 assert_eq "$err" "" "$label prints nothing on stderr"
+label="session-start invoked through a symlinked repo warns on another repo's copy"
+CLAUDE_CODE_PLUGIN_DIRS=/elsewhere/dist/plugin run_session_start
+assert_session_warns "$label" "$root"
 
 # A $(...) capture of the root strips the newline, so the copy it names is not
 # the entry's. $sandbox is physical, so $consumer is too.
