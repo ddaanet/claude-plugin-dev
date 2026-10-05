@@ -51,7 +51,7 @@ out="$(env -u MARKETPLACE_DIR bash toolkit/check-version.sh "$proj/.claude-plugi
 rc=$?
 set -e
 assert_eq "$rc" "0" "check-version MARKETPLACE_DIR-unset exit code"
-echo "$out" | grep -q "MARKETPLACE_DIR not set" \
+grep -q "MARKETPLACE_DIR not set" <<<"$out" \
     || fail "check-version did not report MARKETPLACE_DIR unset"
 
 # check-version skips non-fatally when the marketplace file doesn't exist.
@@ -71,7 +71,7 @@ out="$(bash toolkit/check-version.sh "$proj/.claude-plugin/plugin.json" "$market
 rc=$?
 set -e
 assert_eq "$rc" "0" "check-version no-entry exit code"
-echo "$out" | grep -q "no fixture entry" \
+grep -q "no fixture entry" <<<"$out" \
     || fail "check-version did not report the missing entry"
 
 # check-version passes when plugin.json and the marketplace entry agree,
@@ -83,7 +83,7 @@ out="$(bash toolkit/check-version.sh "$proj/.claude-plugin/plugin.json" "$market
 rc=$?
 set -e
 assert_eq "$rc" "0" "check-version in-sync exit code"
-echo "$out" | grep -q "in sync (1.2.3)" \
+grep -q "in sync (1.2.3)" <<<"$out" \
     || fail "check-version did not report in sync"
 
 # check-version fails when plugin.json and the marketplace entry disagree.
@@ -94,7 +94,7 @@ out="$(bash toolkit/check-version.sh "$proj/.claude-plugin/plugin.json" "$market
 rc=$?
 set -e
 assert_eq "$rc" "1" "check-version drift exit code"
-echo "$out" | grep -q "version drift" \
+grep -q "version drift" <<<"$out" \
     || fail "check-version did not report drift"
 
 if (( failures > 0 )); then

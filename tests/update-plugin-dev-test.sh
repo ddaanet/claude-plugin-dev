@@ -34,7 +34,9 @@ assert_contains() {
     # Residual bound: the needle is a grep BRE matched line by line --
     # a metacharacter in it is live, and a needle that spans a newline
     # can never match.
-    if ! printf '%s' "$1" | grep -q -- "$2"; then
+    # A here-string, never a pipe: under pipefail grep -q exits on its first
+    # match, the writer can take SIGPIPE, and the pipeline reports failure.
+    if ! grep -q -- "$2" <<<"$1"; then
         fail "$3: output did not contain '$2'"
         printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
     fi
@@ -44,7 +46,9 @@ assert_not_contains() {
     # Residual bound: the needle is a grep BRE matched line by line --
     # a metacharacter in it is live, and a needle that spans a newline
     # can never match.
-    if printf '%s' "$1" | grep -q -- "$2"; then
+    # A here-string, never a pipe: under pipefail grep -q exits on its first
+    # match, the writer can take SIGPIPE, and the pipeline reports failure.
+    if grep -q -- "$2" <<<"$1"; then
         fail "$3: output contained '$2'"
         printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
     fi
@@ -92,7 +96,11 @@ run_in() {
 # both call sites, since either can be the one that vendors.
 assert_clean_vendor() {
     # $1=consumer dir, $2=label
-    if git -C "$1" ls-files -s plugin-dev/ | grep -q '^160000'; then
+    # Captured, then searched: piped into grep -q under pipefail, git can take
+    # SIGPIPE on an early match and a present gitlink would read as absent.
+    local vendor_index
+    vendor_index="$(git -C "$1" ls-files -s plugin-dev/)"
+    if grep -q '^160000' <<<"$vendor_index"; then
         fail "$2: vendored tree carries a gitlink"
     fi
     run_in "$1" git submodule status

@@ -32,7 +32,9 @@ assert_contains() {
     # Residual bound: the needle is a grep BRE matched line by line --
     # a metacharacter in it is live, and a needle that spans a newline
     # can never match.
-    if ! printf '%s' "$1" | grep -q -- "$2"; then
+    # A here-string, never a pipe: under pipefail grep -q exits on its first
+    # match, the writer can take SIGPIPE, and the pipeline reports failure.
+    if ! grep -q -- "$2" <<<"$1"; then
         fail "$3: output did not contain '$2'"
         printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
     fi
@@ -43,7 +45,9 @@ assert_not_contains() {
     # Residual bound: the needle is a grep BRE matched line by line --
     # a metacharacter in it is live, and a needle that spans a newline
     # can never match.
-    if printf '%s' "$1" | grep -q -- "$2"; then
+    # A here-string, never a pipe: under pipefail grep -q exits on its first
+    # match, the writer can take SIGPIPE, and the pipeline reports failure.
+    if grep -q -- "$2" <<<"$1"; then
         fail "$3: output contained '$2'"
         printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
     fi
@@ -327,7 +331,7 @@ run_in "$plugin" bash plugin-dev/release.sh --resume
 assert_eq "$rc" "0" "marketplace-push resume exit code"
 assert_eq "$(git -C "$marketplace" ls-remote origin refs/heads/main | cut -f1)" \
     "$(git -C "$marketplace" rev-parse HEAD)" "resume pushed the marketplace"
-if printf '%s' "$out" | grep -q "already complete (nothing to do)"; then
+if grep -q "already complete (nothing to do)" <<<"$out"; then
     fail "marketplace-push resume falsely claimed nothing-to-do"
 fi
 assert_contains "$out" "Release v1.2.4 complete" "marketplace-push resume summary"

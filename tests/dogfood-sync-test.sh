@@ -35,7 +35,9 @@ assert_contains() {
     # Residual bound: the needle is a grep BRE matched line by line --
     # a metacharacter in it is live, and a needle that spans a newline
     # can never match.
-    if ! printf '%s' "$1" | grep -q -- "$2"; then
+    # A here-string, never a pipe: under pipefail grep -q exits on its first
+    # match, the writer can take SIGPIPE, and the pipeline reports failure.
+    if ! grep -q -- "$2" <<<"$1"; then
         fail "$3: output did not contain '$2'"
         printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
     fi

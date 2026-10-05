@@ -80,7 +80,10 @@ fi
 # breakage consumers reported, and a bare `git submodule status` in a
 # consumer fatals repo-wide on an unregistered gitlink.
 echo "=== toolkit/ carries no submodule gitlink ==="
-if git ls-files -s toolkit/ | grep -q '^160000'; then
+# Captured, then searched: piped into grep -q under pipefail, git can take
+# SIGPIPE on an early match and a present gitlink would read as absent.
+toolkit_index="$(git ls-files -s toolkit/)"
+if grep -q '^160000' <<<"$toolkit_index"; then
     fail "toolkit/ contains a gitlink (breaks consumers' git submodule status)"
 fi
 
