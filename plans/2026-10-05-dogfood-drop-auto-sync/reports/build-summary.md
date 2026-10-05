@@ -86,7 +86,8 @@ suites pass.
 - dogfood-sync, dogfood-sync-refusal, dogfood-pre-tool, dogfood-session-start
   and dogfood-launcher.
 
-The pre-commit hook re-ran it green on each commit.
+The pre-commit hook re-ran it green on each commit, once after a flaky
+failure (see Open). A fourth commit adds this note's final state.
 
 ## Commits
 
@@ -95,7 +96,8 @@ The pre-commit hook re-ran it green on each commit.
    Shim, `install.sh`, launcher and install suites.
 2. `8a30180` `📝 just dogfood is the only promotion`. Hub, node, both READMEs,
    `CLAUDE.md`, the migration notes, the dated record and its index.
-3. `docs: dogfood drop-auto-sync outline, red evidence and build summary`. This
+3. `a012894` `📝 dogfood drop-auto-sync outline, red evidence and build
+   summary`. This
    directory, plus the three 2026-10-03 deliverable-review reports. They were
    untracked at the start, and the new dated record cites
    `deliverable-review.md` by path, so a fresh clone needs it.
@@ -144,3 +146,11 @@ The pre-commit hook re-ran it green on each commit.
   an empty plugin-root `.mcp.json`.
 - Not run: a dogfood session of a real consumer on the new shim, which is the
   release's dogfood step.
+- **A pre-existing flake, not fixed (out of scope).** The pre-commit hook
+  failed once on the third commit, in `tests/self-release-test.sh`:
+  `happy: dist tree has README: output did not contain 'README.md'`, with
+  `README.md` printed as the first line of the output. The suite's
+  `assert_contains` runs `printf '%s' "$1" | grep -q` under `set -o pipefail`.
+  `grep -q` exits on the first-line match, `printf` takes SIGPIPE, and the
+  pipeline fails. A re-run passed. The same harness is copied into the other
+  suites. A here-string (`grep -q -- "$2" <<<"$1"`) removes the race.
