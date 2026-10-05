@@ -45,11 +45,10 @@ or removing a shipped file means updating the list in
   hook payload's `cwd`.
 - `toolkit/bin/claude` — the dogfood shim, a `claude` that the
   consumer's `.envrc` puts first on PATH as `PATH_add plugin-dev/bin`.
-  Runs `dogfood.sh sync` unless `CLAUDE_CODE_PLUGIN_DIRS` already names
-  that copy, as it does for a `claude` started inside a dogfood session
-  of the same repo, then execs the next `claude` on PATH with its
-  arguments unchanged and the variable set to the copy; a failed sync
-  aborts the launch.
+  Never syncs: it execs the next `claude` on PATH with its arguments
+  unchanged and `CLAUDE_CODE_PLUGIN_DIRS` set to `dist/plugin/`, the
+  copy only `just dogfood` writes, and refuses to start while that copy
+  is missing.
 - `toolkit/version-guard.sh` — `PreToolUse(Write|Edit)` hook that fires
   inside consumer plugins to refuse agent edits to
   `.claude-plugin/plugin.json`'s `.version`.
@@ -141,9 +140,8 @@ just release [patch|minor|major]
 
 Reads `toolkit/VERSION`, bumps, commits `release: X.Y.Z` (the gitmoji
 commit-msg hook lands it as `🔖 X.Y.Z`; nothing probes the subject), tags,
-cuts the
-`dist-vX.Y.Z` split tag consumers vendor, pushes main + both tags, and
-creates a GitHub release. Refuses to run on a dirty tree or when
+cuts the `dist-vX.Y.Z` split tag consumers vendor, pushes main + both
+tags, and creates a GitHub release. Refuses to run on a dirty tree or when
 `toolkit/VERSION` disagrees with the latest tag (same invariant as the
 consumer release recipe protects on `plugin.json`), and refuses to bump
 while the *current* `toolkit/VERSION` is tagged but not fully published

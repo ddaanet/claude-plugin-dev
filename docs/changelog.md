@@ -9,6 +9,13 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-05 — The dogfood shim stops syncing: `just dogfood` is the only promotion](changelog/2026-10-05-the-shim-stops-syncing.md)
+  — a launch, a relaunch or any `claude` through the shim no longer promotes the
+  working tree, and a launch with no copy is refused with a line naming
+  `just dogfood`. Also corrects the 2026-10-03 record: its premise that an
+  agent's nested `claude -p` re-promoted the tree (the shim's exported PATH
+  strip already kept it off the shim), its overstated m2 probe, and its "names"
+  for what was a whole-value match
 - [2026-10-03 — The dogfood launcher reviewed: a `claude` inside a dogfood session does not promote](changelog/2026-10-03-dogfood-review-fixes.md)
   — the shim synced on every `claude` it fronted, so a scripted `claude -p` an
   agent ran inside a dogfood session re-promoted the tree under it; it now skips

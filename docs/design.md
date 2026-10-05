@@ -56,10 +56,8 @@ versioned with each consumer.
 - Provide a dogfood launcher: a `claude` shim that loads the consumer plugin
   from a copy at `dist/plugin/`, so agent edits to the source meet no
   sensitive-file prompt and a half-edited hook script never runs in the session
-  editing it. The copy changes only when promoted — at a launch that is not
-  already inside a dogfood session of the same repository, or by `just dogfood`
-  — and project hooks refuse agent edits to it and report a session that does
-  not load it.
+  editing it. The copy changes only when promoted by `just dogfood`, and project
+  hooks refuse agent edits to it and report a session that does not load it.
 - **Reproducibility:** old consumer-plugin tags must build identically to when
   they were tagged — the toolkit content vendored at the time must be
   retrievable, not subject to drift.
@@ -218,13 +216,15 @@ the dated record of the reversal goes in the changelog.
   character aborts the sync rather than being escaped.
 - **The plugin root is the repo root** — every consumer has the root layout, so
   nested roots are out of scope.
-- **The copy syncs only on deliberate promotion: a launch through the shim from
-  outside a dogfood session of the same repository, or `just dogfood`** —
-  syncing on each edit would cost a sync per tool call and run half-edited hook
-  scripts in the session editing them. A `claude` started inside a dogfood
-  session of the same repository already carries the variable naming this copy,
-  so it skips the sync rather than re-promote the tree under that live session;
-  no rule reads argv.
+- **The copy syncs only on `just dogfood`** — a launch, a relaunch or any other
+  `claude` through the shim loads the copy as it stands. Syncing at launch
+  promoted the working tree repo-wide on every `claude` invocation, and syncing
+  on each edit would cost a sync per tool call; both run half-edited hook
+  scripts in live sessions.
+- **A launch with no copy is refused** — the shim starts nothing, prints one
+  `dogfood:` line naming `just dogfood`, and exits 1. Creating the copy would be
+  a sync at launch by another trigger; the check is for presence, never
+  staleness.
 - **`dogfood.sh` carries `sync`, `pre-tool` and `session-start`, each rooted at
   the script's own location** — never `CLAUDE_PROJECT_DIR` or a payload `cwd`,
   which a resumed session can take from another repository.
@@ -234,17 +234,14 @@ the dated record of the reversal goes in the changelog.
 - **`session-start` reports a session that does not load the copy, and a missing
   `jq`** — whole-entry matching on the variable; the human gets the remedy, the
   agent the fact, and nothing refuses.
-- **A failed sync is loud** — the launch aborts before exec with the sync's
-  status and one line saying `claude` was not started, `just dogfood` exits
-  non-zero, and rsync's stderr is never redirected.
+- **A failed sync is loud** — `just dogfood` exits non-zero, and rsync's stderr
+  is never redirected.
 - **The shim exports `CLAUDE_CODE_PLUGIN_DIRS` rather than passing
   `--plugin-dir`, and execs the next `claude` on PATH** — the variable reaches
-  hooks, which is what `session-start` checks, and children, which is how a
-  nested `claude` knows it is inside this repository's dogfood session. The shim
-  syncs unless the variable already equals its own physical copy path, and
-  exports it in every case.
-- **`just dogfood` syncs and does nothing else** — it starts no `claude` and
-  depends on no gate.
+  hooks, which is what `session-start` checks, and children. The shim never
+  syncs.
+- **`just dogfood` syncs and does nothing else** — the one promotion; it starts
+  no `claude` and depends on no gate.
 - **`install.sh` wires the hooks; `.envrc`, `.gitignore` and `clean` are
   documented, not edited** — and the sync refuses until git ignores the copy.
 - **Existing consumers migrate by a printed note** — `update.sh` does not re-run
@@ -265,9 +262,9 @@ the dated record of the reversal goes in the changelog.
   wherever it stopped. Recovery only ever moves forward to the version already
   committed — rolling a release back is still out of scope.
 - **No automated propagation.** When the toolkit ships a new tag, each consumer
-  plugin must run `just update-plugin-dev vX.Y.Z` individually. Adopting changes
-  is a deliberate per-consumer decision — by design, but worth being explicit
-  about.
+  plugin must run `just update-plugin-dev dist-vX.Y.Z` individually. Adopting
+  changes is a deliberate per-consumer decision — by design, but worth being
+  explicit about.
 - **Subtree pull requires the toolkit URL be reachable.** Fully offline
   development of consumers works, but updates need network.
 - **The version-guard hook fires only in consumers that ran `install.sh`.** A

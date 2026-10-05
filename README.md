@@ -28,7 +28,7 @@ edit to it, and it runs whatever is on disk, so a half-edited hook script runs
 in the session editing it. Plugins worked around this with hand-copied launcher
 shims, which drifted the way the release recipes had. The toolkit's `claude`
 shim loads the plugin from a synced copy instead, which only a deliberate
-promotion changes.
+`just dogfood` changes.
 
 See [docs/design.md](docs/design.md) for the full rationale, including the
 alternatives that were rejected.
@@ -49,8 +49,8 @@ alternatives that were rejected.
   `.version`, with a verbose agent-facing refusal and a one-line human notice.
 - **A `claude` shim** that loads the plugin from a synced copy in
   `dist/plugin/`; see [Dogfooding](toolkit/README.md#dogfooding).
-- **`just dogfood`** — re-syncs that copy mid-session; see
-  [Dogfooding](toolkit/README.md#dogfooding).
+- **`just dogfood`** — syncs the working tree into that copy, the only step
+  that does; see [Dogfooding](toolkit/README.md#dogfooding).
 
 [toolkit/README.md](toolkit/README.md) is the manual for all of it, and ships
 with the vendored copy — that is the file a plugin maintainer reads day to day.
@@ -113,9 +113,10 @@ git commit -m "add claude-plugin-dev toolkit"
 ```
 
 Then follow the manual's [Dogfooding](toolkit/README.md#dogfooding) →
-[Setup](toolkit/README.md#setup). The `SessionStart` hook the install wired
-warns on every session until the shim is on PATH, and the sync refuses to run
-until git ignores the copy.
+[Setup](toolkit/README.md#setup), which ends with a first `just dogfood`. The
+`SessionStart` hook the install wired warns on every session until the shim is
+on PATH, the sync refuses to run until git ignores the copy, and the shim
+refuses to launch until `just dogfood` has created it.
 
 ## Updating in a plugin
 

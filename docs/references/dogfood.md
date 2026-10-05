@@ -13,10 +13,10 @@ asks before every agent edit to it. It also runs whatever is on disk: a hook
 script or a `bin/` file is read on every call, so a half-edited one runs in the
 very session editing it.
 
-The launcher separates the two trees. `plugin-dev/bin/claude` syncs the plugin
-into `dist/plugin/` and starts Claude Code with that copy loaded. Agents edit
-the source, which is outside every loaded root, so nothing prompts. The copy
-changes only when someone promotes it on purpose.
+The launcher separates the two trees. `just dogfood` syncs the plugin into
+`dist/plugin/`, and `plugin-dev/bin/claude` starts Claude Code with that copy
+loaded. Agents edit the source, which is outside every loaded root, so nothing
+prompts. The copy changes only when someone promotes it on purpose.
 
 ## A real copy, not a symlink
 
@@ -74,17 +74,16 @@ deletion is committed.
 copies from the repo root. Nested plugin roots, such as edify's `plugin/`, are
 out of scope, as edify is for the release flow.
 
-## Sync only on deliberate promotion
+## Sync only on `just dogfood`
 
-The copy is synced at two moments: a launch through the shim that is not already
-inside a dogfood session of the same repository, a relaunch to resume a
-conversation included, and `just dogfood`. Nothing syncs it on an edit.
+The copy is synced at one moment: `just dogfood`. Nothing else promotes it — not
+an edit, and not a launch, a relaunch or any other `claude` through the shim,
+each of which loads the copy as it stands.
 
 The trade-off follows from what Claude Code re-reads, and when:
 
 - skill bodies need `/reload-plugins` whatever loads them;
-- agent definitions and hook events need a new session, which starts through the
-  shim and so syncs;
+- agent definitions and hook events need a new session;
 - only hook-script and `bin/` bodies are read on every call.
 
 Syncing on each edit would buy liveness for that last class alone, and that
@@ -97,6 +96,11 @@ A promotion syncs the whole tree however it changed, so a change made through
 Bash needs no matcher of its own, and whether `PostToolUse` hooks fire for a
 subagent's tool calls does not arise.
 
+The cost is a step. An agent definition or hook event goes live through
+`just dogfood` and then a relaunch, two acts where a syncing launch took one,
+and a fresh clone, or a `clean` that took the copy, has none until the first
+`just dogfood`.
+
 **Rejected: sync on edit.** A project `PostToolUse` hook matching
 `Write|Edit|NotebookEdit|Bash`, with `PostToolUseFailure` for failing Bash
 calls, would re-run the sync after each call, gated by an environment marker so
@@ -108,40 +112,28 @@ measured 60 to 108 ms across four repositories, `git ls-files` included
 marker and the lock each carry a failure mode of their own, a killed sync
 stranding its lock among them, that promotion-only syncing does not have.
 
-### A `claude` started inside a dogfood session does not promote
+**Rejected: sync at launch.** The shim synced before its exec, so a relaunch
+promoted. But every `claude` that reaches the shim is a launch to it, whatever
+its arguments: `claude --version`, a `claude mcp list` typed in a second
+terminal, a script's `claude -p` — gitlore's evals start one per turn under
+`just prerelease`. Each re-promoted the tree repo-wide, under every live
+session, half-edited hook scripts included, with nobody choosing to: restarting
+`claude` is not a decision to ship the working tree. A skip when
+`CLAUDE_CODE_PLUGIN_DIRS` already equalled the copy covered only a `claude`
+started inside a dogfood session, which the shim's exported PATH strip already
+keeps off the shim, and left the human's own terminal syncing.
 
-Every `claude` that reaches the shim is a launch to it, whatever its arguments:
-`claude --version`, `claude mcp …`, a script's `claude -p` — gitlore's evals
-start one per turn under `just prerelease`. An agent running one inside a
-dogfood session would re-promote the tree under that live session, a promotion
-nobody chose (the deliverable review's Major 1).
+### A launch with no copy is refused
 
-So the shim syncs unless `CLAUDE_CODE_PLUGIN_DIRS` already equals
-`<root>/dist/plugin`, the physical root it computes, and exports the variable in
-every case. A dogfood session of this repository carries exactly that value to
-every child, so the rule needs no state of its own:
+With no `<root>/dist/plugin` directory the shim starts nothing. It prints one
+line,
+`dogfood: no copy at <root>/dist/plugin, so claude was not started; run just dogfood to create it`,
+and exits 1. A session started anyway would load no plugin, and nothing would
+say so: `session-start` checks what the variable names, not whether it exists.
+Creating the copy instead would be a sync at launch under another trigger.
 
-- a launch from a plain shell syncs, `claude -c` included;
-- a `claude -p` an agent runs inside a dogfood session of the same repository
-  inherits the variable and skips the sync;
-- a session in repository A whose `claude` reaches repository B's shim syncs B;
-- any other value syncs, a list carrying the copy among other entries included:
-  the match is on the whole value, the one shape the shim exports.
-
-**Rejected: no sync for a `-p`/`--print` argv.** It keys on how a run talks to
-its caller rather than on whether a live session of the repository sits under
-it, and has to track Claude Code's flag spellings.
-
-**Rejected: an opt-out variable, or a documented rule that scripts call the next
-`claude`.** Each burdens every script, in consumers and other repositories
-alike, and promotes silently when one forgets; the variable the session already
-exports carries the same fact with nothing to set.
-
-The cost: a `just prerelease` run from the human's own terminal has no session
-underneath, so each eval's `claude -p` still syncs, accepted as a deliberate
-act. Every `claude` through the shim also loads the copy: a script that wires
-the plugin's hooks into its own settings, as gitlore's evals do, may run them
-twice, which is unprobed.
+The check is for presence only. A copy that lags the source is the design, so
+nothing compares the two.
 
 ## One script, three subcommands, rooted at its own location
 
@@ -225,41 +217,39 @@ the shim, and the warning is the nudge until it does.
 
 ## Sync failure is loud
 
-A failed sync at launch aborts before exec. The sync's own stderr stands, the
-shim adds one line after it, `dogfood: sync failed, so claude was not started`,
-and exits with the sync's status: the human typed `claude`, and an rsync error
-alone does not say that no session started. `just dogfood` exits non-zero with
-rsync's stderr as rsync wrote it. The script never redirects rsync's stderr, not
-even to hide the `skipping non-regular file` line the command sandbox provokes,
-because a blanket redirect silences every unanticipated message along with the
-anticipated one. Each refusal of the sync's own — no manifest, `dist/plugin/`
-not git-ignored, a pattern character — is one `dogfood:` line naming the path,
-with `dist/` untouched.
+`just dogfood` exits non-zero with rsync's stderr as rsync wrote it. The script
+never redirects rsync's stderr, not even to hide the `skipping non-regular file`
+line the command sandbox provokes, because a blanket redirect silences every
+unanticipated message along with the anticipated one. Each refusal of the sync's
+own — no manifest, `dist/plugin/` not git-ignored, a pattern character — is one
+`dogfood:` line naming the path, with `dist/` untouched.
 
 ## The shim: `plugin-dev/bin/claude`
 
 A bash script, put first on PATH by the consumer's `.envrc` as
 `PATH_add plugin-dev/bin`, after gitlore's `PATH_add .gitlore/bin` so that it
 wins. It finds the root from its own location (`<shim dir>/../..`), resolved
-physically, and syncs unless `CLAUDE_CODE_PLUGIN_DIRS` already equals
-`<root>/dist/plugin` (see "Sync only on deliberate promotion"). It then exports
-the variable at that path in every case, over any inherited value, unsets
-`CDPATH`, and execs the next `claude` on PATH with its arguments unchanged —
-typically gitlore's launcher. The root is physical because the exported value
-is, so a nested `claude` reaching the shim through a symlinked spelling still
-matches. The manifest and ignore checks live in `sync`, so `just dogfood`
-enforces them too.
+physically as `dogfood.sh` resolves its own, refuses when the copy is missing
+(see "A launch with no copy is refused"), exports `CLAUDE_CODE_PLUGIN_DIRS` at
+`<root>/dist/plugin` over any inherited value, unsets `CDPATH`, and execs the
+next `claude` on PATH with its arguments unchanged — typically gitlore's
+launcher. It never syncs.
 
 The next `claude` is found by dropping every PATH entry whose `claude` is the
 shim itself (`-ef`), not every entry holding a file of that name, so a trailing
 slash, a symlinked directory or `/./` in the entry cannot make the shim exec
 itself. An empty entry means the working directory and is tested as `./claude`.
-With no other `claude` on PATH the shim exits 127 and says so.
+With no other `claude` on PATH the shim exits 127 and says so. The stripped PATH
+is exported, so the session and its Bash tool inherit it, and a `claude` an
+agent runs there finds the next `claude`, not the shim.
 
 **The variable, not the flag.** `CLAUDE_CODE_PLUGIN_DIRS` takes a `:`-separated
 list of absolute local paths, which Claude Code normalizes and writes back into
 its own environment (CC 2.1.283 bundle). Unlike `--plugin-dir`, it therefore
 reaches hooks and child processes, and that is what `session-start` checks.
+Every `claude` through the shim loads the copy, so a script that wires the
+plugin's hooks into its own settings, as gitlore's evals do, may run them twice,
+which is unprobed.
 
 **Launching from a subdirectory.** The shim does not refuse it. Such a session
 loads the copy, because the path is absolute, but none of the root's project
@@ -274,10 +264,10 @@ would not help, since the TUI hides it; the manual says to launch from the root.
 ## `just dogfood`
 
 A `release.just` recipe, `bash "{{toolkit_prefix}}/dogfood.sh" sync` like its
-neighbours: it syncs and nothing else, and starts no `claude`. It depends on no
-gate, since it publishes nothing and writes only the git-ignored copy. After it,
-a skill body goes live on `/reload-plugins`, and an agent definition or hook
-event on a relaunch through the shim.
+neighbours, and the one promotion: it syncs and nothing else, and starts no
+`claude`. It depends on no gate, since it publishes nothing and writes only the
+git-ignored copy. After it, a skill body goes live on `/reload-plugins`, and an
+agent definition or hook event on a relaunch through the shim.
 
 ## `install.sh` wires the hooks, and only the hooks
 
@@ -317,7 +307,8 @@ Those steps break any hand-copied `.bin/claude` shim a consumer carries, and
 deliberately so: backward compatibility is not a constraint on what the toolkit
 vendors, and a loud failure at update time is preferred to a compatibility path.
 The note is named for the release that ships it, because `update.sh` prints the
-notes in the range (old, new] and a misnamed one is skipped.
+notes in the range (old, new] and a misnamed one is skipped. Dropping the launch
+sync ships `migrations/v0.9.1.md`: run `just dogfood` before the next launch.
 
 ## Probe evidence
 
@@ -366,14 +357,13 @@ a re-run: rare false alarms, accepted rather than matched and hidden.
 not the working tree, and a Read through a copy path returns promoted content.
 
 **Promotion is repo-wide.** Hook-script and `bin/` bodies are read on every
-call, so a launch or `just dogfood` in one session changes what every other live
-session in the same repository runs.
+call, so a `just dogfood` in one session changes what every other live session
+in the same repository runs.
 
 **Children inherit the variable.** A `claude` started from a dogfood session's
-Bash — a probe, an eval — loads this repository's copy too, and skips the sync
-if it reaches this repository's shim. Through another consumer's shim it syncs
-that consumer and overwrites the variable; otherwise its own `session-start`
-reports the mismatch when it runs in another consumer.
+Bash — a probe, an eval — loads this repository's copy too. Through another
+consumer's shim it loads that consumer's copy instead; otherwise its own
+`session-start` reports the mismatch when it runs in another consumer.
 
 **Only tool edits to the copy are guarded.** A Bash write into `dist/plugin/`
 passes the guard and the path-safety check alike, and the next sync overwrites
@@ -389,9 +379,9 @@ file, into a plugin that ships no `.mcp.json` as well, and stays until the next
 unsandboxed sync deletes it (probed with a simulated mask on rsync 3.5.0, in the
 deliverable review's code report); how Claude Code treats an empty plugin-root
 `.mcp.json` is unprobed. The other masked names land the same way and cost
-bytes. It bites only a `just dogfood` run through an agent's sandboxed Bash —
-the shim runs in the human's shell — and the manual says to promote from the
-human's own shell.
+bytes. It bites only a sync run through an agent's sandboxed Bash,
+`just dogfood` or `dogfood.sh sync`, since the shim never syncs, and the manual
+says to promote from the human's own shell.
 
 **The copy carries non-plugin content.** Directories such as `plugin-dev/` and
 the `memory/` gitlink's files land in `dist/plugin/`. Claude Code loads only the
