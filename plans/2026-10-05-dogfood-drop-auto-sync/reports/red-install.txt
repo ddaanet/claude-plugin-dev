@@ -1,0 +1,2 @@
+FAIL: install.sh's next steps create the copy: output did not contain 'just dogfood'
+1 failure(s)

@@ -1,0 +1,24 @@
+=== the shim execs the next claude with argv intact ===
+=== a launch does not sync, the variable unset ===
+FAIL: a launch does not sync, the variable unset: the copy as the next claude started: expected 'absent', got 'present'
+FAIL: a launch does not sync, the variable unset: the copy after the launch: '/tmp/claude-1000/tmp.JJ2NWwpZ9y/my consumer/dist/plugin/.claude-plugin' exists
+=== a missing copy refuses the launch ===
+FAIL: a missing copy refuses the launch: exit code: expected '1', got '0'
+FAIL: a missing copy refuses the launch: stderr is one line: expected '1', got '0'
+FAIL: a missing copy refuses the launch: no dogfood: line naming just dogfood: 
+FAIL: a missing copy refuses the launch: the next claude did not run: '/tmp/claude-1000/tmp.bt0F1fhYAI/rec/argv' exists
+FAIL: a missing copy refuses the launch: no copy made: '/tmp/claude-1000/tmp.bt0F1fhYAI/my consumer/dist' exists
+=== the shim exports the copy ===
+=== the shim unsets CDPATH ===
+=== an inherited variable is overwritten ===
+FAIL: an inherited variable is overwritten: the launch does not sync: expected 'absent', got 'present'
+=== the shim strips its own entry in any spelling ===
+=== the shim keeps another bin/claude ===
+=== the shim keeps the rest of PATH as spelled ===
+=== a subdirectory launch resolves the root ===
+=== a launch from plugin-dev/bin drops the empty entry ===
+=== no next claude exits 127 ===
+FAIL: no next claude exits 127: stderr is the shim's one line: expected 'dogfood: no other claude on PATH', got '/tmp/claude-1000/tmp.LCdPT3jguR/my consumer/plugin-dev/dogfood.sh: line 233: git: command not found
+dogfood: sync failed, so claude was not started'
+
+9 failure(s)
