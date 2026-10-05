@@ -194,4 +194,7 @@ else
     echo "  3. Set up the dogfood launcher: $TOOLKIT_PREFIX/README.md, section"
     echo "     Dogfooding, subsection Setup. Until then the SessionStart check"
     echo "     warns on every session."
+    echo "  4. Create the copy the session loads, then launch claude from the"
+    echo "     repo root; the shim refuses to start without the copy:"
+    echo "     just dogfood"
 fi
