@@ -1,20 +1,15 @@
 #!/usr/bin/env bash
 # Dogfood shim for a plugin that vendors this toolkit. Vendored at
-# <root>/plugin-dev/bin/claude and put first on PATH, it syncs the plugin tree
-# into <root>/dist/plugin/ and then execs the next claude on PATH (every entry
-# whose claude is the shim itself is dropped) with argv unchanged, pointing
-# CLAUDE_CODE_PLUGIN_DIRS at the copy, with CDPATH unset. With no other claude
-# on PATH it exits 127 and says so.
-# A failed sync aborts the launch: the sync's own stderr stands, one dogfood:
-# line after it says claude was not started, and the exit status is the sync's.
-# The sync is skipped when CLAUDE_CODE_PLUGIN_DIRS already equals
-# <root>/dist/plugin exactly: a claude an agent runs inside a dogfood session of
-# this same repo inherits the variable, and must not re-promote the working tree
-# under the live session. Any other value, or none, syncs; the variable is
-# exported in every case.
+# <root>/plugin-dev/bin/claude and put first on PATH, it execs the next claude on
+# PATH (every entry whose claude is the shim itself is dropped) with argv
+# unchanged, CLAUDE_CODE_PLUGIN_DIRS pointing at <root>/dist/plugin over any
+# inherited value, and CDPATH unset. It never syncs: a launch is not a
+# promotion, and only `just dogfood` writes the copy. With no copy it starts
+# nothing, names that step on one dogfood: line and exits 1; with no other
+# claude on PATH it exits 127 and says so.
 # <root> is found from the script's own location, never from the launch
-# directory, and resolved physically: the variable carries the physical path, so
-# a nested claude reaching the shim through a symlinked spelling still matches.
+# directory, and resolved physically, as dogfood.sh resolves its own, so the
+# variable spells the copy the way the hooks compute it.
 set -euo pipefail
 unset CDPATH # else a relative cd searches it and prints its target
 
@@ -24,13 +19,9 @@ main() {
     here="${here%?x}"
     root="$(cd -P -- "$here/../.." && printf '%s' "$PWD" && printf x)"
     root="${root%x}"
-    if [[ "${CLAUDE_CODE_PLUGIN_DIRS-}" != "$root/dist/plugin" ]]; then
-        local status=0
-        bash "$root/plugin-dev/dogfood.sh" sync || status=$?
-        if ((status != 0)); then
-            echo 'dogfood: sync failed, so claude was not started' >&2
-            exit "$status"
-        fi
+    if [[ ! -d "$root/dist/plugin" ]]; then
+        echo "dogfood: no copy at $root/dist/plugin, so claude was not started; run just dogfood to create it" >&2
+        exit 1
     fi
     export CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin"
     path="$(path_without "${BASH_SOURCE[0]}" && printf x)"

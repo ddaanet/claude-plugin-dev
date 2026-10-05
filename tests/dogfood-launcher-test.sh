@@ -67,6 +67,8 @@ trap cleanup EXIT
 #   $stubdir     a stub claude that records under $sandbox/rec/ its argv, pid,
 #                PWD, PATH, CDPATH, CLAUDE_CODE_PLUGIN_DIRS and whether the
 #                copy's manifest existed as it started, then exits 0
+# The copy exists and is empty, as if promoted before the manifest was written:
+# a sync at launch would put the manifest in it.
 make_consumer() {
     sandbox="$(cd "$(mktemp -d)" && pwd -P)"
     sandboxes+=("$sandbox")
@@ -103,6 +105,7 @@ exit 0
 STUB
     chmod +x "$stubdir/claude"
     commit_all
+    mkdir -p "$consumer/dist/plugin"
 }
 
 # commit_all: track everything not ignored in $consumer.
@@ -170,106 +173,74 @@ assert_eq "$(recorded argv | tr '\0' '|')" "--foo|a b|" \
 assert_eq "$(recorded pid)" "$launch_pid" \
     "the shim execs the next claude in its own process, not a child"
 
-echo "=== the shim syncs before exec ==="
+# Only `just dogfood` promotes: a launch from a plain shell, the variable unset,
+# loads the copy as it stands. The copy starts empty, so a sync at launch shows
+# as the manifest in it.
+echo "=== a launch does not sync, the variable unset ==="
 make_consumer
-assert_absent "$consumer/dist" "the fixture starts with no copy"
 run_claude
-assert_eq "$(recorded copy)" "present" \
-    "the shim syncs before exec: the copy existed as the next claude started"
-assert_file "$consumer/dist/plugin/.claude-plugin/plugin.json" \
-    "the shim syncs before exec"
-assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
-    "the shim syncs before exec: the variable unset, the next claude gets the copy"
-# The other half of a failed sync's not-started line: a launch whose sync
-# succeeds leaves stderr empty.
-assert_eq "$(cat "$sandbox/stderr")" "" "the shim syncs before exec: stderr is empty"
-
-# A session already loading this repo's copy is a dogfood session of it: a
-# claude an agent runs inside it inherits the variable and must not sync. The
-# variable is the physical copy the shim exports, and the shim is reached
-# through a symlinked spelling of the consumer: a match taken against a <root>
-# resolved logically would miss and sync.
-echo "=== a variable equal to this copy skips the sync ==="
-make_consumer
-ln -s "$consumer" "$sandbox/link"
-shim_dir="$sandbox/link/plugin-dev/bin"
-CLAUDE_CODE_PLUGIN_DIRS="$consumer/dist/plugin" run_claude
-assert_eq "$rc" "0" "a variable equal to this copy skips the sync: exit code"
-assert_absent "$consumer/dist" "a variable equal to this copy skips the sync: no copy made"
+assert_eq "$rc" "0" "a launch does not sync, the variable unset: exit code"
 assert_eq "$(recorded copy)" "absent" \
-    "a variable equal to this copy skips the sync: no copy as the next claude started"
+    "a launch does not sync, the variable unset: the copy as the next claude started"
+assert_absent "$consumer/dist/plugin/.claude-plugin" \
+    "a launch does not sync, the variable unset: the copy after the launch"
 assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
-    "a variable equal to this copy skips the sync: the next claude still gets the copy"
-assert_eq "$(recorded pid)" "$launch_pid" \
-    "a variable equal to this copy skips the sync: the next claude still ran"
+    "a launch does not sync, the variable unset: the next claude gets the copy"
+assert_eq "$(cat "$sandbox/stderr")" "" \
+    "a launch does not sync, the variable unset: stderr is empty"
 
-# The comparison is a literal string match: a consumer root holding a glob
-# metacharacter, as the right-hand side of an unquoted [[ != ]] would read it,
-# must still match the copy the shim exported and skip the sync. The root's
-# brackets form a character class that matches its own letters but not the
-# spelling "my [consumer]", so an unquoted comparison misses and syncs.
-echo "=== a variable equal to a glob-named copy skips the sync ==="
+# With no copy the shim starts nothing: the session would load no plugin, and
+# creating the copy would be a promotion nobody asked for. Its one line names
+# the step that makes the copy.
+echo "=== a missing copy refuses the launch ==="
 make_consumer
-mv "$consumer" "$sandbox/my [consumer]"
-consumer="$sandbox/my [consumer]"
-shim_dir="$consumer/plugin-dev/bin"
-launch_dir="$consumer"
-CLAUDE_CODE_PLUGIN_DIRS="$consumer/dist/plugin" run_claude
-assert_eq "$rc" "0" "a variable equal to a glob-named copy skips the sync: exit code"
-assert_absent "$consumer/dist" "a variable equal to a glob-named copy skips the sync: no copy made"
-assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
-    "a variable equal to a glob-named copy skips the sync: the next claude still gets the copy"
+rm -r "$consumer/dist"
+run_claude --foo
+assert_eq "$rc" "1" "a missing copy refuses the launch: exit code"
+assert_eq "$(wc -l < "$sandbox/stderr" | tr -d ' ')" "1" \
+    "a missing copy refuses the launch: stderr is one line"
+if ! grep -qE '^dogfood: .*just dogfood' "$sandbox/stderr"; then
+    fail "a missing copy refuses the launch: no dogfood: line naming just dogfood: $(cat "$sandbox/stderr")"
+fi
+assert_eq "$(cat "$sandbox/stdout")" "" "a missing copy refuses the launch: stdout is empty"
+assert_absent "$sandbox/rec/argv" "a missing copy refuses the launch: the next claude did not run"
+assert_absent "$consumer/dist" "a missing copy refuses the launch: no copy made"
 
 # <root> comes from the shim's physical location alone: the shim is reached
 # through a symlinked spelling of the consumer, which a <root> resolved
-# logically would record, and launched from outside the consumer, inside
-# another consumer that sync accepts: a git repo with a manifest, the ignore
-# rule and dogfood.sh vendored. A <root> taken from the launch directory, from
-# git's toplevel there or from the nearest manifest above it syncs that repo
-# and records its copy, rather than aborting on a sync refusal.
+# logically would record, and launched from outside the consumer, inside a
+# decoy consumer with a copy of its own: a git repo with a manifest and a
+# dist/plugin/. A <root> taken from the launch directory, from git's toplevel
+# there or from the nearest manifest above it finds the decoy's copy and
+# exports it, rather than refusing for a missing copy.
 echo "=== the shim exports the copy ==="
 make_consumer
 ln -s "$consumer" "$sandbox/link"
 shim_dir="$sandbox/link/plugin-dev/bin"
-mkdir -p "$sandbox/elsewhere/.claude-plugin" "$sandbox/elsewhere/plugin-dev"
+mkdir -p "$sandbox/elsewhere/.claude-plugin" "$sandbox/elsewhere/dist/plugin"
 git init -q "$sandbox/elsewhere"
 printf '{"name":"decoy","version":"1.0.0"}\n' > "$sandbox/elsewhere/.claude-plugin/plugin.json"
-printf '/dist/plugin/\n' > "$sandbox/elsewhere/.gitignore"
-cp "$repo_root/toolkit/dogfood.sh" "$sandbox/elsewhere/plugin-dev/dogfood.sh"
 launch_dir="$sandbox/elsewhere"
 # CLAUDE_PROJECT_DIR names the same decoy, as a session started elsewhere can
-# leave it: a <root> taken from it would sync the decoy and export its copy.
+# leave it: a <root> taken from it would export the decoy's copy.
 CLAUDE_PROJECT_DIR="$sandbox/elsewhere" run_claude
 assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
     "the shim exports the copy"
-assert_absent "$sandbox/elsewhere/dist" \
-    "the shim exports the copy: the launch directory's repo is not synced"
 
 echo "=== the shim unsets CDPATH ==="
 make_consumer
 run_claude
 assert_eq "$(recorded cdpath)" "<unset>" "the shim unsets CDPATH"
 
+# An inherited value, a list naming this copy among others included, is
+# replaced by the copy alone, and syncs nothing.
 echo "=== an inherited variable is overwritten ==="
 make_consumer
-CLAUDE_CODE_PLUGIN_DIRS=/elsewhere/dist/plugin run_claude
+CLAUDE_CODE_PLUGIN_DIRS="$consumer/dist/plugin:/elsewhere/dist/plugin" run_claude
 assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
     "an inherited variable is overwritten"
-assert_eq "$(recorded copy)" "present" \
-    "an inherited variable naming another path still syncs"
-assert_file "$consumer/dist/plugin/.claude-plugin/plugin.json" \
-    "an inherited variable naming another path still syncs"
-
-# Only a variable equal to this copy skips the sync: one listing the copy as
-# an entry beside another plugin directory, as session-start would match it,
-# still syncs and is replaced.
-echo "=== a variable listing this copy among others syncs ==="
-make_consumer
-CLAUDE_CODE_PLUGIN_DIRS="$consumer/dist/plugin:/elsewhere/dist/plugin" run_claude
-assert_eq "$(recorded copy)" "present" \
-    "a variable listing this copy among others syncs"
-assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
-    "a variable listing this copy among others syncs: the next claude gets the copy alone"
+assert_eq "$(recorded copy)" "absent" \
+    "an inherited variable is overwritten: the launch does not sync"
 
 # The shim is on PATH twice ahead of the stub, once with a trailing slash, and
 # twice behind it, through a symlinked directory and a /./ spelling. The stub's
@@ -353,59 +324,16 @@ assert_file "$sandbox/rec/path" \
 assert_eq "$(recorded path)" "$stubdir:$runner_path" \
     "a launch from plugin-dev/bin drops the empty entry"
 
-echo "=== a failed sync aborts the launch ==="
-make_consumer
-rm "$consumer/.claude-plugin/plugin.json"
-run_claude
-assert_eq "$rc" "1" "a failed sync aborts the launch: the shim exits with sync's status"
-# Sync's own refusal line, root included, reaching the terminal unredirected.
-if ! grep -qF "dogfood: $consumer/.claude-plugin/plugin.json" "$sandbox/stderr"; then
-    fail "a failed sync aborts the launch: stderr does not carry sync's refusal: $(cat "$sandbox/stderr")"
-fi
-# The shim's own line, once, beside sync's: the terminal learns claude was not
-# started, not only that a sync refused. claude must stand as a word: sync's
-# line names the root, and both .claude-plugin and a $TMPDIR such as
-# /tmp/claude-1000 spell it inside a path.
-not_started_re="^dogfood: (.*[[:space:]\`'])?claude[[:space:]\`'].*not started"
-shim_lines="$(grep -cE "$not_started_re" "$sandbox/stderr" || true)"
-assert_eq "$shim_lines" "1" \
-    "a failed sync aborts the launch: one dogfood: line says claude was not started"
-assert_eq "$(cat "$sandbox/stdout")" "" "a failed sync aborts the launch: stdout is empty"
-assert_absent "$sandbox/rec/argv" "a failed sync aborts the launch: the next claude did not run"
-assert_absent "$sandbox/rec/pid" "a failed sync aborts the launch: the stub left no record"
-
-# Sync exits with rsync's status, and the shim with sync's: an rsync failing 23
-# tells a status passed through from a fixed exit 1, which the refusal above
-# cannot.
-echo "=== a failed rsync keeps its status ==="
-make_consumer
-mkdir "$sandbox/failing rsync"
-cat > "$sandbox/failing rsync/rsync" <<'RSYNC'
-#!/usr/bin/env bash
-printf 'rsync: stub failure (code 23)\n' >&2
-exit 23
-RSYNC
-chmod +x "$sandbox/failing rsync/rsync"
-path_head="$shim_dir:$sandbox/failing rsync:$stubdir"
-run_claude
-assert_eq "$rc" "23" "a failed rsync keeps its status: the shim exits with rsync's status"
-if ! grep -qxF 'rsync: stub failure (code 23)' "$sandbox/stderr"; then
-    fail "a failed rsync keeps its status: stderr does not carry rsync's line: $(cat "$sandbox/stderr")"
-fi
-assert_eq "$(grep -cE "$not_started_re" "$sandbox/stderr" || true)" "1" \
-    "a failed rsync keeps its status: one dogfood: line says claude was not started"
-assert_absent "$sandbox/rec/argv" "a failed rsync keeps its status: the next claude did not run"
-
 # The whole PATH is the shim's directory and a directory of symlinks to the
-# commands the shim and sync run: no claude, and nothing inherited that could
-# hold one. The negative only means something if a lookup under this PATH finds
-# the shim, and one under what the shim leaves of it finds nothing. Bash's own
-# exec failure also exits 127, and so does a sync missing a command, so stderr
-# must be the shim's one line and nothing else.
+# commands the shim runs: no claude, and nothing inherited that could hold one.
+# The negative only means something if a lookup under this PATH finds the shim,
+# and one under what the shim leaves of it finds nothing. Bash's own exec
+# failure also exits 127, and so does any command missing from that PATH, so
+# stderr must be the shim's one line and nothing else.
 echo "=== no next claude exits 127 ==="
 make_consumer
 mkdir "$sandbox/tools"
-for tool in bash dirname git rsync mktemp rm mkdir; do
+for tool in bash dirname; do
     ln -s "$(command -v "$tool")" "$sandbox/tools/$tool"
 done
 path_exact="$shim_dir:$sandbox/tools"
@@ -419,8 +347,6 @@ run_claude
 assert_eq "$rc" "127" "no next claude exits 127"
 assert_eq "$(cat "$sandbox/stderr")" "dogfood: no other claude on PATH" \
     "no next claude exits 127: stderr is the shim's one line"
-assert_file "$consumer/dist/plugin/.claude-plugin/plugin.json" \
-    "no next claude exits 127: the sync ran, so the 127 is not a sync failure"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
