@@ -97,9 +97,9 @@ Bash needs no matcher of its own, and whether `PostToolUse` hooks fire for a
 subagent's tool calls does not arise.
 
 The cost is a step. An agent definition or hook event goes live through
-`just dogfood` and then a relaunch, two acts where a syncing launch took one,
-and a fresh clone, or a `clean` that took the copy, has none until the first
-`just dogfood`.
+`just dogfood` and then a relaunch, two acts where a syncing launch would take
+one, and a fresh clone, or a `clean` that took the copy, has none until the
+first `just dogfood`.
 
 **Rejected: sync on edit.** A project `PostToolUse` hook matching
 `Write|Edit|NotebookEdit|Bash`, with `PostToolUseFailure` for failing Bash
@@ -112,28 +112,37 @@ measured 60 to 108 ms across four repositories, `git ls-files` included
 marker and the lock each carry a failure mode of their own, a killed sync
 stranding its lock among them, that promotion-only syncing does not have.
 
-**Rejected: sync at launch.** The shim synced before its exec, so a relaunch
-promoted. But every `claude` that reaches the shim is a launch to it, whatever
-its arguments: `claude --version`, a `claude mcp list` typed in a second
-terminal, a script's `claude -p` — gitlore's evals start one per turn under
-`just prerelease`. Each re-promoted the tree repo-wide, under every live
-session, half-edited hook scripts included, with nobody choosing to: restarting
-`claude` is not a decision to ship the working tree. A skip when
-`CLAUDE_CODE_PLUGIN_DIRS` already equalled the copy covered only a `claude`
+**Rejected: sync at launch.** A shim that synced before its exec would make a
+relaunch a promotion. But every `claude` that reaches the shim is a launch to
+it, whatever its arguments: `claude --version`, a `claude mcp list` typed in a
+second terminal, a script's `claude -p` — gitlore's evals start one per turn
+under `just prerelease`. Each would re-promote the tree repo-wide, under every
+live session, half-edited hook scripts included, with nobody choosing to:
+restarting `claude` is not a decision to ship the working tree. A skip when
+`CLAUDE_CODE_PLUGIN_DIRS` already equals the copy would cover only a `claude`
 started inside a dogfood session, which the shim's exported PATH strip already
-keeps off the shim, and left the human's own terminal syncing.
+keeps off the shim, and would leave every other launch syncing.
 
-### A launch with no copy is refused
+### A launch with no copy warns and starts without it
 
-With no `<root>/dist/plugin` directory the shim starts nothing. It prints one
-line,
-`dogfood: no copy at <root>/dist/plugin, so claude was not started; run just dogfood to create it`,
-and exits 1. A session started anyway would load no plugin, and nothing would
-say so: `session-start` checks what the variable names, not whether it exists.
-Creating the copy instead would be a sync at launch under another trigger.
+With no `<root>/dist/plugin` directory, a file in its place included, the shim
+prints one line,
+`dogfood: no copy at <root>/dist/plugin, so claude starts without it; run just dogfood to create it`,
+leaves `CLAUDE_CODE_PLUGIN_DIRS` as it came, and goes on to the PATH strip and
+the exec. The session starts without the copy, and `session-start` says so to
+the human and the agent. Exporting the path anyway would name a plugin dir that
+is not there, which `session-start`, comparing entries as spelled, would pass in
+silence. Creating the copy would be a sync at launch under another trigger.
 
-The check is for presence only. A copy that lags the source is the design, so
-nothing compares the two.
+**Rejected: refuse the launch.** A shim that exited instead would leave no
+`claude` through it while the copy cannot be made — `rsync` missing, say — short
+of a hand-typed launch past the shim, in a form for each shell. A warned plain
+session costs less, and `session-start` already names it.
+
+Every refusal of the sync, `rsync` missing included, comes before it makes
+`dist/plugin` (see "Sync failure is loud"), so a refused first sync leaves no
+copy and the next launch warns, rather than loading an empty one in silence. The
+check is for presence only: a copy that lags the source is the design.
 
 ## One script, three subcommands, rooted at its own location
 
@@ -221,19 +230,20 @@ the shim, and the warning is the nudge until it does.
 never redirects rsync's stderr, not even to hide the `skipping non-regular file`
 line the command sandbox provokes, because a blanket redirect silences every
 unanticipated message along with the anticipated one. Each refusal of the sync's
-own — no manifest, `dist/plugin/` not git-ignored, a pattern character — is one
-`dogfood:` line naming the path, with `dist/` untouched.
+own — no manifest, `dist/plugin/` not git-ignored, a pattern character, no
+`rsync` on PATH — is one `dogfood:` line naming the path or the command, with
+`dist/` untouched.
 
 ## The shim: `plugin-dev/bin/claude`
 
 A bash script, put first on PATH by the consumer's `.envrc` as
 `PATH_add plugin-dev/bin`, after gitlore's `PATH_add .gitlore/bin` so that it
 wins. It finds the root from its own location (`<shim dir>/../..`), resolved
-physically as `dogfood.sh` resolves its own, refuses when the copy is missing
-(see "A launch with no copy is refused"), exports `CLAUDE_CODE_PLUGIN_DIRS` at
-`<root>/dist/plugin` over any inherited value, unsets `CDPATH`, and execs the
-next `claude` on PATH with its arguments unchanged — typically gitlore's
-launcher. It never syncs.
+physically as `dogfood.sh` resolves its own, exports `CLAUDE_CODE_PLUGIN_DIRS`
+at `<root>/dist/plugin` over any inherited value when the copy exists and warns
+instead when it does not (see "A launch with no copy warns and starts without
+it"), unsets `CDPATH`, and execs the next `claude` on PATH with its arguments
+unchanged — typically gitlore's launcher. It never syncs.
 
 The next `claude` is found by dropping every PATH entry whose `claude` is the
 shim itself (`-ef`), not every entry holding a file of that name, so a trailing
@@ -247,9 +257,9 @@ agent runs there finds the next `claude`, not the shim.
 list of absolute local paths, which Claude Code normalizes and writes back into
 its own environment (CC 2.1.283 bundle). Unlike `--plugin-dir`, it therefore
 reaches hooks and child processes, and that is what `session-start` checks.
-Every `claude` through the shim loads the copy, so a script that wires the
-plugin's hooks into its own settings, as gitlore's evals do, may run them twice,
-which is unprobed.
+Every `claude` through the shim loads the copy when there is one, so a script
+that wires the plugin's hooks into its own settings, as gitlore's evals do, may
+run them twice, which is unprobed.
 
 **Launching from a subdirectory.** The shim does not refuse it. Such a session
 loads the copy, because the path is absolute, but none of the root's project

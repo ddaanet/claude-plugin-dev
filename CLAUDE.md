@@ -47,8 +47,8 @@ or removing a shipped file means updating the list in
   consumer's `.envrc` puts first on PATH as `PATH_add plugin-dev/bin`.
   Never syncs: it execs the next `claude` on PATH with its arguments
   unchanged and `CLAUDE_CODE_PLUGIN_DIRS` set to `dist/plugin/`, the
-  copy only `just dogfood` writes, and refuses to start while that copy
-  is missing.
+  copy only `just dogfood` writes. While that copy is missing it warns,
+  leaves the variable as it came and launches anyway.
 - `toolkit/version-guard.sh` — `PreToolUse(Write|Edit)` hook that fires
   inside consumer plugins to refuse agent edits to
   `.claude-plugin/plugin.json`'s `.version`.

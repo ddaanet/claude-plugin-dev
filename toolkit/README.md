@@ -39,7 +39,8 @@ dotfiles).
   session does not load it. See [Dogfooding](#dogfooding).
 - **`bin/claude`** — the dogfood shim. First on PATH, it points
   `CLAUDE_CODE_PLUGIN_DIRS` at `dist/plugin/` and execs the next `claude` on
-  PATH. It never syncs, and refuses to start while the copy is missing.
+  PATH. It never syncs; while the copy is missing it warns and launches without
+  it.
 - **`install.sh`** — one-shot install script: vendors the toolkit (resolving the
   newest `dist-` tag when no ref is given), inserts the justfile import line,
   and wires the version-guard hook and the two dogfood hooks into
@@ -133,7 +134,8 @@ git commit -m "add claude-plugin-dev toolkit"
 Then follow [Dogfooding](#dogfooding) → [Setup](#setup), which ends with a
 first `just dogfood`. The `SessionStart` hook the install wired warns on every
 session until the shim is on PATH, the sync refuses to run until git ignores the
-copy, and the shim refuses to launch until `just dogfood` has created it.
+copy, and a launch before `just dogfood` has created it starts without the
+plugin and says so.
 
 ## Updating in a plugin
 
@@ -186,7 +188,7 @@ edit the source; the copy changes only when you promote it.
 A plugin that vendored the toolkit before the launcher shipped takes the steps
 in `plugin-dev/migrations/v0.9.0.md`. They include re-running `install.sh`,
 which `update-plugin-dev` does not do. From 0.9.1 a launch no longer syncs, so a
-plugin coming from 0.9.0 runs `just dogfood` before its next launch.
+plugin coming from before 0.9.1 runs `just dogfood` before its next launch.
 
 ### Setup
 
@@ -221,26 +223,15 @@ with its arguments unchanged and `CLAUDE_CODE_PLUGIN_DIRS` set to
 `claude -c` relaunch or any other `claude` you run in the repo loads the copy as
 it stands. With no other `claude` on PATH the shim exits 127.
 
-With no copy, the shim starts nothing and exits 1:
+With no copy, the shim says so on one line, leaves `CLAUDE_CODE_PLUGIN_DIRS` as
+it found it, and launches anyway:
 
 ```text
-dogfood: no copy at <root>/dist/plugin, so claude was not started; run just dogfood to create it
+dogfood: no copy at <root>/dist/plugin, so claude starts without it; run just dogfood to create it
 ```
 
-If `just dogfood` cannot create the copy, `rsync` missing among the causes,
-start a session from the repo root past the shim. In bash or zsh:
-
-```sh
-"$(which -a claude | grep -v '/plugin-dev/bin/claude$' | head -n1)"
-```
-
-In fish:
-
-```fish
-set -l c (which -a claude | grep -v '/plugin-dev/bin/claude$' | head -n1); $c
-```
-
-That session does not load the copy, and the `SessionStart` check says so.
+That session does not load the copy, and the `SessionStart` check says so. Run
+`just dogfood`, then relaunch.
 
 From a subdirectory the session still loads the copy, but no project hook fires:
 Claude Code reads `.claude/settings.json` from the launch directory only. That
@@ -276,8 +267,9 @@ The sync copies everything git does not ignore, tracked or not, minus every
 `.git` and `dist/plugin/` itself, and deletes from the copy what left the
 source. It refuses to run without `.claude-plugin/plugin.json` at the root, when
 git does not ignore `dist/plugin/`, and when an ignored path's name holds `*`,
-`?`, `[`, `]` or a backslash, naming that path. rsync's own errors are shown as
-they come, and a failure exits non-zero. A file vanishing mid-sync, or two syncs
+`?`, `[`, `]` or a backslash, naming that path, and without `rsync` on PATH;
+each refusal leaves `dist/` untouched. rsync's own errors are shown as they
+come, and a failure exits non-zero. A file vanishing mid-sync, or two syncs
 colliding, fails the same way; a re-run repairs it.
 
 Run `just dogfood` from your own shell, not through an agent's Bash tool,
@@ -307,11 +299,12 @@ version-guard:
   dogfood: jq is not on PATH, so the copy guard and this check are off until it is installed
   ```
 
-  The first means the session started past the shim (no direnv, an IDE or the
-  desktop app, an absolute path to `claude`), or inherited another repo's
-  `CLAUDE_CODE_PLUGIN_DIRS`, as a `claude` started from another plugin's dogfood
-  session does. The agent is told the same, as a fact. After the second, Claude
-  Code's own sensitive-file prompt still stops a copy edit.
+  The first means the session started through the shim with no copy, or past
+  the shim (no direnv, an IDE or the desktop app, an absolute path to
+  `claude`), or inherited another repo's `CLAUDE_CODE_PLUGIN_DIRS`, as a
+  `claude` started from another plugin's dogfood session does. The agent is
+  told the same, as a fact. After the second, Claude Code's own sensitive-file
+  prompt still stops a copy edit.
 
 ## Conventions
 

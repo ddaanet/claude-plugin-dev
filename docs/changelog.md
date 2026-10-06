@@ -11,8 +11,9 @@ Newest first.
 
 - [2026-10-05 — The dogfood shim stops syncing: `just dogfood` is the only promotion](changelog/2026-10-05-the-shim-stops-syncing.md)
   — a launch, a relaunch or any `claude` through the shim no longer promotes the
-  working tree, and a launch with no copy is refused with a line naming
-  `just dogfood`. Also corrects the 2026-10-03 record: its premise that an
+  working tree, a launch with no copy warns with a line naming `just dogfood`
+  and starts `claude` without it, and the sync refuses without `rsync` before it
+  makes the copy. Also corrects the 2026-10-03 record: its premise that an
   agent's nested `claude -p` re-promoted the tree (the shim's exported PATH
   strip already kept it off the shim), its overstated m2 probe, and its "names"
   for what was a whole-value match
