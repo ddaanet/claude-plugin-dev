@@ -4,9 +4,10 @@
 # PATH (every entry whose claude is the shim itself is dropped) with argv
 # unchanged, CLAUDE_CODE_PLUGIN_DIRS pointing at <root>/dist/plugin over any
 # inherited value, and CDPATH unset. It never syncs: a launch is not a
-# promotion, and only `just dogfood` writes the copy. With no copy it starts
-# nothing, names that step on one dogfood: line and exits 1; with no other
-# claude on PATH it exits 127 and says so.
+# promotion, and only `just dogfood` writes the copy. With no copy it says so on
+# one dogfood: line naming that step, leaves the variable as it came, and
+# launches anyway; session-start then reports a session without the copy. With
+# no other claude on PATH it exits 127 and says so.
 # <root> is found from the script's own location, never from the launch
 # directory, and resolved physically, as dogfood.sh resolves its own, so the
 # variable spells the copy the way the hooks compute it.
@@ -19,11 +20,11 @@ main() {
     here="${here%?x}"
     root="$(cd -P -- "$here/../.." && printf '%s' "$PWD" && printf x)"
     root="${root%x}"
-    if [[ ! -d "$root/dist/plugin" ]]; then
-        echo "dogfood: no copy at $root/dist/plugin, so claude was not started; run just dogfood to create it" >&2
-        exit 1
+    if [[ -d "$root/dist/plugin" ]]; then
+        export CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin"
+    else
+        echo "dogfood: no copy at $root/dist/plugin, so claude starts without it; run just dogfood to create it" >&2
     fi
-    export CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin"
     path="$(path_without "${BASH_SOURCE[0]}" && printf x)"
     export PATH="${path%x}"
     if ! command -v claude >/dev/null; then
