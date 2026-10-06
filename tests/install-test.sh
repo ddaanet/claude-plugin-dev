@@ -179,8 +179,8 @@ git -C "$consumer" commit -qm "consumer: plugin manifest"
 
 run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh" dist-v1
 assert_eq "$rc" "0" "install.sh exit code"
-# Only `just dogfood` creates the copy, and the shim refuses to launch without
-# one, so the next steps name it.
+# Only `just dogfood` creates the copy, and a launch without one starts without
+# the plugin, so the next steps name it.
 assert_contains "$out" "just dogfood" "install.sh's next steps create the copy"
 assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.0" "install.sh vendored VERSION"
 assert_eq "$(git -C "$consumer" config --get submodule.memory.url)" \

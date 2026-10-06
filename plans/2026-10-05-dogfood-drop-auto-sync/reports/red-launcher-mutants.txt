@@ -1,0 +1,104 @@
+# red: tests/dogfood-launcher-test.sh against two mutants of the warn-and-launch toolkit/bin/claude,
+# scratch copies under $TMPDIR/review-fix-mut2, 2026-10-06. The tracked shim passes the same
+# suite (exit status 0, last section).
+
+## mutant e_test
+--- toolkit/bin/claude	2026-10-06 15:22:29.201775985 +0200
++++ $TMPDIR/review-fix-mut2/e_test/toolkit/bin/claude	2026-10-06 15:22:43.266369020 +0200
+@@ -20,7 +20,7 @@
+     here="${here%?x}"
+     root="$(cd -P -- "$here/../.." && printf '%s' "$PWD" && printf x)"
+     root="${root%x}"
+-    if [[ -d "$root/dist/plugin" ]]; then
++    if [[ -e "$root/dist/plugin" ]]; then
+         export CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin"
+     else
+         echo "dogfood: no copy at $root/dist/plugin, so claude starts without it; run just dogfood to create it" >&2
+
+## suite against mutant e_test (exit status: 1)
+=== the shim execs the next claude with argv intact ===
+=== a launch does not sync, the variable unset ===
+=== a missing copy warns and launches without it ===
+=== a missing copy passes an inherited variable through ===
+=== a file at dist/plugin is no copy ===
+FAIL: a file at dist/plugin is no copy: no dogfood: line naming just dogfood: 
+FAIL: a file at dist/plugin is no copy: the variable stays unset: expected '<unset>', got '$TMPDIR/tmp.YYTj6jMfPP/my consumer/dist/plugin'
+=== a missing copy and no next claude: the warning, then 127 ===
+=== the shim exports the copy ===
+=== the shim unsets CDPATH ===
+=== an inherited variable is overwritten ===
+=== the shim strips its own entry in any spelling ===
+=== the shim keeps another bin/claude ===
+=== the shim keeps the rest of PATH as spelled ===
+=== a subdirectory launch resolves the root ===
+=== a launch from plugin-dev/bin drops the empty entry ===
+=== no next claude exits 127 ===
+
+2 failure(s)
+
+## mutant order
+--- toolkit/bin/claude	2026-10-06 15:22:29.201775985 +0200
++++ $TMPDIR/review-fix-mut2/order/toolkit/bin/claude	2026-10-06 15:22:43.266369020 +0200
+@@ -20,17 +20,17 @@
+     here="${here%?x}"
+     root="$(cd -P -- "$here/../.." && printf '%s' "$PWD" && printf x)"
+     root="${root%x}"
+-    if [[ -d "$root/dist/plugin" ]]; then
+-        export CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin"
+-    else
+-        echo "dogfood: no copy at $root/dist/plugin, so claude starts without it; run just dogfood to create it" >&2
+-    fi
+     path="$(path_without "${BASH_SOURCE[0]}" && printf x)"
+     export PATH="${path%x}"
+     if ! command -v claude >/dev/null; then
+         echo "dogfood: no other claude on PATH" >&2
+         exit 127
+     fi
++    if [[ -d "$root/dist/plugin" ]]; then
++        export CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin"
++    else
++        echo "dogfood: no copy at $root/dist/plugin, so claude starts without it; run just dogfood to create it" >&2
++    fi
+     exec claude "$@"
+ }
+ 
+
+## suite against mutant order (exit status: 1)
+=== the shim execs the next claude with argv intact ===
+=== a launch does not sync, the variable unset ===
+=== a missing copy warns and launches without it ===
+=== a missing copy passes an inherited variable through ===
+=== a file at dist/plugin is no copy ===
+=== a missing copy and no next claude: the warning, then 127 ===
+FAIL: a missing copy and no next claude: stderr is two lines: expected '2', got '1'
+FAIL: a missing copy and no next claude: the first line is not the warning: dogfood: no other claude on PATH
+=== the shim exports the copy ===
+=== the shim unsets CDPATH ===
+=== an inherited variable is overwritten ===
+=== the shim strips its own entry in any spelling ===
+=== the shim keeps another bin/claude ===
+=== the shim keeps the rest of PATH as spelled ===
+=== a subdirectory launch resolves the root ===
+=== a launch from plugin-dev/bin drops the empty entry ===
+=== no next claude exits 127 ===
+
+2 failure(s)
+
+## suite against the tracked shim (exit status: 0)
+=== the shim execs the next claude with argv intact ===
+=== a launch does not sync, the variable unset ===
+=== a missing copy warns and launches without it ===
+=== a missing copy passes an inherited variable through ===
+=== a file at dist/plugin is no copy ===
+=== a missing copy and no next claude: the warning, then 127 ===
+=== the shim exports the copy ===
+=== the shim unsets CDPATH ===
+=== an inherited variable is overwritten ===
+=== the shim strips its own entry in any spelling ===
+=== the shim keeps another bin/claude ===
+=== the shim keeps the rest of PATH as spelled ===
+=== a subdirectory launch resolves the root ===
+=== a launch from plugin-dev/bin drops the empty entry ===
+=== no next claude exits 127 ===
+
+all dogfood launcher scenarios passed

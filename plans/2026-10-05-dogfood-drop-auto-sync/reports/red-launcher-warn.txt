@@ -1,0 +1,31 @@
+# red: tests/dogfood-launcher-test.sh (missing-copy scenarios reworked for warn-and-launch) against the
+# refusing shim at 631042a (toolkit/bin/claude unchanged since 4a1aad6), 2026-10-06
+# exit status: 1
+=== the shim execs the next claude with argv intact ===
+=== a launch does not sync, the variable unset ===
+=== a missing copy warns and launches without it ===
+FAIL: a missing copy warns and launches: exit code: expected '0', got '1'
+FAIL: a missing copy warns and launches: the next claude gets argv intact: expected '--foo|a b|', got '<stub did not record argv>'
+FAIL: a missing copy warns and launches: exec, not a child: expected '82', got '<stub did not record pid>'
+FAIL: a missing copy warns and launches: the variable stays unset: expected '<unset>', got '<stub did not record plugin_dirs>'
+=== a missing copy passes an inherited variable through ===
+FAIL: a missing copy passes an inherited variable through: exit code: expected '0', got '1'
+FAIL: a missing copy passes an inherited variable through: expected '/elsewhere/dist/plugin:/other', got '<stub did not record plugin_dirs>'
+=== a file at dist/plugin is no copy ===
+FAIL: a file at dist/plugin is no copy: exit code: expected '0', got '1'
+FAIL: a file at dist/plugin is no copy: the variable stays unset: expected '<unset>', got '<stub did not record plugin_dirs>'
+=== a missing copy and no next claude: the warning, then 127 ===
+FAIL: a missing copy and no next claude: exit code: expected '127', got '1'
+FAIL: a missing copy and no next claude: stderr is two lines: expected '2', got '1'
+FAIL: a missing copy and no next claude: the second line is the 127 line: expected 'dogfood: no other claude on PATH', got 'dogfood: no copy at $TMPDIR/tmp.gViej7oOxf/my consumer/dist/plugin, so claude was not started; run just dogfood to create it'
+=== the shim exports the copy ===
+=== the shim unsets CDPATH ===
+=== an inherited variable is overwritten ===
+=== the shim strips its own entry in any spelling ===
+=== the shim keeps another bin/claude ===
+=== the shim keeps the rest of PATH as spelled ===
+=== a subdirectory launch resolves the root ===
+=== a launch from plugin-dev/bin drops the empty entry ===
+=== no next claude exits 127 ===
+
+11 failure(s)
