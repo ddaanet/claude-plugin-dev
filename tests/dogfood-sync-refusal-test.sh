@@ -179,6 +179,26 @@ if [[ "$err" != "dogfood: "*"/dist/plugin/"* || "$err" == *$'\n'* ]]; then
 fi
 assert_absent "$consumer/dist/plugin" "not ignored: the copy is not created"
 
+echo "=== refuses without rsync on PATH ==="
+# The whole PATH is a directory of symlinks to the other commands the run
+# needs, so rsync alone is missing. A sync that makes dist/plugin before it
+# finds rsync gone leaves an empty copy, which the shim would launch as a
+# promoted one: the refusal must come before dist/ is touched.
+make_consumer
+mkdir "$sandbox/tools"
+for tool in bash cat dirname git mkdir mktemp rm; do
+    ln -s "$(command -v "$tool")" "$sandbox/tools/$tool"
+done
+assert_eq "$(PATH="$sandbox/tools" command -v rsync || true)" "" \
+    "no rsync: the fixture's PATH holds no rsync"
+PATH="$sandbox/tools" run_dogfood sync
+assert_eq "$rc" "1" "no rsync exit code"
+assert_eq "$out" "" "no rsync prints nothing on stdout"
+if [[ "$err" != "dogfood: "*"rsync"* || "$err" == *$'\n'* ]]; then
+    fail "no rsync: stderr is not one dogfood: line naming rsync: '$err'"
+fi
+assert_absent "$consumer/dist/plugin" "no rsync: the copy is not created"
+
 echo "=== a git failure stops sync before rsync ==="
 # A stub git first on PATH fails ls-files alone, after the refusal checks have
 # passed. Removing .git instead would fail the ignore check's own git call

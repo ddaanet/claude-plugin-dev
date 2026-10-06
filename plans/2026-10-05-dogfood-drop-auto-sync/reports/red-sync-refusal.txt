@@ -1,0 +1,14 @@
+# red: tests/dogfood-sync-refusal-test.sh against unchanged toolkit/dogfood.sh (HEAD 4a1aad6), 2026-10-06
+# exit status: 1
+=== an ignored entry holding a pattern character aborts ===
+=== refuses without a root manifest ===
+=== refuses when dist/plugin is not ignored ===
+=== refuses without rsync on PATH ===
+FAIL: no rsync exit code: expected '1', got '127'
+FAIL: no rsync: stderr is not one dogfood: line naming rsync: '$TMPDIR/tmp.zIMfOzx8of/my consumer/plugin-dev/dogfood.sh: line 68: rsync: command not found'
+FAIL: no rsync: the copy is not created: '$TMPDIR/tmp.zIMfOzx8of/my consumer/dist/plugin' exists
+=== a git failure stops sync before rsync ===
+=== a symlinked dist/plugin is refused and the root survives ===
+=== an rsync failure keeps its status and stderr ===
+
+3 failure(s)
