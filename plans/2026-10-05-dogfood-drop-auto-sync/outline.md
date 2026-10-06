@@ -17,10 +17,10 @@ Defaults applied, each overridable:
    no other `claude`, and the exec with argv unchanged. The skip on a variable
    equal to the copy and the sync-failure path go entirely: code, tests, header
    comment, docs. No compat leftovers.
-2. **A missing copy refuses the launch.** When `<root>/dist/plugin` is not a
-   directory the shim starts nothing, prints one `dogfood:` line naming
-   `just dogfood`, and exits 1. The check comes before the PATH strip. No
-   staleness detection.
+2. **A missing copy refuses the launch** (replaced 2026-10-06, see the last
+   section). When `<root>/dist/plugin` is not a directory the shim starts
+   nothing, prints one `dogfood:` line naming `just dogfood`, and exits 1. The
+   check comes before the PATH strip. No staleness detection.
 3. **Docs are rewritten in place** (hub, dogfood node, both READMEs, the
    `CLAUDE.md` Layout bullet, `install.sh` Next steps); a new
    `toolkit/migrations/v0.9.1.md` carries the by-hand step. A new dated record
@@ -32,9 +32,10 @@ Defaults applied, each overridable:
    consumers crossing into a tree whose shim no longer syncs, and not a dated
    record. Its steps 1-4 stand. (Overridable: leaving it and relying on the
    v0.9.1 note printed after it.)
-5. **The broken-sync fallback survives in narrower form**: with no copy and a
-   sync that cannot create one (rsync missing, say), launch past the shim. Given
-   verbatim, bash and fish forms (minor 6).
+5. **The broken-sync fallback survives in narrower form** (reversed 2026-10-06,
+   see the last section): with no copy and a sync that cannot create one (rsync
+   missing, say), launch past the shim. Given verbatim, bash and fish forms
+   (minor 6).
 
 ## Work items
 
@@ -64,3 +65,37 @@ Defaults applied, each overridable:
 - Minor 6: verbatim fallback where the text survives.
 - Minor 7: `CLAUDE.md` wrap.
 - Outside the range: hub Limitations names `dist-vX.Y.Z`.
+
+## Deliverable-review fixes (2026-10-06)
+
+My human partner's decisions on `reports/deliverable-review.md`; what was done
+is in `reports/review-fixes.md`.
+
+- **Decision 2 replaced: a missing copy warns and launches.** When
+  `<root>/dist/plugin` is not a directory the shim prints one `dogfood:` line
+  saying there is no copy, that `claude` starts without it, and that
+  `just dogfood` creates it; it does not export `CLAUDE_CODE_PLUGIN_DIRS`,
+  leaving whatever the environment had, and goes on to the PATH strip, the 127
+  check and the exec with argv unchanged. `session-start` then reports the plain
+  session. With a copy, behaviour is unchanged.
+- **Decision 5 reversed: no fallback.** A launch with no copy runs `claude`, so
+  the past-the-shim command blocks go from the manual, the notes, the node and
+  the hub.
+- **Major 1:** `dogfood.sh sync` refuses without `rsync` on PATH, checked before
+  it creates `<root>/dist/plugin`: a fourth refusal, same style and channel as
+  the other three. A failed first `just dogfood` leaves no directory, so the
+  next launch warns instead of loading an empty copy in silence. Tests first,
+  red recorded.
+- **Major 2:** moot under the new decision 2. Replaced by a scenario for no copy
+  and no other `claude`: the warning line, then the 127 line, rc 127.
+- **Minor 9:** a regular file at `dist/plugin` is no copy (warning, no export),
+  red against an `-e` mutant.
+- **Minors 1, 5, 6:** hub and node present-tense, the rejected launch sync
+  argued in the conditional, "every `claude` that reaches the shim"; "and
+  children" dropped from the hub.
+- **Minors 2, 3, 4:** the 2026-10-05 record amended in place (unshipped), with
+  the rsync refusal and the replaced refusal added. The 2026-10-03 record is
+  untouched.
+- **Minor 7:** resolved by removal of the fallback (decision 5 reversed).
+- **Minor 8:** smallest edit reaching `just dogfood` from a hand-read v0.9.0
+  note: the manual's pointer and the note's closing paragraph.
