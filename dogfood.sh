@@ -42,14 +42,17 @@ usage() {
 # subshell; errexit ends the script on the pipeline's status, which is the
 # loop's 1 even when git dies of SIGPIPE (pipefail reports the rightmost).
 # Before anything else touches the tree, sync refuses a root with no plugin
-# manifest and a root where git does not ignore dist/plugin/; each refusal is
-# one dogfood: line naming the path, exit 1, dist/ untouched.
+# manifest, a root where git does not ignore dist/plugin/, and a PATH with no
+# rsync; each refusal is one dogfood: line naming the path or the command, exit
+# 1, dist/ untouched. Without the rsync check, the mkdir would leave an empty
+# copy that the shim launches as a promoted one.
 sync_copy() {
     local root
     root="$(root_dir && printf x)"
     root="${root%x}"
     require_manifest "$root"
     require_ignored_copy "$root"
+    require_rsync
     # Not local: the EXIT trap reads it after sync_copy has returned.
     excludes="$(mktemp "${TMPDIR:-/tmp}/dogfood.XXXXXX")"
     trap 'rm -f "$excludes"' EXIT
@@ -239,6 +242,13 @@ require_ignored_copy() {
             ;;
         *) exit "$status" ;;
     esac
+}
+
+require_rsync() {
+    if ! command -v rsync >/dev/null; then
+        echo 'dogfood: rsync is not on PATH; sync refused' >&2
+        exit 1
+    fi
 }
 
 # root_dir: the physical parent of this script's directory, printed with no
