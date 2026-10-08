@@ -1,0 +1,98 @@
+=== install.sh: vendors into a consumer that already mounts a memory submodule ===
+=== install.sh refuses any ref outside the dist lineage ===
+=== install.sh: no ref resolves the newest dist tag ===
+FAIL: a fresh settings.json carries version-guard and the pre-tool hook under PreToolUse: expected 'Write|Edit=bash "${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh"
+Write|Edit|NotebookEdit=bash "${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh" pre-tool', got 'Write|Edit=bash ${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh
+Write|Edit|NotebookEdit=bash "${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh" pre-tool'
+=== install.sh: wires into an existing settings.json without replacing it ===
+FAIL: install.sh added the version-guard hook: expected '1', got '0'
+FAIL: an entry under another matcher counts as present: setup: expected 'Bash Bash', got 'Bash'
+=== install.sh: a legacy unquoted version-guard entry is requoted in place ===
+FAIL: legacy only: one version-guard entry, quoted, under the same matcher: expected 'Write|Edit=bash "${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh"', got 'Write|Edit=bash ${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh'
+FAIL: legacy only: the rewrite is reported: output did not contain 'version-guard hook requoted'
+  --- output ---
+claude-plugin-dev: installed.
+  - justfile (created)
+  - .claude/settings.json (wired the version-guard and dogfood hooks)
+
+Next steps:
+  1. Define your precommit and prerelease recipes in justfile.
+  2. Commit the changes:
+     git add plugin-dev justfile .claude/settings.json
+     git commit -m 'add claude-plugin-dev toolkit'
+  3. Set up the dogfood launcher: plugin-dev/README.md, section
+     Dogfooding, subsection Setup. Until then the SessionStart check
+     warns on every session.
+  4. Create the copy the session loads, then launch claude from the
+     repo root; without the copy the session starts without the plugin:
+     just dogfood
+  --------------
+=== install.sh: a legacy entry the consumer rescoped keeps its matcher ===
+FAIL: rescoped legacy: rewritten under the consumer's matcher, no entry added under Write|Edit: expected 'Bash=bash "${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh"', got 'Bash=bash ${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh'
+FAIL: rescoped legacy: the rewrite is reported: output did not contain 'version-guard hook requoted'
+  --- output ---
+claude-plugin-dev: installed.
+  - justfile (created)
+  - .claude/settings.json (wired the version-guard and dogfood hooks)
+
+Next steps:
+  1. Define your precommit and prerelease recipes in justfile.
+  2. Commit the changes:
+     git add plugin-dev justfile .claude/settings.json
+     git commit -m 'add claude-plugin-dev toolkit'
+  3. Set up the dogfood launcher: plugin-dev/README.md, section
+     Dogfooding, subsection Setup. Until then the SessionStart check
+     warns on every session.
+  4. Create the copy the session loads, then launch claude from the
+     repo root; without the copy the session starts without the plugin:
+     just dogfood
+  --------------
+=== install.sh: a requote alone is reported as only that ===
+FAIL: requote alone: the entry is quoted: expected 'Write|Edit=bash "${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh"', got 'Write|Edit=bash ${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh'
+FAIL: requote alone: the rewrite is reported: output did not contain 'version-guard hook requoted'
+  --- output ---
+claude-plugin-dev: installed.
+  - justfile (created)
+
+Next steps:
+  1. Define your precommit and prerelease recipes in justfile.
+  2. Commit the changes:
+     git add plugin-dev justfile .claude/settings.json
+     git commit -m 'add claude-plugin-dev toolkit'
+  3. Set up the dogfood launcher: plugin-dev/README.md, section
+     Dogfooding, subsection Setup. Until then the SessionStart check
+     warns on every session.
+  4. Create the copy the session loads, then launch claude from the
+     repo root; without the copy the session starts without the plugin:
+     just dogfood
+  --------------
+=== install.sh: legacy and quoted entries both present leave the quoted one ===
+FAIL: legacy beside quoted, shared entry: one entry left, the quoted one, under its own matcher: expected 'Edit=bash "${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh"', got 'Edit=bash "${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh"
+Write|Edit=bash ${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh'
+FAIL: legacy beside quoted, shared entry: the removal is reported: output did not contain 'version-guard hook requoted'
+  --- output ---
+claude-plugin-dev: installed.
+  - justfile (created)
+  - .claude/settings.json (wired the version-guard and dogfood hooks)
+
+Next steps:
+  1. Define your precommit and prerelease recipes in justfile.
+  2. Commit the changes:
+     git add plugin-dev justfile .claude/settings.json
+     git commit -m 'add claude-plugin-dev toolkit'
+  3. Set up the dogfood launcher: plugin-dev/README.md, section
+     Dogfooding, subsection Setup. Until then the SessionStart check
+     warns on every session.
+  4. Create the copy the session loads, then launch claude from the
+     repo root; without the copy the session starts without the plugin:
+     just dogfood
+  --------------
+FAIL: legacy beside quoted, lone entry: one entry left, the quoted one: expected 'Write|Edit=bash "${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh"', got 'Write|Edit=bash "${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh"
+Write|Edit=bash ${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh'
+=== install.sh: the written version-guard command runs from a path with a space ===
+FAIL: spaced path: the written version-guard command runs: exit code: expected '0', got '127'
+FAIL: spaced path: the written command reached version-guard.sh: expected 'ran', got ''
+=== install.sh: a malformed settings.json is reported with jq's diagnosis ===
+=== install.sh: a settings.json it cannot wire is left as it was ===
+
+14 failure(s)

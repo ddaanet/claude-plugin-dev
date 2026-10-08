@@ -220,13 +220,15 @@ run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolki
 assert_eq "$rc" "0" "no-ref install exit code"
 
 # The three commands, shared with the existing-settings scenario below.
-# vg_cmd is exact and unquoted: consumers' settings already carry this
-# spelling, so a respelt command would be added again beside it on their next
-# install. Claude Code expands ${CLAUDE_PROJECT_DIR} at hook-fire time, so the
-# commands must land in settings.json with the variable literal, the dogfood
-# ones inside double quotes.
+# Claude Code expands ${CLAUDE_PROJECT_DIR} at hook-fire time, so the commands
+# must land in settings.json with the variable literal, all three inside double
+# quotes so a project path with a space survives the hook shell. vg_cmd's
+# earlier unquoted spelling, legacy_cmd, is migrated by the installer, never
+# preserved: the scenarios on it come after the existing-settings one.
 # shellcheck disable=SC2016  # the ${...} is meant literal
-vg_cmd='bash ${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh'
+vg_cmd='bash "${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh"'
+# shellcheck disable=SC2016
+legacy_cmd='bash ${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh'
 # shellcheck disable=SC2016
 pretool_cmd='bash "${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh" pre-tool'
 # shellcheck disable=SC2016
@@ -365,6 +367,131 @@ if ! cmp -s "$sandbox/settings.rematched" "$settings_json"; then
 fi
 # An install that stopped short of step 3 would leave the file untouched too.
 assert_contains "$out" "already installed, nothing to do" "an entry under another matcher counts as present: report"
+
+# The version-guard command used to be written unquoted, and add_hook counts a
+# hook present only on an exact command match, so quoting it alone would append
+# a second guard beside every existing consumer's legacy one. These scenarios
+# pin the migration: the legacy entry is rewritten in place, never duplicated.
+legacy_fixture() {
+    # $1=settings.json content. A consumer with plugin-dev/ already in place, so
+    # the run vendors nothing. Sets $sandbox, $consumer and $settings_json.
+    new_sandbox
+    mkdir -p "$consumer/.claude-plugin" "$consumer/.claude" "$consumer/plugin-dev"
+    printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer/.claude-plugin/plugin.json"
+    printf '%s\n' "$1" > "$consumer/.claude/settings.json"
+    settings_json="$consumer/.claude/settings.json"
+}
+legacy_entry() {
+    # $1=matcher, rest=commands: one PreToolUse entry as JSON.
+    local matcher="$1"
+    shift
+    printf '%s\n' "$@" | jq -R '{type: "command", command: .}' \
+        | jq -s --arg m "$matcher" '{matcher: $m, hooks: .}'
+}
+vg_entries() {
+    # $1=settings file: one matcher=command line per version-guard command in
+    # either spelling, sorted. A second copy, a surviving legacy one or the
+    # wrong matcher each show.
+    jq -r '[.hooks.PreToolUse[]? | (.matcher // "none") as $m | .hooks[]? | select(.command | contains("version-guard.sh")) | "\($m)=\(.command)"] | sort | join("\n")' "$1"
+}
+empty_entries() {
+    jq '[.hooks.PreToolUse[]? | select((.hooks // []) | length == 0)] | length' "$1"
+}
+
+echo "=== install.sh: a legacy unquoted version-guard entry is requoted in place ==="
+legacy_fixture "$(jq -n --argjson e "$(legacy_entry 'Write|Edit' "$legacy_cmd")" \
+    '{permissions: {allow: ["Bash(ls:*)"]}, hooks: {PreToolUse: [{hooks: [{type: "command", command: "echo consumer-hook"}]}, $e]}}')"
+run_in "$consumer" bash "$repo_root/toolkit/install.sh"
+assert_eq "$rc" "0" "legacy only: exit code"
+assert_eq "$(vg_entries "$settings_json")" "Write|Edit=$vg_cmd" \
+    "legacy only: one version-guard entry, quoted, under the same matcher"
+assert_contains "$out" "version-guard hook requoted" "legacy only: the rewrite is reported"
+assert_eq "$(jq '[.hooks.PreToolUse[] | .hooks[]? | select(.command == "echo consumer-hook")] | length' "$settings_json")" \
+    "1" "legacy only: the consumer's own hook survives"
+assert_eq "$(jq -r '.permissions.allow[0]' "$settings_json")" "Bash(ls:*)" \
+    "legacy only: the consumer's permissions survive"
+cp "$settings_json" "$sandbox/settings.migrated"
+run_in "$consumer" bash "$repo_root/toolkit/install.sh"
+assert_eq "$rc" "0" "second run after migration: exit code"
+if ! cmp -s "$sandbox/settings.migrated" "$settings_json"; then
+    fail "second run after migration: settings.json changed"
+fi
+assert_contains "$out" "already installed, nothing to do" "second run after migration: report"
+
+echo "=== install.sh: a legacy entry the consumer rescoped keeps its matcher ==="
+legacy_fixture "$(jq -n --argjson e "$(legacy_entry 'Bash' "$legacy_cmd")" '{hooks: {PreToolUse: [$e]}}')"
+run_in "$consumer" bash "$repo_root/toolkit/install.sh"
+assert_eq "$rc" "0" "rescoped legacy: exit code"
+assert_eq "$(vg_entries "$settings_json")" "Bash=$vg_cmd" \
+    "rescoped legacy: rewritten under the consumer's matcher, no entry added under Write|Edit"
+assert_contains "$out" "version-guard hook requoted" "rescoped legacy: the rewrite is reported"
+
+echo "=== install.sh: a requote alone is reported as only that ==="
+legacy_fixture "$(jq -n \
+    --argjson vg "$(legacy_entry 'Write|Edit' "$legacy_cmd")" \
+    --argjson pt "$(legacy_entry 'Write|Edit|NotebookEdit' "$pretool_cmd")" \
+    --argjson ss "$(jq -n --arg c "$session_cmd" '{hooks: [{type: "command", command: $c}]}')" \
+    '{hooks: {PreToolUse: [$vg, $pt], SessionStart: [$ss]}}')"
+run_in "$consumer" bash "$repo_root/toolkit/install.sh"
+assert_eq "$rc" "0" "requote alone: exit code"
+assert_eq "$(vg_entries "$settings_json")" "Write|Edit=$vg_cmd" "requote alone: the entry is quoted"
+assert_contains "$out" "version-guard hook requoted" "requote alone: the rewrite is reported"
+if grep -q "wired the version-guard" <<<"$out"; then
+    fail "requote alone: reported hooks as wired when none was added"
+fi
+
+echo "=== install.sh: legacy and quoted entries both present leave the quoted one ==="
+# The legacy command shares its entry with a consumer hook in one fixture and
+# stands alone in the other: the first entry keeps the consumer's hook, the
+# second is dropped rather than left with an empty hooks array.
+legacy_fixture "$(jq -n \
+    --argjson shared "$(legacy_entry 'Write|Edit' 'echo consumer-hook' "$legacy_cmd")" \
+    --argjson quoted "$(legacy_entry 'Edit' "$vg_cmd")" \
+    '{hooks: {PreToolUse: [$shared, $quoted]}}')"
+run_in "$consumer" bash "$repo_root/toolkit/install.sh"
+assert_eq "$rc" "0" "legacy beside quoted, shared entry: exit code"
+assert_eq "$(vg_entries "$settings_json")" "Edit=$vg_cmd" \
+    "legacy beside quoted, shared entry: one entry left, the quoted one, under its own matcher"
+assert_eq "$(jq '[.hooks.PreToolUse[] | .hooks[]? | select(.command == "echo consumer-hook")] | length' "$settings_json")" \
+    "1" "legacy beside quoted, shared entry: the consumer's hook in the entry survives"
+assert_contains "$out" "version-guard hook requoted" "legacy beside quoted, shared entry: the removal is reported"
+legacy_fixture "$(jq -n \
+    --argjson alone "$(legacy_entry 'Write|Edit' "$legacy_cmd")" \
+    --argjson quoted "$(legacy_entry 'Write|Edit' "$vg_cmd")" \
+    '{hooks: {PreToolUse: [$alone, $quoted]}}')"
+run_in "$consumer" bash "$repo_root/toolkit/install.sh"
+assert_eq "$rc" "0" "legacy beside quoted, lone entry: exit code"
+assert_eq "$(vg_entries "$settings_json")" "Write|Edit=$vg_cmd" \
+    "legacy beside quoted, lone entry: one entry left, the quoted one"
+assert_eq "$(empty_entries "$settings_json")" "0" \
+    "legacy beside quoted, lone entry: no entry is left with an empty hooks array"
+cp "$settings_json" "$sandbox/settings.migrated"
+run_in "$consumer" bash "$repo_root/toolkit/install.sh"
+if ! cmp -s "$sandbox/settings.migrated" "$settings_json"; then
+    fail "legacy beside quoted, lone entry: a second run changed settings.json"
+fi
+
+echo "=== install.sh: the written version-guard command runs from a path with a space ==="
+# What Claude Code runs: the command as written, through sh, with the project
+# dir in the environment. The stub records that it ran; the legacy spelling is
+# run in the same fixture, so the fixture is shown to be one the bare string
+# cannot survive.
+legacy_fixture "$(jq -n --argjson e "$(legacy_entry 'Write|Edit' "$legacy_cmd")" '{hooks: {PreToolUse: [$e]}}')"
+spaced="$sandbox/my consumer"
+mv "$consumer" "$spaced"
+settings_json="$spaced/.claude/settings.json"
+# shellcheck disable=SC2016  # the stub expands CLAUDE_PROJECT_DIR when it runs
+printf '#!/usr/bin/env bash\nprintf ran > "$CLAUDE_PROJECT_DIR/vg.ran"\n' > "$spaced/plugin-dev/version-guard.sh"
+run_in "$spaced" bash "$repo_root/toolkit/install.sh"
+assert_eq "$rc" "0" "spaced path: install exit code"
+written="$(jq -r '[.hooks.PreToolUse[]? | .hooks[]? | .command | select(contains("version-guard.sh"))] | first // "false"' "$settings_json")"
+run_in "$sandbox" env CLAUDE_PROJECT_DIR="$spaced" sh -c "$legacy_cmd"
+if [ "$rc" -eq 0 ] || [ -e "$spaced/vg.ran" ]; then
+    fail "spaced path: anchor: the legacy command ran from a path with a space (rc=$rc)"
+fi
+run_in "$sandbox" env CLAUDE_PROJECT_DIR="$spaced" sh -c "$written"
+assert_eq "$rc" "0" "spaced path: the written version-guard command runs: exit code"
+assert_eq "$(cat "$spaced/vg.ran" 2>/dev/null)" "ran" "spaced path: the written command reached version-guard.sh"
 
 echo "=== install.sh: a malformed settings.json is reported with jq's diagnosis ==="
 new_sandbox
