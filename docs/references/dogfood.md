@@ -34,9 +34,11 @@ through, on CC 2.1.284.
 
 `dogfood.sh sync` copies everything git does not ignore, tracked or not.
 `git ls-files -z -o -i --exclude-standard --directory` lists the untracked
-ignored paths; each entry is anchored with a leading `/` and handed to
-`rsync -a --delete --delete-excluded --from0 --exclude-from=-`, along with two
-hard excludes:
+ignored paths, in the root and recursively in each initialised submodule, which
+the root's listing does not enter (`--recurse-submodules` needs `--cached`).
+Each entry, prefixed with its submodule path and anchored with a leading `/`,
+goes to `rsync -a --delete --delete-excluded --from0 --exclude-from=-`, along
+with two hard excludes:
 
 - `.git`, unanchored, so a nested repository's `.git` — the `memory/` gitlink's,
   for one — stays out too;
@@ -46,19 +48,16 @@ hard excludes:
 
 A tracked file that matches an ignore pattern is kept, because `-o -i` lists
 only untracked paths. Deletions propagate: a path that stops being source leaves
-the copy.
-
-The exclude list is written out in full before rsync starts. Fed through a pipe,
-a git failure would leave rsync running on a partial list — copying `.git` and
-recursing into the copy.
+the copy. The list is written in full before rsync starts, so a git failure in
+any repo stops the sync rather than leave rsync on a partial list.
 
 Entries are refused rather than escaped. An ignored entry holding `*`, `?`, `[`,
 `]` or a backslash aborts the sync, naming the path, before rsync runs or
 `dist/` is touched. rsync reads the first four as wildcards, and a backslash
 counts as an escape only in a pattern that also holds a wildcard (probed on
 rsync 3.5.0), so no escaping is right for every entry. `--directory` collapses a
-wholly ignored directory into one entry, so only those collapsed names are
-checked, and they are all rsync is given.
+wholly ignored directory into one entry, so only those collapsed names,
+submodule prefix included, are checked, and they are all rsync is given.
 
 **Rejected: a `--files-from` list of tracked and untracked files**, the obvious
 source set. It fails twice
@@ -129,10 +128,11 @@ With no `<root>/dist/plugin` directory, a file in its place included, the shim
 prints one line,
 `dogfood: no copy at <root>/dist/plugin, so claude starts without it; run just dogfood to create it`,
 leaves `CLAUDE_CODE_PLUGIN_DIRS` as it came, and goes on to the PATH strip and
-the exec. The session starts without the copy, and `session-start` says so to
-the human and the agent. Exporting the path anyway would name a plugin dir that
-is not there, which `session-start`, comparing entries as spelled, would pass in
-silence. Creating the copy would be a sync at launch under another trigger.
+the exec. The session starts without the copy, and `session-start` names
+`just dogfood` to the human and states the missing copy to the agent. Exporting
+the path anyway would name a plugin dir that is not there, which
+`session-start`, comparing entries as spelled, would pass in silence. Creating
+the copy would be a sync at launch under another trigger.
 
 **Rejected: refuse the launch.** A shim that exited instead would leave no
 `claude` through it while the copy cannot be made — `rsync` missing, say — short
@@ -210,11 +210,12 @@ still match; any other entry is compared as spelled, trailing slashes stripped,
 and a relative one, which Claude Code drops, never matches. A substring or
 prefix match would accept `/other/<root>/dist/plugin`. The payload is not read.
 
-The finding goes to both channels. `systemMessage` names the remedy, launching
-through `plugin-dev/bin/claude` from the repo root. `additionalContext` gives
-the agent the same finding as a fact — plugin behaviour observed in this session
-is not the promoted copy's — and nothing to act on, since only the human can
-relaunch.
+The finding goes to both channels. `systemMessage` names the remedy:
+`just dogfood` and a relaunch when no `<root>/dist/plugin` directory exists, as
+after a shim launch with no copy, else launching through `plugin-dev/bin/claude`
+from the repo root. `additionalContext` gives the agent the finding as a fact —
+no copy exists, or behaviour observed here is not the promoted copy's — and
+nothing to act on: promoting and relaunching are the human's acts.
 
 **`jq` is missing.** There is then no object to build and no copy guard, so the
 check is skipped and a static `systemMessage` says so. It stays off the agent's
