@@ -9,6 +9,12 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-08 — Four dogfood claims left unprobed are probed, and one was wrong](changelog/2026-10-08-probed-dogfood-claims.md)
+  — hooks registered by a plugin and by settings both fire, so a script that
+  wires them runs them twice; an empty `.mcp.json` is accepted silently and
+  fails only `plugin validate`; `/reload-plugins` makes commands, `.mcp.json`
+  and output styles live; jq 1.6 exits 4 on a parse error by its source, not 2,
+  and the guard's exit 1 holds either way
 - [2026-10-08 — The no-copy session warning names `just dogfood`, and the sync honours submodule ignores](changelog/2026-10-08-dogfood-no-copy-remedy-and-submodule-ignores.md)
   — with no copy, `session-start` named a launch through the shim, which is how
   the session started; it now names `just dogfood` and a relaunch, and tells the

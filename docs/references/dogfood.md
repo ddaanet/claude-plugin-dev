@@ -80,9 +80,10 @@ than fail every edit of the session, and `session-start` is where the missing
 `jq` is reported. A payload `jq` cannot read, or a directory on the path that
 cannot be entered, stops the script with exit 1, which Claude Code shows as a
 non-blocking hook error. Any `jq` failure exits 1 with `jq`'s stderr kept, never
-with `jq`'s own status: `jq` exits 2 on a usage or system error, and on a parse
-error in 1.6 (read from its source, not probed), and exit 2 from a `PreToolUse`
-hook blocks the tool call.
+with `jq`'s own status: `jq` exits 2 on a usage or system error (1.7 probed),
+and exit 2 from a `PreToolUse` hook blocks the tool call. A parse error exits 5
+in 1.7 (probed) and 4 in 1.6 (read from its source, not run), so the choice of
+exit 1 holds whichever version meets the payload.
 
 ## The session check reports; it does not refuse
 
@@ -138,8 +139,11 @@ list of absolute local paths, which Claude Code normalizes and writes back into
 its own environment (CC 2.1.283 bundle). Unlike `--plugin-dir`, it therefore
 reaches hooks and child processes, and that is what `session-start` checks.
 Every `claude` through the shim loads the copy when there is one, so a script
-that wires the plugin's hooks into its own settings, as gitlore's evals do, may
-run them twice, which is unprobed.
+that wires the plugin's hooks into its own settings, as gitlore's evals do, runs
+them twice: Claude Code does not de-duplicate a hook registered by a plugin and
+by a settings file, even with identical command strings, and
+`--setting-sources project` does not stop the variable (probed on CC 2.1.294).
+Such a script meets it only when the shim is on its PATH and the copy exists.
 
 **Launching from a subdirectory.** The shim does not refuse it. Such a session
 loads the copy, because the path is absolute, but none of the root's project

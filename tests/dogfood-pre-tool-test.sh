@@ -349,13 +349,13 @@ make_consumer
 label="pre-tool fails loudly on a payload jq cannot read"
 run_dogfood pre-tool <<<"not json"
 # Exactly 1: Claude Code blocks the tool call on exit 2, and jq's own status
-# varies by version (5 on a parse error in jq 1.7, 2 in jq 1.6).
+# varies by version (5 on a parse error in jq 1.7, 4 in jq 1.6 by its source).
 assert_eq "$rc" "1" "$label exit code"
 assert_eq "$out" "" "$label prints nothing on stdout"
 assert_contains "$err" "jq: " "$label shows jq's error"
 
-# jq 1.6 exits 2 on a parse error, and exit 2 blocks the tool call under Claude
-# Code. The stub stands in for that jq; its directory name holds a space.
+# jq exits 2 on a usage or system error, and exit 2 blocks the tool call under
+# Claude Code. The stub stands in for that jq; its directory name holds a space.
 echo "=== pre-tool maps a jq exit of 2 to a non-blocking status ==="
 make_consumer
 label="pre-tool maps a jq exit of 2 to a non-blocking status"

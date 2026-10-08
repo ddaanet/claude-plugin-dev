@@ -57,7 +57,8 @@ each of which loads the copy as it stands.
 
 The trade-off follows from what Claude Code re-reads, and when:
 
-- skill bodies need `/reload-plugins` whatever loads them;
+- skill bodies, commands, `.mcp.json` and output styles need `/reload-plugins`
+  whatever loads them;
 - agent definitions and hook events need a new session;
 - only hook-script and `bin/` bodies are read on every call.
 
@@ -135,8 +136,9 @@ own — no manifest, `dist/plugin/` not git-ignored, a pattern character, no
 A `release.just` recipe, `bash "{{toolkit_prefix}}/dogfood.sh" sync` like its
 neighbours, and the one promotion: it syncs and nothing else, and starts no
 `claude`. It depends on no gate, since it publishes nothing and writes only the
-git-ignored copy. After it, a skill body goes live on `/reload-plugins`, and an
-agent definition or hook event on a relaunch through the shim.
+git-ignored copy. After it, a skill body, a command, `.mcp.json` or an output
+style goes live on `/reload-plugins`, and an agent definition or hook event on a
+relaunch through the shim.
 
 ## Bounds accepted
 
@@ -165,11 +167,14 @@ the copy's existing `.mcp.json` alone, so a changed MCP config goes stale
 silently (rsync 3.4.1). A zero-byte read-only mask is copied as an empty regular
 file, into a plugin that ships no `.mcp.json` as well, and stays until the next
 unsandboxed sync deletes it (probed with a simulated mask on rsync 3.5.0, in the
-deliverable review's code report); how Claude Code treats an empty plugin-root
-`.mcp.json` is unprobed. The other masked names land the same way and cost
-bytes. It bites only a sync run through an agent's sandboxed Bash,
-`just dogfood` or `dogfood.sh sync`, since the shim never syncs, and the manual
-says to promote from the human's own shell.
+deliverable review's code report). Claude Code accepts it silently, on CC
+2.1.294: the plugin loads, no server is listed and no error shows, and the
+loader logs a JSON parse error to its debug log and loads no servers from the
+file; only `claude plugin validate` on the copy fails, with "Unexpected EOF".
+The other masked names land the same way and cost bytes. It bites only a sync
+run through an agent's sandboxed Bash, `just dogfood` or `dogfood.sh sync`,
+since the shim never syncs, and the manual says to promote from the human's own
+shell.
 
 **The copy carries non-plugin content.** Directories such as `plugin-dev/` and
 the `memory/` gitlink's files land in `dist/plugin/`. Claude Code loads only the
