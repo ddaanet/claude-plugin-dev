@@ -95,6 +95,10 @@ or removing a shipped file means updating the list in
   entry per bullet. Bodies live in `docs/changelog/YYYY-MM-DD-slug.md`.
 - `plans/` — specs and implementation plans. Prospective content only;
   `docs/` holds what is true now.
+- `inbox/` — briefs, notes and findings that arrive from a session in
+  *another* repository. They go here, never the repo root, where they read as
+  tracked project documents. Triage means acting on a file and deleting it, or
+  promoting it into `plans/`. Root-level, so it is not shipped.
 - `pyproject.toml`, `.rumdl.toml`, `.envrc` — dev tooling, not a Python
   package and not shipped. `uv sync` materializes `.venv`, direnv puts
   it on PATH, and `just format-docs` runs rumdl over `docs/` and
