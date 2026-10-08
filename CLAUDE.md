@@ -187,17 +187,19 @@ split dist ref" for the reasoning.
   read as instruction (e.g. "you can run X to bypass" — actively
   bad).
 - **`${CLAUDE_PROJECT_DIR}` in `install.sh`'s hook commands is
-  intentionally single-quoted** — in `hook_cmd` (version-guard) and in
-  the dogfood hooks' `pretool_cmd` and `session_cmd`. Claude Code
-  expands it at hook-fire time, not bash at install time. The
-  `# shellcheck disable=SC2016` above each of the three is
-  load-bearing. Inside the single quotes, the two dogfood commands
+  intentionally single-quoted** — in `hook_cmd` (version-guard), in
+  `legacy_hook_cmd` and in the dogfood hooks' `pretool_cmd` and
+  `session_cmd`. Claude Code expands it at hook-fire time, not bash at
+  install time. The `# shellcheck disable=SC2016` above each of the four
+  is load-bearing. Inside the single quotes, all three live commands
   double-quote `"${CLAUDE_PROJECT_DIR}"`, so a repo path with a space
-  survives the hook shell. `hook_cmd` leaves it bare, and stays so:
-  `add_hook` counts a hook as already wired when an entry under its
-  event carries the same command string, so a changed string would make
-  a re-run add a second version-guard beside every existing consumer's
-  entry.
+  survives the hook shell; a bare one word-splits and the guard fails
+  open. `legacy_hook_cmd` is the bare spelling `hook_cmd` used to have.
+  `add_hook` counts a hook as already wired when an entry under its event
+  carries the same command string, so it takes the legacy spelling as an
+  optional fourth argument and rewrites that entry in place — the
+  consumer's matcher survives — instead of appending a second
+  version-guard beside it. Only the version-guard call passes it.
 - **Heredocs in `install.sh` that emit example justfile content are
   unquoted** (so `$import_line` expands). That means backticks inside
   the heredoc body get parsed as command substitution by bash. Avoid

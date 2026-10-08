@@ -9,6 +9,11 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-08 — The version-guard hook command quotes the project dir, and the installer migrates the old one](changelog/2026-10-08-version-guard-quoting.md)
+  — the bare `${CLAUDE_PROJECT_DIR}` split on a path with a space and the guard
+  failed open on exit 127; `hook_cmd` is quoted, and `add_hook` takes the old
+  spelling as a fourth argument to rewrite that entry in place, keeping the
+  consumer's matcher, rather than append a second guard beside it
 - [2026-10-08 — Four dogfood claims left unprobed are probed, and one was wrong](changelog/2026-10-08-probed-dogfood-claims.md)
   — hooks registered by a plugin and by settings both fire, so a script that
   wires them runs them twice; an empty `.mcp.json` is accepted silently and

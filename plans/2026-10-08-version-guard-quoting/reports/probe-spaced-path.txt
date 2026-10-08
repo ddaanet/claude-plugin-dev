@@ -1,0 +1,34 @@
+## project dir: /tmp/probe dir/sp ace proj
+## settings before
+[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"bash ${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh"}]}]
+## legacy command under sh -c (expected to fail)
+/tmp/probe: /tmp/probe: Is a directory
+rc=126
+## install.sh run 1
+claude-plugin-dev: installed.
+  - justfile (created)
+  - .claude/settings.json (version-guard hook requoted)
+  - .claude/settings.json (wired the version-guard and dogfood hooks)
+
+Next steps:
+  1. Define your precommit and prerelease recipes in justfile.
+  2. Commit the changes:
+     git add plugin-dev justfile .claude/settings.json
+     git commit -m 'add claude-plugin-dev toolkit'
+  3. Set up the dogfood launcher: plugin-dev/README.md, section
+     Dogfooding, subsection Setup. Until then the SessionStart check
+     warns on every session.
+  4. Create the copy the session loads, then launch claude from the
+     repo root; without the copy the session starts without the plugin:
+     just dogfood
+rc=0
+## version-guard entries after
+[{"matcher":"Write|Edit","command":"bash \"${CLAUDE_PROJECT_DIR}/plugin-dev/version-guard.sh\""}]
+count: 1
+## written command under sh -c
+stub version-guard ran in: /tmp/probe dir/sp ace proj
+rc=0
+## install.sh run 2
+claude-plugin-dev: already installed, nothing to do.
+rc=0
+settings.json byte-identical after run 2

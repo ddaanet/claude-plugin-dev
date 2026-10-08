@@ -167,11 +167,20 @@ command, whatever its matcher, a missing one included. The consumer may have
 rescoped a hook, and a second copy beside the rescoped one would run the command
 twice wherever the two matchers overlap.
 
-The dogfood commands quote the variable,
+All three commands quote the variable,
 `bash "${CLAUDE_PROJECT_DIR}/plugin-dev/dogfood.sh" pre-tool`, so a repo path
-with a space survives the hook shell. The version-guard's string stays unquoted:
-presence is matched on the command string, so changing it would make a re-run
-add a duplicate beside every existing consumer's entry.
+with a space survives the hook shell. The version-guard's string was once bare,
+and a bare variable word-splits there: the shell reports
+`No such file or directory` for the part before the blank, exit 127 is a
+non-blocking hook error, and the guard fails open without a word. Presence is
+matched on the command string, so quoting it alone would make a re-run append a
+quoted guard beside every existing consumer's bare one. `add_hook` therefore
+takes the old spelling as an optional fourth argument: with the new string
+present it removes the old entry, and with only the old one present it rewrites
+that entry's command in place, so a matcher the consumer rescoped it to
+survives. The run reports the rewrite, and a second run is a no-op. `update.sh`
+never rewires settings, so an existing consumer gets the quoted string by
+re-running `install.sh`, which `migrations/v0.9.3.md` asks for.
 
 `.envrc`, `.gitignore` and the consumer's `clean` recipe are documented in the
 manual, not edited. The `PATH_add` has to land after gitlore's and needs a

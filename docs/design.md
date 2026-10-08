@@ -97,7 +97,10 @@ the dated record of the reversal goes in the changelog.
   add, justfile import, and the version-guard and two dogfood hooks into
   `.claude/settings.json`. It only ever adds to what the consumer owns, a hook
   counting as present when any entry under its event runs its command, whatever
-  the matcher, and re-running it is a no-op.
+  the matcher, and re-running it is a no-op. The one thing it rewrites is the
+  version-guard's earlier unquoted command, requoted in place under whatever
+  matcher the consumer gave it, because a path with a space split the bare one
+  and the guard failed open.
 - **The first install is `curl … | bash` at a dist tag** — a `dist-` ref's root
   tree is `toolkit/`, so one tag serves the installer and the content it
   vendors, and the resolved tag is passed through so the two are one release.

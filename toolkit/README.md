@@ -96,6 +96,15 @@ It's idempotent — re-running with everything already in place is a no-op. The
 vendored copy at `plugin-dev/install.sh` can be re-run after clone or after
 wiring drift to repair the wiring without re-vendoring.
 
+The hook commands double-quote `${CLAUDE_PROJECT_DIR}`, so a plugin checked out
+under a path with a space still runs them. Earlier releases wrote the
+version-guard command unquoted, and Claude Code treats the failure of that
+command as a non-blocking error: the guard failed open, silently. A re-run
+rewrites that entry to the quoted form in place, under whatever matcher you gave
+it, and reports `version-guard hook requoted`. `update-plugin-dev` does not
+re-run the installer, so a plugin vendored before the change gets the fix by
+running `bash plugin-dev/install.sh` once, from your own shell.
+
 Then define two project-specific recipes in `justfile`: `precommit`, your commit
 gate, and `prerelease`, the gate `release` depends on.
 
