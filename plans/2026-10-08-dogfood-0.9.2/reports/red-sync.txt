@@ -1,0 +1,19 @@
+# tests/dogfood-sync-test.sh with the new scenarios, run against the unchanged toolkit/dogfood.sh (0.9.1, HEAD e8885c3)
+=== sync copies a tracked file ===
+=== sync leaves out an ignored file and .git ===
+=== sync anchors each ignored entry at the root ===
+=== sync resolves the root from its own location ===
+=== sync keeps a root whose name ends in a newline ===
+=== a committed deletion propagates ===
+=== a tracked file deleted in the worktree does not fail sync ===
+=== a file that becomes ignored leaves the copy ===
+=== names with spaces survive ===
+=== a nested repo's .git stays out ===
+=== a path ignored inside a submodule stays out ===
+FAIL: a path ignored inside a submodule: sub/build is left out: '/tmp/tmp.J5gdgSoSWz/my consumer/dist/plugin/sub/build' exists
+FAIL: a path ignored inside a submodule: sub/inner/build is left out: '/tmp/tmp.J5gdgSoSWz/my consumer/dist/plugin/sub/inner/build' exists
+=== sync never recurses into the copy ===
+=== unknown subcommand is usage ===
+
+2 failure(s)
+rc=1

@@ -151,6 +151,46 @@ root="$(cd "$consumer" && pwd -P)"
 label="session-start warns when the variable is unset"
 run_session_start
 assert_session_warns "$label" "$root"
+# The exact text pins the copy-present wording, which the no-copy branch below
+# must leave alone.
+# shellcheck disable=SC2016  # $c is a jq variable bound by --arg
+jq_holds "$label: systemMessage is the launch-through-the-shim line" \
+    '.systemMessage == "\u001b[0mdogfood: this session does not load " + $c + " — launch claude through plugin-dev/bin/claude from the repo root"' \
+    --arg c "$root/dist/plugin"
+# shellcheck disable=SC2016  # $c is a jq variable bound by --arg
+jq_holds "$label: additionalContext is the not-the-promoted-copy fact" \
+    '.hookSpecificOutput.additionalContext == "This session does not load " + $c + ", so plugin behaviour observed in it is not that of the promoted copy."' \
+    --arg c "$root/dist/plugin"
+
+# The shim's no-copy launch: no copy, variable left unset. The remedy the human
+# needs is the promotion, not a launch through the shim, which is how this
+# session started. The agent gets the fact and no command: the promotion is the
+# human's act. A file where the copy belongs is no copy either, as for the shim.
+# Their copy-present control is the warn test above.
+for shape in absent file; do
+    echo "=== session-start names the promotion when the copy is $shape ==="
+    make_consumer
+    root="$(cd "$consumer" && pwd -P)"
+    if [[ "$shape" == file ]]; then
+        mkdir "$root/dist"
+        printf 'not a copy\n' > "$root/dist/plugin"
+    fi
+    label="session-start with the copy $shape"
+    run_session_start
+    assert_session_warns "$label" "$root"
+    jq_holds "$label: systemMessage names just dogfood" \
+        '.systemMessage | contains("just dogfood")'
+    jq_holds "$label: systemMessage does not name the shim launch" \
+        '.systemMessage | contains("launch claude through") | not'
+    jq_holds "$label: additionalContext states no copy exists" \
+        '.hookSpecificOutput.additionalContext | ascii_downcase | contains("no copy exists")'
+    for word in "just dogfood" sync promote; do
+        # shellcheck disable=SC2016  # $w is a jq variable bound by --arg
+        jq_holds "$label: additionalContext does not name '$word'" \
+            '.hookSpecificOutput.additionalContext | ascii_downcase | contains($w) | not' \
+            --arg w "$word"
+    done
+done
 
 # Each spelling below names the copy, so each is silent; the variable, and for
 # the last a link to the root, is all that differs from the warn test above.

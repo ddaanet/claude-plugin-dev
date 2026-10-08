@@ -1,0 +1,22 @@
+# tests/dogfood-sync-refusal-test.sh with the new scenarios, run in a scratch tree holding toolkit/dogfood.sh from HEAD e8885c3 (0.9.1)
+=== an ignored entry holding a pattern character aborts ===
+=== refuses without a root manifest ===
+=== refuses when dist/plugin is not ignored ===
+=== refuses without rsync on PATH ===
+=== a git failure stops sync before rsync ===
+=== a git failure inside a submodule stops sync before rsync ===
+FAIL: a git failure inside a submodule: exit code is 0
+FAIL: a git failure inside a submodule: the run reached the submodule's ls-files: output did not contain 'git: stub failure in memory'
+  --- output ---
+
+  --------------
+FAIL: a git failure inside a submodule: dist/ is not created: '/tmp/tmp.9Vdq9aXkwl/my consumer/dist' exists
+=== a pattern character inside a submodule aborts ===
+FAIL: a pattern character inside a submodule exit code: expected '1', got '0'
+FAIL: a pattern character inside a submodule: stderr is not one dogfood: line naming memory/a*b.log: ''
+FAIL: a pattern character inside a submodule: dist/ is not created: '/tmp/tmp.kTu9mHE3OT/my consumer/dist' exists
+=== a symlinked dist/plugin is refused and the root survives ===
+=== an rsync failure keeps its status and stderr ===
+
+6 failure(s)
+rc=1

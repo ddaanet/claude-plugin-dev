@@ -1,0 +1,28 @@
+# tests/dogfood-session-start-test.sh with the new scenarios, run against the unchanged toolkit/dogfood.sh (0.9.1, HEAD e8885c3)
+=== session-start is silent on the copy ===
+=== session-start warns when the variable is unset ===
+=== session-start names the promotion when the copy is absent ===
+FAIL: session-start with the copy absent: systemMessage names just dogfood: .systemMessage | contains("just dogfood") is not true over stdout '{"systemMessage":"\u001b[0mdogfood: this session does not load /tmp/tmp.qkOOnMoZc8/my consumer/dist/plugin — launch claude through plugin-dev/bin/claude from the repo root","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"This session does not load /tmp/tmp.qkOOnMoZc8/my consumer/dist/plugin, so plugin behaviour observed in it is not that of the promoted copy."}}'
+FAIL: session-start with the copy absent: systemMessage does not name the shim launch: .systemMessage | contains("launch claude through") | not is not true over stdout '{"systemMessage":"\u001b[0mdogfood: this session does not load /tmp/tmp.qkOOnMoZc8/my consumer/dist/plugin — launch claude through plugin-dev/bin/claude from the repo root","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"This session does not load /tmp/tmp.qkOOnMoZc8/my consumer/dist/plugin, so plugin behaviour observed in it is not that of the promoted copy."}}'
+FAIL: session-start with the copy absent: additionalContext states no copy exists: .hookSpecificOutput.additionalContext | ascii_downcase | contains("no copy exists") is not true over stdout '{"systemMessage":"\u001b[0mdogfood: this session does not load /tmp/tmp.qkOOnMoZc8/my consumer/dist/plugin — launch claude through plugin-dev/bin/claude from the repo root","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"This session does not load /tmp/tmp.qkOOnMoZc8/my consumer/dist/plugin, so plugin behaviour observed in it is not that of the promoted copy."}}'
+FAIL: session-start with the copy absent: additionalContext does not name 'promote': .hookSpecificOutput.additionalContext | ascii_downcase | contains($w) | not is not true over stdout '{"systemMessage":"\u001b[0mdogfood: this session does not load /tmp/tmp.qkOOnMoZc8/my consumer/dist/plugin — launch claude through plugin-dev/bin/claude from the repo root","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"This session does not load /tmp/tmp.qkOOnMoZc8/my consumer/dist/plugin, so plugin behaviour observed in it is not that of the promoted copy."}}'
+=== session-start names the promotion when the copy is file ===
+FAIL: session-start with the copy file: systemMessage names just dogfood: .systemMessage | contains("just dogfood") is not true over stdout '{"systemMessage":"\u001b[0mdogfood: this session does not load /tmp/tmp.0S03FO9DXJ/my consumer/dist/plugin — launch claude through plugin-dev/bin/claude from the repo root","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"This session does not load /tmp/tmp.0S03FO9DXJ/my consumer/dist/plugin, so plugin behaviour observed in it is not that of the promoted copy."}}'
+FAIL: session-start with the copy file: systemMessage does not name the shim launch: .systemMessage | contains("launch claude through") | not is not true over stdout '{"systemMessage":"\u001b[0mdogfood: this session does not load /tmp/tmp.0S03FO9DXJ/my consumer/dist/plugin — launch claude through plugin-dev/bin/claude from the repo root","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"This session does not load /tmp/tmp.0S03FO9DXJ/my consumer/dist/plugin, so plugin behaviour observed in it is not that of the promoted copy."}}'
+FAIL: session-start with the copy file: additionalContext states no copy exists: .hookSpecificOutput.additionalContext | ascii_downcase | contains("no copy exists") is not true over stdout '{"systemMessage":"\u001b[0mdogfood: this session does not load /tmp/tmp.0S03FO9DXJ/my consumer/dist/plugin — launch claude through plugin-dev/bin/claude from the repo root","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"This session does not load /tmp/tmp.0S03FO9DXJ/my consumer/dist/plugin, so plugin behaviour observed in it is not that of the promoted copy."}}'
+FAIL: session-start with the copy file: additionalContext does not name 'promote': .hookSpecificOutput.additionalContext | ascii_downcase | contains($w) | not is not true over stdout '{"systemMessage":"\u001b[0mdogfood: this session does not load /tmp/tmp.0S03FO9DXJ/my consumer/dist/plugin — launch claude through plugin-dev/bin/claude from the repo root","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"This session does not load /tmp/tmp.0S03FO9DXJ/my consumer/dist/plugin, so plugin behaviour observed in it is not that of the promoted copy."}}'
+=== session-start matches the copy among several entries ===
+=== session-start matches the copy with a trailing slash ===
+=== session-start matches the copy through a symlink ===
+=== session-start invoked through a symlinked repo matches the physical copy ===
+=== session-start matches the copy of a root ending in a newline ===
+=== session-start keeps a resolved entry's trailing newline ===
+=== session-start does not resolve a relative entry ===
+=== session-start passes over a directory it cannot enter ===
+=== session-start warns on another repo's real copy ===
+=== session-start warns on a longer, non-existent entry ===
+=== session-start warns on a longer, real entry ===
+=== session-start reports a missing jq on systemMessage only ===
+
+8 failure(s)
+rc=1

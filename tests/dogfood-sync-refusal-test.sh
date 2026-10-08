@@ -220,6 +220,59 @@ fi
 assert_contains "$err" "git: stub failure" "a git failure: the run reached ls-files"
 assert_absent "$consumer/dist" "a git failure: dist/ is not created"
 
+# make_submodule: make $consumer/memory a repo of its own, recorded as a gitlink
+# with a gitfile .git, the shape of a mounted memory submodule, ignoring *.log.
+# No network and no clone, so no protocol.file.allow and no global config.
+make_submodule() {
+    mkdir -p "$consumer/.git/modules"
+    git init -q --separate-git-dir "$consumer/.git/modules/memory" "$consumer/memory"
+    printf '*.log\n' > "$consumer/memory/.gitignore"
+    printf 'a fact\n' > "$consumer/memory/fact.md"
+    git -C "$consumer/memory" add .gitignore fact.md
+    git -C "$consumer/memory" \
+        -c user.name=fixture -c user.email=fixture@example.invalid \
+        -c commit.gpgsign=false commit -q -m fact
+    git -C "$consumer" update-index --add --cacheinfo \
+        "160000,$(git -C "$consumer/memory" rev-parse HEAD),memory"
+    commit_all
+}
+
+echo "=== a git failure inside a submodule stops sync before rsync ==="
+# The stub fails ls-files only when run on the submodule, so the root's own
+# listing succeeds and only the recursion meets the failure. Nothing may reach
+# dist/, as for a failure at the root.
+make_consumer
+make_submodule
+mkdir "$sandbox/stub"
+cat > "$sandbox/stub/git" <<EOF
+#!/usr/bin/env bash
+[[ "\$1" == -C && "\$2" == */memory && " \$* " == *" ls-files "* ]] &&
+    { echo 'git: stub failure in memory' >&2; exit 128; }
+exec "$real_git" "\$@"
+EOF
+chmod +x "$sandbox/stub/git"
+PATH="$sandbox/stub:$PATH" run_dogfood sync
+if [[ "$rc" == "0" ]]; then
+    fail "a git failure inside a submodule: exit code is 0"
+fi
+assert_contains "$err" "git: stub failure in memory" \
+    "a git failure inside a submodule: the run reached the submodule's ls-files"
+assert_absent "$consumer/dist" "a git failure inside a submodule: dist/ is not created"
+
+echo "=== a pattern character inside a submodule aborts ==="
+# memory/a*b.log is ignored by the submodule's own *.log, so it reaches the
+# exclude list as memory/a*b.log and is refused with its prefix, before rsync
+# runs or dist/ is touched.
+make_consumer
+make_submodule
+printf 'noise\n' > "$consumer/memory/a*b.log"
+run_dogfood sync
+assert_eq "$rc" "1" "a pattern character inside a submodule exit code"
+if [[ "$err" != "dogfood: "*"memory/a*b.log"* || "$err" == *$'\n'* ]]; then
+    fail "a pattern character inside a submodule: stderr is not one dogfood: line naming memory/a*b.log: '$err'"
+fi
+assert_absent "$consumer/dist" "a pattern character inside a submodule: dist/ is not created"
+
 echo "=== a symlinked dist/plugin is refused and the root survives ==="
 # dist/plugin links to the root itself, so rsync would mirror the root onto
 # itself and --delete-excluded would delete its .git. Nothing in sync checks

@@ -323,7 +323,7 @@ assert_eq "$rc" "0" "the written pre-tool command runs: exit code"
 assert_contains "$out" '"permissionDecision":"deny"' "the written pre-tool command runs the copy guard"
 run_hook SessionStart ''
 assert_eq "$rc" "0" "the written session-start command runs: exit code"
-assert_contains "$out" "does not load $spaced_p/dist/plugin" "the written session-start command runs the check"
+assert_contains "$out" "no copy at $spaced_p/dist/plugin" "the written session-start command runs the check"
 # Beside, not instead of: "install adds the session-start hook once" above
 # already places the new hook in this same array.
 assert_eq "$(jq '[.hooks.SessionStart[]? | .hooks[]? | select(.command == "echo consumer-start")] | length' "$settings_json")" \

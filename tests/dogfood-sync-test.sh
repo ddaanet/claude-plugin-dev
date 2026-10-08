@@ -343,6 +343,52 @@ for p in memory memory/tier; do
     assert_absent "$consumer/dist/plugin/$p/.git" "a nested repo's .git stays out: $p"
 done
 
+echo "=== a path ignored inside a submodule stays out ==="
+# sub/ is a real submodule, and sub/inner/ a submodule of it; each ignores
+# its own build/ through its own .gitignore, which the superproject's
+# ls-files does not read. Each absent build/ pairs with a copied tracked file
+# beside it, so a sync that dropped submodules whole would not pass. The
+# fixture's git reads no global or system config: its submodules come from
+# local paths, which protocol.file.allow must permit, and an excludes file of
+# the machine's could ignore build/ on its own.
+make_consumer
+fixture_git() {
+    GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git \
+        -c user.name=fixture -c user.email=fixture@example.invalid \
+        -c commit.gpgsign=false -c protocol.file.allow=always "$@"
+}
+for src in inner-src sub-src; do
+    fixture_git init -q "$sandbox/$src"
+    printf '/build/\n' > "$sandbox/$src/.gitignore"
+    printf 'tracked\n' > "$sandbox/$src/tool.md"
+    [[ "$src" == inner-src ]] ||
+        fixture_git -C "$sandbox/$src" submodule add -q "$sandbox/inner-src" inner
+    fixture_git -C "$sandbox/$src" add -A
+    fixture_git -C "$sandbox/$src" commit -q -m "$src"
+done
+fixture_git -C "$consumer" submodule add -q "$sandbox/sub-src" sub
+fixture_git -C "$consumer" submodule update -q --init --recursive
+fixture_git -C "$consumer" commit -q -m submodule
+for p in sub sub/inner; do
+    mkdir "$consumer/$p/build"
+    printf 'noise\n' > "$consumer/$p/build/out.bin"
+    assert_eq "$(fixture_git -C "$consumer/$p" ls-files -z -o -i --exclude-standard --directory |
+        tr '\0' '|')" "build/|" "a path ignored inside a submodule: $p's own ignore list"
+done
+assert_eq "$(fixture_git -C "$consumer" ls-files -z -o -i --exclude-standard --directory |
+    tr '\0' '|')" "" "a path ignored inside a submodule: the superproject's ignore list"
+run_dogfood sync
+assert_eq "$rc" "0" "a path ignored inside a submodule exit code"
+assert_eq "$err" "" "a path ignored inside a submodule prints nothing on stderr"
+for p in sub sub/inner; do
+    assert_file "$consumer/dist/plugin/$p/tool.md" \
+        "a path ignored inside a submodule: $p/tool.md is copied"
+    assert_absent "$consumer/dist/plugin/$p/build" \
+        "a path ignored inside a submodule: $p/build is left out"
+    assert_absent "$consumer/dist/plugin/$p/.git" \
+        "a path ignored inside a submodule: $p/.git is left out"
+done
+
 echo "=== sync never recurses into the copy ==="
 # Checked after each sync. The first is the one only the script's own hard
 # /dist/plugin/ exclude protects: the copy does not exist when git lists the
