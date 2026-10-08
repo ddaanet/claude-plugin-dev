@@ -74,8 +74,8 @@ was touched; no release was cut.
 
 ## Precommit
 
-Green (`just precommit`, rc 0, run on the full working tree before the
-commits, and again by the pre-commit hook on each commit). Passed: whitespace,
+Green (`just precommit`, rc 0, run on the full working tree before the commits,
+and again by the pre-commit hook on each commit). Passed: whitespace,
 format-docs (rumdl; only pre-existing MD013 warnings on unbreakable lines),
 shellcheck over every toolkit script, `bash -n` over every suite,
 `_import-check`, then version-guard, check-version, release, self-release,
@@ -91,12 +91,16 @@ no copy and looked for `does not load <copy>`. It now looks for
 
 ## Commits
 
-- `55cce9f` `🐛 dogfood session-start names just dogfood with no copy, sync
-  honours submodule ignores` — script, the four test files, outline, red files.
-  The gitlore pre-commit hook also staged the `memory` gitlink into it (the
-  submodule had moved before this session; not staged by hand).
-- The `docs:` commit carrying this report — `docs/references/dogfood.md`,
-  `toolkit/README.md`, the changelog record and index bullet, this file.
+- `55cce9f`
+  `🐛 dogfood session-start names just dogfood with no copy, sync honours submodule ignores`
+  — script, the four test files, outline, red files. The gitlore pre-commit hook
+  also staged the `memory` gitlink into it (the submodule had moved before this
+  session; not staged by hand).
+- `e98af36` `📝 dogfood no-copy session warning and submodule ignores` —
+  `docs/references/dogfood.md`, `toolkit/README.md`, the changelog record and
+  index bullet, this file.
+- A final `docs:` commit with this file's commit list and the reflow
+  `just format-docs` applied to it during the previous commit's hook.
 
 ## Left open
 
