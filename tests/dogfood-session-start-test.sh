@@ -144,6 +144,21 @@ assert_eq "$rc" "0" "$label exit code"
 assert_eq "$out" "" "$label prints nothing on stdout"
 assert_eq "$err" "" "$label prints nothing on stderr"
 
+# The same entry with no copy on disk: the match is decided by the variable
+# alone, before the no-copy check. A check run first would warn here that no
+# copy exists, in a session that did name the path.
+echo "=== session-start is silent on the copy named before any sync ==="
+make_consumer
+root="$(cd "$consumer" && pwd -P)"
+label="session-start is silent on the copy named before any sync"
+if [[ -e "$root/dist" ]]; then
+    fail "$label: the fixture already has a dist/"
+fi
+CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin" run_session_start
+assert_eq "$rc" "0" "$label exit code"
+assert_eq "$out" "" "$label prints nothing on stdout"
+assert_eq "$err" "" "$label prints nothing on stderr"
+
 echo "=== session-start warns when the variable is unset ==="
 make_consumer
 run_dogfood sync

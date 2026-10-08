@@ -1,0 +1,38 @@
+line 97 now:         :
+##### M1 mutant: line 97 guard replaced by ':' -- tests/dogfood-sync-test.sh
+FAIL: an uninitialised submodule exit code: expected '0', got '124'
+FAIL: an uninitialised submodule: the rest of the tree is copied: '/tmp/tmp.ipGX7Dyhj2/my consumer/dist/plugin/skills/demo/SKILL.md' is not a regular file
+FAIL: an uninitialised submodule: the empty directory is missing from the copy
+
+3 failure(s)
+rc=1
+
+line 79 now:     dir="$1" prefix="$2" ignored staged entry
+##### M2a mutant: 'local' removed literally (first 6 lines; every sync dies rc 127 'ignored: command not found', so this proves nothing about siblings) -- tests/dogfood-sync-test.sh
+FAIL: sync copies a tracked file exit code: expected '0', got '127'
+FAIL: sync copies a tracked file: '/tmp/tmp.ksF5s1GAmx/my consumer/dist/plugin/skills/demo/SKILL.md' is not a regular file
+FAIL: sync copies a tracked file: copy bytes differ from the source
+FAIL: sync leaves out an ignored file exit code: expected '0', got '127'
+FAIL: sync leaves out an ignored file: the copy exists: '/tmp/tmp.D4MZtjPiMr/my consumer/dist/plugin/skills/demo/SKILL.md' is not a regular file
+FAIL: sync leaves out an ignored file: a tracked root-level file is copied: '/tmp/tmp.D4MZtjPiMr/my consumer/dist/plugin/kept.log' is not a regular file
+
+line 79 now:     dir="$1" prefix="$2"; local ignored staged entry
+##### M2b mutant: dir and prefix not local (the state a dropped 'local' shares between levels) -- tests/dogfood-sync-test.sh
+FAIL: a path ignored inside a submodule: tail sub/build is left out: '/tmp/tmp.wRkbFr8omi/my consumer/dist/plugin/tail sub/build' exists
+
+1 failure(s)
+rc=1
+
+line 93 now:     git -C "$dir" ls-files -z -s >"$staged" || true
+##### m1 mutant: -s listing ends || true -- tests/dogfood-sync-refusal-test.sh
+FAIL: a git failure on the gitlink listing: exit code is 0
+FAIL: a git failure on the gitlink listing: dist/ is not created: '/tmp/tmp.fPd3EIogdI/my consumer/dist' exists
+
+2 failure(s)
+rc=1
+
+##### m2 mutant: no-copy -d block moved above the entry loop -- tests/dogfood-session-start-test.sh
+FAIL: session-start is silent on the copy named before any sync prints nothing on stdout: expected '', got '{"systemMessage":"\u001b[0mdogfood: no copy at /tmp/tmp.R7mTDzsZCB/my consumer/dist/plugin, so this session does not load it; run just dogfood to create it, then relaunch","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"No copy exists at /tmp/tmp.R7mTDzsZCB/my consumer/dist/plugin, so this session loads none; plugin behaviour observed in it does not come from that path."}}'
+
+1 failure(s)
+rc=1

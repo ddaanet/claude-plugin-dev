@@ -86,9 +86,9 @@ or removing a shipped file means updating the list in
 - `docs/design.md` — the design hub: motivation, requirements,
   limitations, and a one-line conclusion per decision. States what the
   toolkit *is*. Read it first and open only the node you need.
-- `docs/references/*.md` — one node per group of decisions
-  (`distribution`, `dogfood`, `release-flow`, `recovery`,
-  `self-release`, `version-guard`), each holding the argument behind
+- `docs/references/*.md` — one node per group of decisions (a large group may take more than one)
+  (`distribution`, `dogfood`, `dogfood-sync`, `release-flow`,
+  `recovery`, `self-release`, `version-guard`), each holding the argument behind
   the hub's conclusions: alternatives weighed, the bug that motivated
   it, what it costs. A decision that changes is rewritten in both places.
 - `docs/changelog.md` — index of write-time records, newest first, one

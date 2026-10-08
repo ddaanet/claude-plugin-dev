@@ -206,7 +206,7 @@ the dated record of the reversal goes in the changelog.
   computed after the deny is decided may fail, so every status the wording
   depends on is absorbed rather than propagated.
 
-### The dogfood launcher — [references/dogfood.md](references/dogfood.md)
+### The dogfood launcher — [references/dogfood.md](references/dogfood.md), [references/dogfood-sync.md](references/dogfood-sync.md)
 
 - **The session loads a real copy at `dist/plugin/`, not a symlink** — Claude
   Code resolves inline roots through `realpath`, so a symlinked root flags the

@@ -15,7 +15,6 @@ Newest first.
   agent only that no copy exists. The sync's ignore list is now built per repo,
   recursing into initialised submodules, so a path a submodule ignores no longer
   reaches the copy
-
 - [2026-10-05 — The dogfood shim stops syncing: `just dogfood` is the only promotion](changelog/2026-10-05-the-shim-stops-syncing.md)
   — a launch, a relaunch or any `claude` through the shim no longer promotes the
   working tree, a launch with no copy warns with a line naming `just dogfood`

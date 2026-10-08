@@ -259,6 +259,28 @@ assert_contains "$err" "git: stub failure in memory" \
     "a git failure inside a submodule: the run reached the submodule's ls-files"
 assert_absent "$consumer/dist" "a git failure inside a submodule: dist/ is not created"
 
+echo "=== a git failure on the gitlink listing stops sync before rsync ==="
+# The stub fails ls-files only when asked for the staged listing, -s, which
+# comes after the ignored listing: that one succeeds, so only the gitlink
+# listing meets the failure. A listing that swallowed it would skip the repo's
+# submodules in silence and let rsync copy their ignored files.
+make_consumer
+mkdir "$sandbox/stub"
+cat > "$sandbox/stub/git" <<EOF
+#!/usr/bin/env bash
+[[ " \$* " == *" ls-files "* && " \$* " == *" -s "* ]] &&
+    { echo 'git: stub failure on -s' >&2; exit 128; }
+exec "$real_git" "\$@"
+EOF
+chmod +x "$sandbox/stub/git"
+PATH="$sandbox/stub:$PATH" run_dogfood sync
+if [[ "$rc" == "0" ]]; then
+    fail "a git failure on the gitlink listing: exit code is 0"
+fi
+assert_contains "$err" "git: stub failure on -s" \
+    "a git failure on the gitlink listing: the run reached the -s listing"
+assert_absent "$consumer/dist" "a git failure on the gitlink listing: dist/ is not created"
+
 echo "=== a pattern character inside a submodule aborts ==="
 # memory/a*b.log is ignored by the submodule's own *.log, so it reaches the
 # exclude list as memory/a*b.log and is refused with its prefix, before rsync

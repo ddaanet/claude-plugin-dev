@@ -111,9 +111,13 @@ make_decoy() {
 run_dogfood() {
     mkdir -p "$sandbox/elsewhere"
     local errfile="$sandbox/stderr"
+    # A sync that recurses without bound would hang the suite, not fail it; where
+    # timeout exists it ends the run at rc 124. Elsewhere the hang stands.
+    local guard=()
+    if command -v timeout >/dev/null; then guard=(timeout 20); fi
     set +e
     out="$(cd "$sandbox" && CLAUDE_PROJECT_DIR="$sandbox/elsewhere" \
-        bash "$consumer/plugin-dev/dogfood.sh" "$@" 2>"$errfile")"
+        ${guard[@]+"${guard[@]}"} bash "$consumer/plugin-dev/dogfood.sh" "$@" 2>"$errfile")"
     rc=$?
     set -e
     err="$(cat "$errfile")"
@@ -344,10 +348,13 @@ for p in memory memory/tier; do
 done
 
 echo "=== a path ignored inside a submodule stays out ==="
-# sub/ is a real submodule, and sub/inner/ a submodule of it; each ignores
-# its own build/ through its own .gitignore, which the superproject's
-# ls-files does not read. Each absent build/ pairs with a copied tracked file
-# beside it, so a sync that dropped submodules whole would not pass. The
+# sub/ is a real submodule, and sub/inner/ a submodule of it; "tail sub/" is a
+# sibling of sub/ that sorts after it. Each ignores its own build/ through its
+# own .gitignore, which the superproject's ls-files does not read. Each absent
+# build/ pairs with a copied tracked file beside it, so a sync that dropped
+# submodules whole would not pass. "tail sub/" is the one a loop meets only
+# after the recursion into sub/ has returned: a recursion that leaked its state
+# into the loop would skip it and copy its build/. The
 # fixture's git reads no global or system config: its submodules come from
 # local paths, which protocol.file.allow must permit, and an excludes file of
 # the machine's could ignore build/ on its own.
@@ -357,19 +364,20 @@ fixture_git() {
         -c user.name=fixture -c user.email=fixture@example.invalid \
         -c commit.gpgsign=false -c protocol.file.allow=always "$@"
 }
-for src in inner-src sub-src; do
+for src in inner-src sub-src tail-src; do
     fixture_git init -q "$sandbox/$src"
     printf '/build/\n' > "$sandbox/$src/.gitignore"
     printf 'tracked\n' > "$sandbox/$src/tool.md"
-    [[ "$src" == inner-src ]] ||
+    [[ "$src" != sub-src ]] ||
         fixture_git -C "$sandbox/$src" submodule add -q "$sandbox/inner-src" inner
     fixture_git -C "$sandbox/$src" add -A
     fixture_git -C "$sandbox/$src" commit -q -m "$src"
 done
 fixture_git -C "$consumer" submodule add -q "$sandbox/sub-src" sub
+fixture_git -C "$consumer" submodule add -q "$sandbox/tail-src" "tail sub"
 fixture_git -C "$consumer" submodule update -q --init --recursive
 fixture_git -C "$consumer" commit -q -m submodule
-for p in sub sub/inner; do
+for p in sub sub/inner "tail sub"; do
     mkdir "$consumer/$p/build"
     printf 'noise\n' > "$consumer/$p/build/out.bin"
     assert_eq "$(fixture_git -C "$consumer/$p" ls-files -z -o -i --exclude-standard --directory |
@@ -380,7 +388,7 @@ assert_eq "$(fixture_git -C "$consumer" ls-files -z -o -i --exclude-standard --d
 run_dogfood sync
 assert_eq "$rc" "0" "a path ignored inside a submodule exit code"
 assert_eq "$err" "" "a path ignored inside a submodule prints nothing on stderr"
-for p in sub sub/inner; do
+for p in sub sub/inner "tail sub"; do
     assert_file "$consumer/dist/plugin/$p/tool.md" \
         "a path ignored inside a submodule: $p/tool.md is copied"
     assert_absent "$consumer/dist/plugin/$p/build" \
@@ -388,6 +396,35 @@ for p in sub sub/inner; do
     assert_absent "$consumer/dist/plugin/$p/.git" \
         "a path ignored inside a submodule: $p/.git is left out"
 done
+
+echo "=== an uninitialised submodule is copied empty and not entered ==="
+# "bare sub" is a gitlink whose checkout was never initialised, as in a
+# consumer cloned without --recursive: an empty directory, no .git. A git run
+# in it finds the superproject and lists the same gitlink again, so a sync that
+# entered it would recurse without end; run_dogfood's timeout turns that into a
+# non-zero rc where one exists. The empty directory is present in the copy.
+make_consumer
+fixture_git init -q "$sandbox/bare-src"
+printf 'tracked\n' > "$sandbox/bare-src/tool.md"
+fixture_git -C "$sandbox/bare-src" add -A
+fixture_git -C "$sandbox/bare-src" commit -q -m bare-src
+fixture_git -C "$consumer" submodule add -q "$sandbox/bare-src" "bare sub"
+fixture_git -C "$consumer" submodule deinit -q -f "bare sub"
+fixture_git -C "$consumer" commit -q -m uninitialised
+assert_eq "$(git -C "$consumer" ls-files -s "bare sub" | cut -c1-6)" "160000" \
+    "an uninitialised submodule: bare sub is a gitlink in the fixture"
+assert_absent "$consumer/bare sub/.git" \
+    "an uninitialised submodule: the fixture's bare sub holds no .git"
+run_dogfood sync
+assert_eq "$rc" "0" "an uninitialised submodule exit code"
+assert_eq "$err" "" "an uninitialised submodule prints nothing on stderr"
+assert_file "$consumer/dist/plugin/skills/demo/SKILL.md" \
+    "an uninitialised submodule: the rest of the tree is copied"
+if [[ ! -d "$consumer/dist/plugin/bare sub" ]]; then
+    fail "an uninitialised submodule: the empty directory is missing from the copy"
+elif [[ -n "$(ls -A "$consumer/dist/plugin/bare sub")" ]]; then
+    fail "an uninitialised submodule: the directory in the copy is not empty"
+fi
 
 echo "=== sync never recurses into the copy ==="
 # Checked after each sync. The first is the one only the script's own hard
