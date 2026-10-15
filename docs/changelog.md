@@ -9,6 +9,9 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-15 — The release recipes are issued bare, not with the bypass flag](changelog/2026-10-15-release-bare-not-bypass-flag.md)
+  — the marketplace-writability refusal named a flag auto mode denies; it now
+  names a `sandbox.excludedCommands` entry and a bare call.
 - [2026-10-15 — A plugin can publish an allowlisted `dist` branch, and created marketplace entries use a `url` source](changelog/2026-10-15-dist-branch-release.md)
   — the plugin directory refuses a plugin folder holding a gitlink, so a plugin
   listing its shipped paths in `dist.include` has each release publish a branch

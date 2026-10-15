@@ -406,6 +406,12 @@ version-guard:
   maintainer's to make, and the one the version-guard hook refuses from an
   agent. Passing a bump on a first release is refused. Afterwards the
   last-released rule above applies as normal.
+- An agent issues `just release` and `just resume-release` **bare**: alone in
+  the Bash call, with no `cd … &&` prefix and no trailing `; echo`. Both write
+  the marketplace checkout and push, which the command sandbox blocks, so list
+  `"just release *"` and `"just resume-release *"` in `sandbox.excludedCommands`.
+  A compound call is not covered by the entry and stays sandboxed, and under
+  auto mode the `dangerouslyDisableSandbox` flag gets the call denied.
 - Default branch is auto-detected from `origin/HEAD`; recipes don't hardcode
   `main`.
 - The version-guard hook fires on Write/Edit events targeting
