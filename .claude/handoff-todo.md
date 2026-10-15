@@ -1,10 +1,5 @@
-## Open decisions
-
-- Release 0.9.2 straight away, or only after the deliverable review of `e8885c3..HEAD`. Default: review first; the last two reviews each found real majors.
-
 ## Remaining
 
-- Relay the 0.9.2 review findings, fix what my human partner accepts, then `just release patch`. It runs past the Bash 10-minute cap; wait for the notification, and use dangerouslyDisableSandbox.
-- Dogfood 0.9.2 in handoff the same day: `just update-plugin-dev dist-v0.9.2` there. The auto-mode classifier refuses `install.sh` and some commits, so hand my human partner verbatim commands for those; handoff's gate needs its own `.venv` first on PATH.
-- `docs/references/dogfood.md` is at exactly 400 lines: its next addition needs a split.
-- Unprobed, recorded in the dogfood node: hooks firing twice in the gitlore evals under the shim, an empty plugin-root `.mcp.json`, `/reload-plugins` scope for commands/`.mcp.json`/output styles, jq 1.6's parse-error status.
+- Dist-branch plan slices 0–4, then `just release minor` (0.10.0) and dogfood on handoff: `just update-plugin-dev dist-v0.10.0`, add `dist.include`, `just dogfood`, a handoff release creating `dist`.
+- Migrate each other plugin that vendors the toolkit to 0.9.3: `just update-plugin-dev dist-v0.9.3`, then `bash plugin-dev/install.sh` from the human's own shell, then commit `.claude/settings.json`. Handoff is done; its gate needs its own `.venv` first on PATH.
+- Before gitlore adopts the dogfood shim: its evals copy `hooks/hooks.json` into the eval repo's settings and run `claude` from PATH, so under the shim with a `dist/plugin` present each hook fires twice (probed on CC 2.1.294). Decide how the evals avoid the plugin's copy loading as well.

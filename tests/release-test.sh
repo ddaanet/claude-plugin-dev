@@ -249,6 +249,9 @@ assert_eq "$(git -C "$plugin" ls-remote origin refs/tags/v1.2.4 | wc -l | tr -d 
     "1" "tag pushed to origin"
 assert_contains "$(cat "$GH_LOG")" "release create v1.2.4" "gh release created"
 assert_eq "$(market_version)" "1.2.4" "marketplace bumped"
+assert_eq "$(jq -c '.plugins[] | select(.name=="fixture") | .source' \
+    "$marketplace/.claude-plugin/marketplace.json")" \
+    '{"source":"github","repo":"o/fixture"}' "existing entry source untouched by bump"
 assert_eq "$(git -C "$marketplace" log -1 --format=%s)" "release: fixture 1.2.4" "marketplace commit"
 
 echo "=== release: first publication creates the marketplace entry ==="
@@ -259,13 +262,16 @@ assert_contains "$out" "marketplace: entry created at 1.3.0" "first-publication 
 entry="$(jq -c '.plugins[] | select(.name=="fixture")' \
     "$marketplace/.claude-plugin/marketplace.json")"
 assert_eq "$(printf '%s' "$entry" | jq -r .version)" "1.3.0" "created entry version"
-assert_eq "$(printf '%s' "$entry" | jq -r .source.source)" "github" "created entry source type"
 assert_eq "$(printf '%s' "$entry" | jq -r .license)" "MIT" "created entry license from manifest"
 assert_eq "$(printf '%s' "$entry" | jq -r .description)" "test fixture" "created entry description"
-# The repo slug is derived from origin, which is a local path in the fixture:
-# it must be a non-empty owner/repo pair, not the whole path.
-assert_eq "$(printf '%s' "$entry" | jq -r '.source.repo | split("/") | length')" \
-    "2" "created entry repo slug shape"
+# The source is a url source whose url is built from the owner/repo slug
+# derived from origin. Origin is a local path in the fixture, so the slug is
+# its last two components: the sandbox dir and "plugin-origin". The expected
+# value is spelled from that fixture fact, not derived with the script's sed.
+expected_source="$(jq -cn --arg u "https://github.com/$(basename "$sandbox")/plugin-origin.git" \
+    '{source: "url", url: $u}')"
+assert_eq "$(printf '%s' "$entry" | jq -c .source)" "$expected_source" \
+    "created entry source is a url source"
 
 echo "=== resume: completes a release whose push was rejected ==="
 new_sandbox "1.2.3"
