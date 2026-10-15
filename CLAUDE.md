@@ -65,6 +65,10 @@ or removing a shipped file means updating the list in
 - `toolkit/README.md` — the consumer-facing manual, shipped in the dist
   tree. The place a plugin maintainer reads; keep it in step with the
   scripts above.
+- `toolkit/docs/dist-branch.md` — the manual's dist-branch chapter: how a
+  plugin opts in with `dist.include`, and what each check refuses or warns
+  about. Split out of `toolkit/README.md`, which keeps a stub section
+  pointing here, so the manual stays under the 400-line cap.
 - `toolkit/migrations/vX.Y.Z.md` — optional per-release note for a step a
   consumer must take by hand. Printed by `update.sh` for the crossed range;
   `tests/dist-tree-test.sh` allows this path and no other under

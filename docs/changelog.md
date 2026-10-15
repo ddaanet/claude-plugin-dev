@@ -9,6 +9,9 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-15 — The manual's dist-branch section moves to its own file](changelog/2026-10-15-manual-dist-branch-chapter.md)
+  — `toolkit/README.md` was over the 400-line cap; the opt-in dist-branch
+  chapter moves to `toolkit/docs/dist-branch.md`, leaving a stub and pointer.
 - [2026-10-15 — The release recipes are issued bare, not with the bypass flag](changelog/2026-10-15-release-bare-not-bypass-flag.md)
   — the marketplace-writability refusal named a flag auto mode denies; it now
   names a `sandbox.excludedCommands` entry and a bare call.
