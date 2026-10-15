@@ -442,6 +442,176 @@ assert_file "$consumer/dist/plugin/skills/demo/SKILL.md" \
     "sync never recurses into the copy: the copy exists"
 assert_absent "$consumer/dist/plugin/dist/plugin" "sync never recurses into the copy"
 
+# vendor_dist: put the shipped dist.sh beside dogfood.sh, as a consumer vendors
+# both under plugin-dev/. Existing scenarios do not call it: they run with
+# dogfood.sh alone and no dist.include, the pre-allowlist shape.
+vendor_dist() {
+    cp "$repo_root/toolkit/dist.sh" "$consumer/plugin-dev/dist.sh"
+}
+
+# set_include <lines...>: write the consumer's dist.include, one per line.
+set_include() {
+    printf '%s\n' "$@" > "$consumer/dist.include"
+}
+
+# make_allowlisted: a consumer with dist.sh vendored and an allowlist naming a
+# plain directory, a directory whose name has a space, a nested file whose
+# sibling is unlisted, and a root file. Unlisted decoys sit beside each listed
+# thing, so an absence is paired with a presence differing only in the listing.
+make_allowlisted() {
+    make_consumer
+    vendor_dist
+    printf 'cache.log\n' >> "$consumer/.gitignore"
+    mkdir -p "$consumer/my docs" "$consumer/a/b" "$consumer/other dir" \
+        "$consumer/skills/demo/deep/er"
+    printf 'doc\n' > "$consumer/my docs/guide.md"
+    printf 'nested\n' > "$consumer/a/b/file"
+    printf 'sibling\n' > "$consumer/a/b/sibling"
+    printf 'cousin\n' > "$consumer/a/other"
+    printf 'unlisted\n' > "$consumer/other dir/x.md"
+    printf 'listed\n' > "$consumer/README.md"
+    printf 'unlisted\n' > "$consumer/NOTES.md"
+    printf 'deep\n' > "$consumer/skills/demo/deep/er/leaf.md"
+    printf 'noise\n' > "$consumer/skills/demo/cache.log"
+    mkdir -p "$consumer/a b/c d"
+    printf 'spaced\n' > "$consumer/a b/c d/file"
+    printf 'sibling\n' > "$consumer/a b/c d/sibling"
+    printf 'cousin\n' > "$consumer/a b/other"
+    set_include .claude-plugin skills "my docs" a/b/file "a b/c d/file" README.md
+    commit_all
+}
+
+echo "=== allowlist: only listed paths are copied ==="
+make_allowlisted
+run_dogfood sync
+assert_eq "$rc" "0" "allowlist copies listed paths exit code"
+assert_eq "$err" "" "allowlist copies listed paths prints nothing on stderr"
+assert_file "$consumer/dist/plugin/skills/demo/SKILL.md" "allowlist: a listed directory is copied"
+assert_file "$consumer/dist/plugin/.claude-plugin/plugin.json" "allowlist: a listed dot-directory is copied"
+assert_file "$consumer/dist/plugin/README.md" "allowlist: a listed root file is copied"
+assert_absent "$consumer/dist/plugin/NOTES.md" "allowlist: an unlisted root file is left out"
+assert_absent "$consumer/dist/plugin/dist.include" "allowlist: an unlisted dist.include is left out"
+assert_absent "$consumer/dist/plugin/other dir" "allowlist: an unlisted directory is left out"
+assert_absent "$consumer/dist/plugin/plugin-dev" "allowlist: the vendored toolkit is left out"
+
+echo "=== allowlist: listed directories are copied in full ==="
+assert_file "$consumer/dist/plugin/skills/demo/deep/er/leaf.md" \
+    "allowlist: a deep file inside a listed directory is copied"
+if ! cmp -s "$consumer/skills/demo/deep/er/leaf.md" "$consumer/dist/plugin/skills/demo/deep/er/leaf.md"; then
+    fail "allowlist: the deep file's bytes differ from the source"
+fi
+
+echo "=== allowlist: a listed path with a space, and a nested listed file ==="
+assert_file "$consumer/dist/plugin/my docs/guide.md" "allowlist: a listed directory with a space is copied"
+assert_file "$consumer/dist/plugin/a/b/file" "allowlist: a listed nested file is copied via its parent rules"
+assert_absent "$consumer/dist/plugin/a/b/sibling" "allowlist: the unlisted sibling of a listed nested file is left out"
+assert_absent "$consumer/dist/plugin/a/other" "allowlist: an unlisted file in a listed file's grandparent is left out"
+assert_file "$consumer/dist/plugin/a b/c d/file" "allowlist: a listed file with spaces in nested parents is copied"
+assert_absent "$consumer/dist/plugin/a b/c d/sibling" "allowlist: the unlisted sibling under spaced parents is left out"
+assert_absent "$consumer/dist/plugin/a b/other" "allowlist: an unlisted file beside a spaced parent is left out"
+
+echo "=== allowlist: untracked and ignored files inside a listed directory ==="
+printf 'fresh\n' > "$consumer/skills/demo/untracked.md"
+# Untracked, not yet ignored: a tracked file would stay on disk after being ignored.
+printf 'late\n' > "$consumer/skills/demo/later.log"
+run_dogfood sync
+assert_eq "$rc" "0" "allowlist untracked/ignored exit code"
+assert_file "$consumer/dist/plugin/skills/demo/untracked.md" \
+    "allowlist: an untracked file inside a listed directory is copied"
+assert_absent "$consumer/dist/plugin/skills/demo/cache.log" \
+    "allowlist: an ignored file inside a listed directory is left out"
+assert_absent "$consumer/dist/plugin/NOTES.md" "allowlist: still left out on a second sync"
+assert_file "$consumer/dist/plugin/skills/demo/later.log" "allowlist become-ignored: copied while not ignored"
+printf 'later.log\n' >> "$consumer/.gitignore"
+run_dogfood sync
+assert_eq "$rc" "0" "allowlist become-ignored exit code"
+assert_absent "$consumer/dist/plugin/skills/demo/later.log" \
+    "allowlist become-ignored: a copied file that becomes ignored leaves the copy"
+assert_file "$consumer/dist/plugin/skills/demo/untracked.md" "allowlist become-ignored: its untracked neighbour stays"
+
+echo "=== allowlist: a file deleted from a listed directory leaves the copy ==="
+assert_file "$consumer/dist/plugin/skills/demo/untracked.md" "allowlist deletion: present before"
+rm "$consumer/skills/demo/untracked.md" "$consumer/skills/demo/deep/er/leaf.md"
+run_dogfood sync
+assert_eq "$rc" "0" "allowlist deletion exit code"
+assert_absent "$consumer/dist/plugin/skills/demo/untracked.md" "allowlist deletion: the deleted file leaves the copy"
+assert_absent "$consumer/dist/plugin/skills/demo/deep/er/leaf.md" "allowlist deletion: a deleted deep file leaves the copy"
+assert_file "$consumer/dist/plugin/skills/demo/SKILL.md" "allowlist deletion: the rest of the directory stays"
+
+echo "=== allowlist: a path dropped from the list leaves the copy ==="
+set_include .claude-plugin skills README.md
+run_dogfood sync
+assert_eq "$rc" "0" "allowlist shrink exit code"
+assert_absent "$consumer/dist/plugin/my docs" "allowlist shrink: a no-longer-listed directory leaves the copy"
+assert_absent "$consumer/dist/plugin/a" "allowlist shrink: a no-longer-listed nested file and its parents leave the copy"
+assert_file "$consumer/dist/plugin/README.md" "allowlist shrink: a still-listed file stays"
+
+echo "=== allowlist: a listed path that is missing refuses and leaves the copy intact ==="
+make_allowlisted
+run_dogfood sync
+assert_eq "$rc" "0" "allowlist refusal setup: first sync exit code"
+printf 'sentinel\n' > "$consumer/dist/plugin/SENTINEL"
+before="$(cd "$consumer/dist/plugin" && find . | LC_ALL=C sort)"
+printf 'changed\n' > "$consumer/skills/demo/SKILL.md"
+printf 'new\n' > "$consumer/skills/demo/added.md"
+set_include .claude-plugin skills README.md "no such.md"
+run_dogfood sync
+if [[ "$rc" == 0 ]]; then fail "allowlist missing path: sync exited 0"; fi
+assert_contains "$err" "no such.md" "allowlist missing path: the message names the path"
+assert_file "$consumer/dist/plugin/SENTINEL" "allowlist missing path: the sentinel survives"
+assert_eq "$(cd "$consumer/dist/plugin" && find . | LC_ALL=C sort)" "$before" \
+    "allowlist missing path: the copy's listing is unchanged"
+assert_eq "$(cat "$consumer/dist/plugin/skills/demo/SKILL.md")" "# demo skill" \
+    "allowlist missing path: the copy holds the previous bytes"
+assert_absent "$consumer/dist/plugin/skills/demo/added.md" "allowlist missing path: a new source file did not land"
+
+echo "=== allowlist: .git and dist/plugin are never copied from a listed directory ==="
+make_consumer
+vendor_dist
+mkdir -p "$consumer/skills/demo/.git" "$consumer/dist"
+printf 'ref: x\n' > "$consumer/skills/demo/.git/HEAD"
+printf 'tracked\n' > "$consumer/dist/keep.md"
+set_include .claude-plugin skills dist
+commit_all
+assert_file "$consumer/skills/demo/.git/HEAD" "allowlist .git/dist: the fixture holds a .git inside a listed directory"
+run_dogfood sync
+assert_eq "$rc" "0" "allowlist .git/dist exit code (first sync)"
+run_dogfood sync
+assert_eq "$rc" "0" "allowlist .git/dist exit code (second sync)"
+assert_file "$consumer/dist/plugin/skills/demo/SKILL.md" "allowlist .git/dist: the listed directory is copied"
+assert_file "$consumer/dist/plugin/dist/keep.md" "allowlist .git/dist: a listed dist/ is copied beside the copy"
+assert_absent "$consumer/dist/plugin/skills/demo/.git" "allowlist .git/dist: a .git inside a listed directory is left out"
+assert_absent "$consumer/dist/plugin/dist/plugin" "allowlist .git/dist: dist/plugin is not copied into itself"
+
+echo "=== no dist.include: an unlisted root file is copied, with dist.sh vendored ==="
+make_consumer
+vendor_dist
+printf 'root\n' > "$consumer/NOTES.md"
+commit_all
+run_dogfood sync
+assert_eq "$rc" "0" "no allowlist exit code"
+assert_file "$consumer/dist/plugin/NOTES.md" "no allowlist: a root file is copied"
+assert_file "$consumer/dist/plugin/skills/demo/SKILL.md" "no allowlist: the tree is copied"
+
+echo "=== no dist.include and no dist.sh: sync behaves as today ==="
+make_consumer
+printf 'root\n' > "$consumer/NOTES.md"
+commit_all
+assert_absent "$consumer/plugin-dev/dist.sh" "no allowlist, no dist.sh: fixture holds no dist.sh"
+run_dogfood sync
+assert_eq "$rc" "0" "no allowlist, no dist.sh exit code"
+assert_file "$consumer/dist/plugin/NOTES.md" "no allowlist, no dist.sh: a root file is copied"
+
+echo "=== dist.include but no dist.sh: the sync is refused, dist untouched ==="
+make_consumer
+printf 'root\n' > "$consumer/NOTES.md"
+set_include .claude-plugin skills
+commit_all
+run_dogfood sync
+if [[ "$rc" == 0 ]]; then fail "allowlist without dist.sh: sync exited 0"; fi
+assert_contains "$err" "dist.sh" "allowlist without dist.sh: the message names dist.sh"
+assert_absent "$consumer/dist" "allowlist without dist.sh: dist/ untouched"
+
 echo "=== unknown subcommand is usage ==="
 make_consumer
 run_dogfood bogus
