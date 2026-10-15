@@ -47,11 +47,14 @@ read here against the local clone only, a bound stated below. See "First release
 publishes the manifest version as-is" in
 [release-flow.md](release-flow.md).
 
-The filter is duplicated rather than shared. `release.sh` runs its flow at top
-level and is not written to be sourced, and a shared helper for one anchored
-`grep -E` would mean a new file in the `dist-` tree — a shipped path in every
-consumer — to spare a line of duplication. The two copies are held in step by a
-single fixture tag set, `vnext` / `v1.2` / `v1.2.3`, exercised by both suites.
+The filter is duplicated rather than shared. Its release-side copy,
+`semver_tags`, lives in `release-tags.sh`, which is written to be sourced into
+`release.sh`'s shell — it leans on that script's `die` helper and globals — so
+sourcing it from the hook would couple a `PreToolUse` hook to the release flow,
+and a standalone helper for one anchored `grep -E` would mean a new file in the
+`dist-` tree — a shipped path in every consumer — to spare a line of
+duplication. The two copies are held in step by a single fixture tag set,
+`vnext` / `v1.2` / `v1.2.3`, exercised by both suites.
 
 The initial-release branch keeps the no-bypass sentence the steady-state one
 carries and offers no escape hatch. Nothing about a plugin being unreleased

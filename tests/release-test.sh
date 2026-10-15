@@ -123,7 +123,7 @@ STUB
   "license": "MIT"
 }
 JSON
-    cp "$repo_root/toolkit/release.sh" "$repo_root/toolkit/check-version.sh" "$plugin/plugin-dev/"
+    cp "$repo_root"/toolkit/*.sh "$plugin/plugin-dev/"
     git -C "$plugin" add -A
     git -C "$plugin" commit -qm "init"
     git -C "$plugin" tag -a v1.2.3 -m "Release 1.2.3"

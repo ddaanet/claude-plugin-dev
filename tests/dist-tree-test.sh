@@ -41,6 +41,10 @@ install.sh
 release.just
 update.sh
 release.sh
+release-marketplace.sh
+release-preflight.sh
+release-publish.sh
+release-tags.sh
 version-guard.sh
 EOF
 )"

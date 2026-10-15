@@ -9,6 +9,9 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-15 — release.sh is split into sourced siblings](changelog/2026-10-15-release-sh-split.md)
+  — `toolkit/release.sh` was 1019 lines; its preflights, tag history, publishing
+  and marketplace bump move to four `release-*.sh` files it sources.
 - [2026-10-15 — The manual's dist-branch section moves to its own file](changelog/2026-10-15-manual-dist-branch-chapter.md)
   — `toolkit/README.md` was over the 400-line cap; the opt-in dist-branch
   chapter moves to `toolkit/docs/dist-branch.md`, leaving a stub and pointer.

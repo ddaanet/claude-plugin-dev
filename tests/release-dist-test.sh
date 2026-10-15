@@ -159,8 +159,7 @@ JSON
     if [ "$optin" = optin ]; then
         printf '%s\n' .claude-plugin README.md skills > "$plugin/dist.include"
     fi
-    cp "$repo_root/toolkit/release.sh" "$repo_root/toolkit/check-version.sh" \
-        "$repo_root/toolkit/dist.sh" "$plugin/plugin-dev/"
+    cp "$repo_root"/toolkit/*.sh "$plugin/plugin-dev/"
     git -C "$plugin" add -A
     git -C "$plugin" commit -qm "init"
     git -C "$plugin" tag -a v1.2.3 -m "Release 1.2.3"
