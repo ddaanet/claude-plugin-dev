@@ -47,6 +47,9 @@ whitespace:
     #!/usr/bin/env bash
     set -euo pipefail
     while IFS= read -r f; do
+        # Listed but gone from the worktree: a deletion not yet staged, or one
+        # staged but left out of a `git commit -- <paths>`, whose hook sees HEAD's index.
+        [ -e "$f" ] || continue
         tmp=$(mktemp)
         git stripspace < "$f" > "$tmp"
         if cmp -s "$f" "$tmp"; then
