@@ -23,6 +23,8 @@ dotfiles).
   `--resume` mode completes a release that landed only partially — a rejected
   push, a failed `gh` call — by probing what already happened and doing only
   what is missing. It is a no-op that says so when everything already landed.
+  Its steps live in four `release-*.sh` files beside it, which it sources;
+  they are not run on their own.
 - **`dist.sh`** — the dist branch's script, used by `release.sh` and
   `dogfood.sh`. It reads `dist.include` and builds, checks, validates and
   commits the tree holding only the listed paths. Not opted in, it does
