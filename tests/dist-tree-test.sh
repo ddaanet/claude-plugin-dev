@@ -34,6 +34,7 @@ README.md
 VERSION
 bin/claude
 check-version.sh
+dist.sh
 dogfood.sh
 install.sh
 release.just

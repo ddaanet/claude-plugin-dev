@@ -34,6 +34,11 @@ or removing a shipped file means updating the list in
   Resolves the newest `dist-` tag when given no ref, refuses any ref
   outside the dist lineage, and prints the migration notes for every
   version the pull crossed.
+- `toolkit/dist.sh` — the dist branch's one script. Reads the `dist.include`
+  allowlist at a consumer's root and builds, checks, validates and commits
+  the tree holding only the listed paths; `release.sh` publishes it as the
+  `dist` branch and `dogfood.sh sync` copies the same set. Not opted in, it
+  does nothing.
 - `toolkit/dogfood.sh` — the dogfood launcher's one script, with three
   subcommands. `sync` mirrors the plugin tree, minus git-ignored paths
   and every `.git`, into `dist/plugin/`, the copy the session loads;
@@ -116,7 +121,8 @@ catch justfile syntax errors, and then **every test under `tests/`** —
 `version-guard-test.sh`, `check-version-test.sh`, `release-test.sh`,
 `self-release-test.sh`, `update-plugin-dev-test.sh`,
 `install-test.sh` (`install.sh`'s vendoring and settings wiring),
-`dist-tree-test.sh` (the shipped-file list), `docs-test.sh` (the
+`dist-tree-test.sh` (the shipped-file list), `dist-test.sh` (`dist.sh`'s
+allowlist, tree build and commit), `docs-test.sh` (the
 400-line cap over `docs/` and `plans/`, plus pointer resolution),
 `doc-sync-test.sh` (the install/update command blocks shared by the two
 READMEs, and the Layout list above against `toolkit/`'s actual
