@@ -59,7 +59,7 @@ check_marketplace_writable() {
     # for the common case, not a cause this probe established.
     local probe
     probe=$(mktemp "$marketplace_dir/.release-writability-check.XXXXXX" 2>&1) \
-        || die "$marketplace_dir is not writable: $probe — release needs to replace marketplace.json there. If this is a Claude Code sandbox restriction: rerun this Bash call with dangerouslyDisableSandbox, or run '/add-dir $MARKETPLACE_DIR' first."
+        || die "$marketplace_dir is not writable: $probe — release needs to replace marketplace.json there. If this is a Claude Code sandbox restriction: add \"just release *\" and \"just resume-release *\" to sandbox.excludedCommands and issue the recipe bare, alone in the Bash call with no 'cd ... &&' prefix and no trailing '; echo' (a compound call stays sandboxed); or run '/add-dir $MARKETPLACE_DIR' first."
     rm -f "$probe"
 }
 
