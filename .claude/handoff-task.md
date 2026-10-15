@@ -1,3 +1,0 @@
-## Current task
-
-The dist-branch plan (`plans/2026-10-15-dist-branch-release/plan.md`) is fully implemented and released as toolkit 0.10.0 (`v0.10.0`, `dist-v0.10.0` on origin, GitHub release published). Handoff was dogfooded: toolkit 0.10.0 vendored, `dist.include` committed (`.claude-plugin skills hooks scripts bin README.md`), `just dogfood` copy equals the 25-file dist tree, `dist.sh validate` passed. My human partner is running handoff's first opted-in release, which should create origin `dist`, a lightweight `dist-vX.Y.Z` at it, and `ref: dist` on handoff's marketplace entry; check those from origin (`git ls-remote`, the marketplace json). They also said more work is needed in handoff to prepare the plugin-directory upload; that is handoff's work, not this repo's.

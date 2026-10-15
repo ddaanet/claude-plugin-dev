@@ -1,0 +1,3 @@
+## Current task
+
+Toolkit main now carries the release-bare message fix and the hard 400-line cap: README, release.sh and the nine oversized test suites are split, and tests/line-cap-test.sh enforces the cap on every tracked file. The next concrete action is checking handoff's first opted-in release from origin once my human partner has run it: an origin dist branch, a lightweight dist-vX.Y.Z at it, and ref: dist on the autodrive-handoff marketplace entry (git ls-remote unsandboxed, then the marketplace json on origin). At the last check none of these existed: handoff's local main was 6 commits ahead of v0.17.0 and claude-plugins held an uncommitted rename of the entry.

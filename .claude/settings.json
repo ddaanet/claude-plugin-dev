@@ -1,7 +1,5 @@
 {
-  "enabledPlugins": {
-    "handoff@ddaanet": true
-  },
+  "enabledPlugins": {},
   "gitlore": {
     "enabled": true,
     "precommitCommand": "just precommit"
