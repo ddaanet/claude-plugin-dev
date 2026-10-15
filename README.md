@@ -45,11 +45,15 @@ alternatives that were rejected.
   unfinished one.
 - **`just update-plugin-dev [dist-vX.Y.Z]`** — pulls a newer toolkit version in
   and prints the migration notes for the range crossed.
+- **An opt-in `dist` branch** — a plugin that lists its shipped paths in
+  `dist.include` has each release publish a branch holding only those paths; see
+  [The dist branch](toolkit/README.md#the-dist-branch).
 - **A version-guard hook** that refuses agent edits to the manifest's
   `.version`, with a verbose agent-facing refusal and a one-line human notice.
 - **A `claude` shim** that loads the plugin from a synced copy in
   `dist/plugin/`; see [Dogfooding](toolkit/README.md#dogfooding).
-- **`just dogfood`** — syncs the working tree into that copy, the only step
+- **`just dogfood`** — syncs the working tree (only the `dist.include` paths,
+  where the plugin has one) into that copy, the only step
   that does; see [Dogfooding](toolkit/README.md#dogfooding).
 
 [toolkit/README.md](toolkit/README.md) is the manual for all of it, and ships

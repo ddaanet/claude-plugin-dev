@@ -142,11 +142,14 @@ The release recipe's marketplace step handles both a plugin that already has a
 `marketplace.json` entry and one being published for the first time:
 
 - **Entry present** → rewrite its `.version` to the new version (the original
-  behaviour).
+  behaviour). When the plugin has opted in to the dist branch, also set
+  `.source.ref` to `dist`, and touch nothing else in `source`; without opt-in an
+  existing entry's `source` is never rewritten.
 - **Entry absent** → append a new entry synthesised from `plugin.json` (`name`,
-  `description`, `author`, `repository`/`homepage`, `license`) plus a `github`
-  `source` whose `repo` is derived from the plugin's `origin` remote
-  (owner/repo, parsed from either the SSH or HTTPS URL).
+  `description`, `author`, `repository`/`homepage`, `license`) plus a `url`
+  `source` whose `url` is `https://github.com/<owner>/<repo>.git`, the slug
+  derived from the plugin's `origin` remote (parsed from either the SSH or HTTPS
+  URL). An opted-in plugin's new entry also carries `ref: dist`.
 
 Originally the recipe treated a missing entry as a fatal pre-flight error
 (`no entry for '<name>'`). That made the *first* release of any plugin
@@ -159,9 +162,12 @@ end.
 
 `source` is the one field not present in `plugin.json`, so it's derived from
 `origin` rather than the manifest. The recipe only targets single-plugin
-GitHub-hosted repos (the consumer-plugin model), so a `github` source with an
-owner/repo slug is always correct here; the monorepo `git-subdir` sources (e.g.
-the skills bundle) are out of scope and hand-maintained. The `origin`-remote
+GitHub-hosted repos (the consumer-plugin model), so an https `url` source built
+from the owner/repo slug is always correct here. A `github` source clones over
+SSH, which a user without a GitHub SSH key cannot use; the `url` form clones
+anonymously. It also takes the `ref` the dist branch needs
+([dist-branch.md](dist-branch.md)). The monorepo `git-subdir` sources (e.g. the
+skills bundle) are out of scope and hand-maintained. The `origin`-remote
 requirement for new plugins is validated in the pre-flight block, before any
 destructive op.
 

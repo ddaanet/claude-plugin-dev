@@ -59,9 +59,10 @@ FAIL: allowlist without dist.sh: dist/ untouched: '<c>/dist' exists
   excludes ahead of the include rules. Its fixture asserts the nested `.git`
   exists so the absence is not vacuous.
 - The missing-path "listing unchanged" compare ran against the unchanged code
-  after a full-tree copy, which is why it fails there; under green the
-  refusal must leave the earlier allowlisted copy untouched.
-- A listed `dist` directory is used for the dist/plugin case; dist.sh accepts it.
+  after a full-tree copy, which is why it fails there; under green the refusal
+  must leave the earlier allowlisted copy untouched.
+- A listed `dist` directory is used for the dist/plugin case; dist.sh accepts
+  it.
 
 ## Review
 
@@ -92,24 +93,24 @@ Every mutant is caught, and by the assertion that names it. Notes:
    after it was copied; add it to the untracked/ignored scenario if wanted.
 2. Optional, whitespace. The space fixtures are a root-level `my docs/` and the
    consumer path. No listed path has a space in a nested parent
-   (`a b/c d/file`), so a green that word-splits only the parent-rule
-   generation passes. Add one such nested file to `make_allowlisted` with an
-   unlisted sibling. A name with a newline cannot be listed (dist.sh reads the
-   file by line), so none is needed; dist.sh refuses leading and trailing
-   blanks. Also unpinned: anchoring of include rules (an unanchored `+ a/`
-   would copy an empty `a/b/a/`); low value.
+   (`a b/c d/file`), so a green that word-splits only the parent-rule generation
+   passes. Add one such nested file to `make_allowlisted` with an unlisted
+   sibling. A name with a newline cannot be listed (dist.sh reads the file by
+   line), so none is needed; dist.sh refuses leading and trailing blanks. Also
+   unpinned: anchoring of include rules (an unanchored `+ a/` would copy an
+   empty `a/b/a/`); low value.
 3. The `.git`/`dist/plugin` scenario passes today, as the author says. It is a
    genuine pin, not decoration: the ignore-order mutant fails it, and the
    fixture asserts the nested `.git` exists first. Keep. The "no include" pair
    also pass today and are labelled as regression pins; fine.
 4. Author's default (include present, `dist.sh` missing: refuse, rc != 0,
-   message names `dist.sh`, `dist/` not created) is sound: the alternative
-   falls back to copying the whole tree and ships what the allowlist excludes,
-   and it mirrors release.sh's refusal. The plan is silent on this case, so the
-   green must implement it; the assertion is loose enough to leave wording free.
+   message names `dist.sh`, `dist/` not created) is sound: the alternative falls
+   back to copying the whole tree and ships what the allowlist excludes, and it
+   mirrors release.sh's refusal. The plan is silent on this case, so the green
+   must implement it; the assertion is loose enough to leave wording free.
 5. Contract coverage against the plan's case list: unlisted root file, untracked
-   file in a listed directory, ignored file in one, deletion, missing listed path
-   with previous copy intact, and no allowlist are all present, plus
+   file in a listed directory, ignored file in one, deletion, missing listed
+   path with previous copy intact, and no allowlist are all present, plus
    shrink, nested parents, deep files, and `.git`/`dist/plugin`.
 
 ## Revision

@@ -9,6 +9,12 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-15 — A plugin can publish an allowlisted `dist` branch, and created marketplace entries use a `url` source](changelog/2026-10-15-dist-branch-release.md)
+  — the plugin directory refuses a plugin folder holding a gitlink, so a plugin
+  listing its shipped paths in `dist.include` has each release publish a branch
+  of just those, validated before the bump commit and rebuilt reproducibly on
+  resume; the dogfood copy mirrors the same set, and a created marketplace entry
+  clones over https instead of SSH
 - [2026-10-08 — The version-guard hook command quotes the project dir, and the installer migrates the old one](changelog/2026-10-08-version-guard-quoting.md)
   — the bare `${CLAUDE_PROJECT_DIR}` split on a path with a space and the guard
   failed open on exit 127; `hook_cmd` is quoted, and `add_hook` takes the old

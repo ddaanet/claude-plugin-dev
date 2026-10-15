@@ -64,15 +64,27 @@ guard it feeds is deliberately strict: `release` refuses to start on top of
 drift. Before `resume-release` nothing satisfied that guard except hand-editing
 another repository. `resume-release` is the forward exit.
 
-The last four steps of a release — push the branch, push the tag, create the
-GitHub release, bump the marketplace — are one idempotent block that both
-`release` and `resume-release` run. Each step probes remote state before acting:
+The last steps of a release — push the branch, push the tag, push the dist
+branch and its tag when the plugin has opted in, create the GitHub release, bump
+the marketplace — are one idempotent block that both `release` and
+`resume-release` run. Each step probes remote state before acting:
 `git ls-remote` for the branch and tag, `gh release view` for the release, and
 `ls-remote` again — against the marketplace repo's own origin — for the
 marketplace push. Probing the remote directly means the answer is authoritative
 without a `git fetch`, so recovery never depends on how stale the local
 remote-tracking refs are. A step that finds its work already done says so and
 returns; only steps that act set `acted`.
+
+`push_dist` sits between the tag push and the GitHub release, so the marketplace
+never names a `ref` that is not on origin. It probes `dist` and `dist-v$V` on
+origin before it acts, and tells a landed branch by the tip's subject,
+`dist v$V from <the tag's commit>`; the commit is rebuilt reproducibly, so a
+resume compares instead of guessing ([dist-branch.md](dist-branch.md)). The tag
+probe, local and origin, runs before the branch push, so a `dist-v$V` at another
+sha leaves nothing pushed. A rejected branch push dies naming
+`just resume-release` and is never forced. Resume reads the opt-in from the
+tag's commit, not the worktree, and validates the tree again before the first
+push of `dist`.
 
 Resume takes its version from `plugin.json` and requires the matching local tag
 to already exist. It completes a release; it never starts one. Tagging `HEAD` on

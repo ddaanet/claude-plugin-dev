@@ -1,14 +1,18 @@
 # The dogfood sync
 
-Why the dogfood copy is the whole tree minus what git ignores, why it is
-promoted only by `just dogfood`, and why a failed sync is loud. The launcher
-around it — the copy, the guards, the shim and the hook wiring — is argued in
+Why the dogfood copy is the source set below, why it is promoted only by
+`just dogfood`, and why a failed sync is loud. The launcher around it — the
+copy, the guards, the shim and the hook wiring — is argued in
 [dogfood.md](dogfood.md), and the conclusions these arguments support are listed
 in [../design.md](../design.md).
 
-## The source set: the whole tree minus what git ignores
+## The source set: the allowlisted paths, or the whole tree, minus what git ignores
 
-`dogfood.sh sync` copies everything git does not ignore, tracked or not.
+Without a `dist.include` at the root, `dogfood.sh sync` copies everything git
+does not ignore, tracked or not. With one, it copies only the listed paths, by
+the rules below. In both cases the paths are read from the working tree and the
+ignored paths drop out.
+
 `git ls-files -z -o -i --exclude-standard --directory` lists the untracked
 ignored paths, in the root and recursively in each initialised submodule, which
 the root's listing never enters (`--recurse-submodules` does not support `-o`).
@@ -42,6 +46,34 @@ deletions do not propagate under `--delete`, and a tracked file deleted in the
 worktree but not yet committed is still listed, so every sync exits 23 until the
 deletion is committed.
 
+### With a `dist.include`
+
+`dist.sh paths <root>` reads the allowlist from the working tree, applies the
+line rules and refuses a listed path absent from it
+([dist-branch.md](dist-branch.md)). The copy then holds what the dist branch
+will hold, so a plugin dogfoods the tree it publishes and a path the list leaves
+out is missing from the session before it is missing from the directory.
+
+`dist.sh` writes its list to a file, never a pipe, and its status decides: 0
+takes the allowlist, 3 (no `dist.include`) syncs as above, and 1 or any other
+status refuses the sync before `dist/` is touched. A `dist.include` with no
+`dist.sh` beside `dogfood.sh` refuses too, since copying without the list would
+ship what the list leaves out.
+
+rsync gets one NUL-delimited filter file as a merge, in this order:
+
+1. the excludes above, so an ignored file inside a listed directory stays out;
+2. for each listed path, a rule for each of its parent directories;
+3. the path itself, or for a directory the directory and everything under it;
+4. `- *` for the rest.
+
+`--delete --delete-excluded` stay, so a file deleted from a listed directory,
+and every unlisted path left by an earlier sync, leaves the copy. An untracked
+file inside a listed directory is copied: the list names paths, not tracked
+files, as in the whole-tree case. A listed symlink takes the rule of a file and
+is not descended into; the dist tree refuses any symlink, so the copy is the
+more permissive of the two, and the release is what stops it.
+
 ## The plugin root is the repo root
 
 `install.sh` refuses a repo without a root `.claude-plugin/plugin.json`, and
@@ -68,9 +100,9 @@ the session that is still editing it. So there is no `PostToolUse` sync, no
 liveness marker and no lock. Two syncs that collide fail loudly and succeed on
 re-run (see "Sync failure is loud").
 
-A promotion syncs the whole tree however it changed, so a change made through
-Bash needs no matcher of its own, and whether `PostToolUse` hooks fire for a
-subagent's tool calls does not arise.
+A promotion syncs the whole source set however it changed, so a change made
+through Bash needs no matcher of its own, and whether `PostToolUse` hooks fire
+for a subagent's tool calls does not arise.
 
 The cost is a step. An agent definition or hook event goes live through
 `just dogfood` and then a relaunch, two acts where a syncing launch would take
@@ -176,7 +208,7 @@ run through an agent's sandboxed Bash, `just dogfood` or `dogfood.sh sync`,
 since the shim never syncs, and the manual says to promote from the human's own
 shell.
 
-**The copy carries non-plugin content.** Directories such as `plugin-dev/` and
-the `memory/` gitlink's files land in `dist/plugin/`. Claude Code loads only the
-plugin component directories, so this costs bytes, not behaviour; the Q2 timings
-include it.
+**The copy carries non-plugin content.** Without a `dist.include`, directories
+such as `plugin-dev/` and the `memory/` gitlink's files land in `dist/plugin/`.
+Claude Code loads only the plugin component directories, so this costs bytes,
+not behaviour; the Q2 timings include it.

@@ -58,6 +58,9 @@ versioned with each consumer.
   sensitive-file prompt and a half-edited hook script never runs in the session
   editing it. The copy changes only when promoted by `just dogfood`, and project
   hooks refuse agent edits to it and report a session that does not load it.
+- Provide an opt-in `dist` branch holding only the paths a plugin lists, so a
+  plugin whose repo root holds a gitlink can still be submitted to the plugin
+  directory, and a dogfood copy of the same set.
 - **Reproducibility:** old consumer-plugin tags must build identically to when
   they were tagged — the toolkit content vendored at the time must be
   retrievable, not subject to drift.
@@ -127,8 +130,11 @@ the dated record of the reversal goes in the changelog.
   ship instead. Choosing some other first version is the maintainer's committed
   edit, not a recipe argument.
 - **The marketplace entry is bumped if present and created if absent** — one
-  `just release` publishes a brand-new plugin end to end. The commit and the
-  push are separately idempotent, each measured against the remote.
+  `just release` publishes a brand-new plugin end to end. A created entry gets
+  an https `url` source, since a `github` source clones over SSH; an opted-in
+  plugin's entry also gets `ref: dist`, and an existing entry's `source` is
+  otherwise never rewritten. The commit and the push are separately idempotent,
+  each measured against the remote.
 - **No interactive confirmation** — `release` runs behind Claude Code's
   permission layer or a human's own `just`, and the inner prompt re-asked the
   same question.
@@ -156,11 +162,11 @@ the dated record of the reversal goes in the changelog.
   at all rather than when it "diverges", before any side effect, in both modes.
   Which keys carry that route, and which further one is a stated bound instead,
   are in the node.
-- **`resume-release` completes one** — the last four steps are an idempotent
-  block that probes remote state before acting. It completes a release; it never
-  starts one, and it says so when there was nothing to do. Its no-tag refusal
-  picks its next command from one origin listing, where a failed listing costs
-  only advice and never a harder refusal.
+- **`resume-release` completes one** — the last steps, `push_dist` included for
+  an opted-in plugin, are an idempotent block that probes remote state before
+  acting. It completes a release; it never starts one, and it says so when there
+  was nothing to do. Its no-tag refusal picks its next command from one origin
+  listing, where a failed listing costs only advice and never a harder refusal.
 - **A refusal carries the diagnosis and the next command** — where the tree
   state is non-obvious or a release may already be partly public, the message
   states what was checked, what was exempt, and what to run. It ships with the
@@ -173,6 +179,32 @@ the dated record of the reversal goes in the changelog.
   an agent session moves both between commits by design, so their being ahead of
   HEAD is the resting state. The memory path is read from `.gitmodules` by
   submodule name; everything else still refuses.
+
+### The dist branch — [references/dist-branch.md](references/dist-branch.md)
+
+- **A plugin opts in with a `dist.include` allowlist at its root** — the plugin
+  directory refuses a plugin folder holding a gitlink, and a branch carrying
+  only the shipped paths is the shape left once subfolders and
+  `git subtree split` are out. Without the file nothing changes.
+- **An allowlist, not a denylist** — a new dev file never ships by being
+  committed; a forgotten path is missing from the plugin, and a listed path that
+  matches nothing is refused. Paths are literal, and the line rules refuse
+  anything that could mean more than one path.
+- **The tree is built with plumbing from the release commit** — a temporary
+  index, NUL-delimited, no checkout. A gitlink or symlink in the result, no
+  manifest, or a missing listed path is refused; size, file-count, README and
+  licence signals only warn.
+- **Validation runs in the pre-flight, before the bump commit** — a failure
+  leaves no commit and no tag, and the dist pre-flight is its own step because
+  the first release skips `release_preflight`. Resume validates again before the
+  first push of `dist`.
+- **The dist commit is reproducible** — dates and identity from the source
+  commit, the parent origin's tip, so a resume rebuilds the same sha. The branch
+  is pushed without force, and `dist-vX.Y.Z` is a lightweight tag that is probed
+  locally and on origin before anything is pushed and never moved.
+- **A missing `dist.sh` beside a plugin with `dist.include` is a refusal** — in
+  the release and in the dogfood sync alike, never a release or copy without the
+  list.
 
 ### This repo's own release — [references/self-release.md](references/self-release.md)
 
@@ -215,8 +247,10 @@ the dated record of the reversal goes in the changelog.
   Code resolves inline roots through `realpath`, so a symlinked root flags the
   source it points to.
 - **The copy is the whole repo tree minus what git ignores, every `.git` and
-  itself** — deletions propagate, and an ignored name holding an rsync pattern
-  character aborts the sync rather than being escaped.
+  itself, or only the `dist.include` paths when the plugin has one** — deletions
+  propagate, and an ignored name holding an rsync pattern character aborts the
+  sync rather than being escaped. The allowlisted copy refuses on a bad list, a
+  missing listed path or a missing `dist.sh`, before `dist/` is touched.
 - **The plugin root is the repo root** — every consumer has the root layout, so
   nested roots are out of scope.
 - **The copy syncs only on `just dogfood`** — a launch, a relaunch or any other
