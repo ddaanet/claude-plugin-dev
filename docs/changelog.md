@@ -9,6 +9,9 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-15 — The test suites are split under the 400-line cap, and a gate holds it](changelog/2026-10-15-test-suites-split-line-cap.md)
+  — nine suites passed 400 lines; each is now sibling suites by scenario group,
+  and `tests/line-cap-test.sh` fails the gate on any tracked file over the cap.
 - [2026-10-15 — release.sh is split into sourced siblings](changelog/2026-10-15-release-sh-split.md)
   — `toolkit/release.sh` was 1019 lines; its preflights, tag history, publishing
   and marketplace bump move to four `release-*.sh` files it sources.

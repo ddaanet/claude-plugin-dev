@@ -4,7 +4,11 @@
 # the shim vendored at plugin-dev/bin/claude, puts a stub claude behind it, and
 # launches `claude` by PATH lookup as a developer would.
 #
-# Usage: bash tests/dogfood-launcher-test.sh   (run from repo root)
+# Scope: what the shim execs and when it warns -- argv, no sync, a missing or
+# non-directory copy, no next claude. Its sibling dogfood-launcher-path-test.sh
+# covers the exported copy and the PATH handling.
+#
+# Usage: bash tests/dogfood-launcher-exec-test.sh   (run from repo root)
 set -euo pipefail
 
 # When run as this repo's own pre-commit hook, the enclosing `git commit`
@@ -260,150 +264,8 @@ fi
 assert_eq "$(tail -n1 "$sandbox/stderr")" "dogfood: no other claude on PATH" \
     "a missing copy and no next claude: the second line is the 127 line"
 
-# <root> comes from the shim's physical location alone: the shim is reached
-# through a symlinked spelling of the consumer, which a <root> resolved
-# logically would record, and launched from outside the consumer, inside a
-# decoy consumer with a copy of its own: a git repo with a manifest and a
-# dist/plugin/. A <root> taken from the launch directory, from git's toplevel
-# there or from the nearest manifest above it finds the decoy's copy and
-# exports it, rather than warning for a missing copy.
-echo "=== the shim exports the copy ==="
-make_consumer
-ln -s "$consumer" "$sandbox/link"
-shim_dir="$sandbox/link/plugin-dev/bin"
-mkdir -p "$sandbox/elsewhere/.claude-plugin" "$sandbox/elsewhere/dist/plugin"
-git init -q "$sandbox/elsewhere"
-printf '{"name":"decoy","version":"1.0.0"}\n' > "$sandbox/elsewhere/.claude-plugin/plugin.json"
-launch_dir="$sandbox/elsewhere"
-# CLAUDE_PROJECT_DIR names the same decoy, as a session started elsewhere can
-# leave it: a <root> taken from it would export the decoy's copy.
-CLAUDE_PROJECT_DIR="$sandbox/elsewhere" run_claude
-assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
-    "the shim exports the copy"
-
-echo "=== the shim unsets CDPATH ==="
-make_consumer
-run_claude
-assert_eq "$(recorded cdpath)" "<unset>" "the shim unsets CDPATH"
-
-# An inherited value, a list naming this copy among others included, is
-# replaced by the copy alone, and syncs nothing.
-echo "=== an inherited variable is overwritten ==="
-make_consumer
-CLAUDE_CODE_PLUGIN_DIRS="$consumer/dist/plugin:/elsewhere/dist/plugin" run_claude
-assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
-    "an inherited variable is overwritten"
-assert_eq "$(recorded copy)" "absent" \
-    "an inherited variable is overwritten: the launch does not sync"
-
-# The shim is on PATH twice ahead of the stub, once with a trailing slash, and
-# twice behind it, through a symlinked directory and a /./ spelling. The stub's
-# PATH may hold no entry whose claude is the shim. An entry behind the stub is
-# never hopped through, so only the first hop can strip it, and only -ef, not
-# a normalised spelling, recognises it.
-echo "=== the shim strips its own entry in any spelling ==="
-make_consumer
-ln -s "$consumer" "$sandbox/link"
-path_head="$shim_dir/:$shim_dir:$stubdir:$sandbox/link/plugin-dev/bin"
-path_head+=":$consumer/plugin-dev/./bin"
-run_claude
-assert_file "$sandbox/rec/path" \
-    "the shim strips its own entry in any spelling: the stub ran"
-left=0 stubs=0
-if [[ -f "$sandbox/rec/path" ]]; then
-    IFS=: read -r -a entries < "$sandbox/rec/path" || true
-    for entry in "${entries[@]}"; do
-        [[ -n "$entry" && "$entry/claude" -ef "$shim_dir/claude" ]] && left=$((left + 1))
-        [[ -n "$entry" && "$entry/claude" -ef "$stubdir/claude" ]] && stubs=$((stubs + 1))
-    done
-fi
-assert_eq "$stubs" "1" \
-    "the shim strips its own entry in any spelling: the recorded PATH splits to the stub's entry"
-assert_eq "$left" "0" \
-    "the shim strips its own entry in any spelling: entries of the shim left on PATH"
-
-echo "=== the shim keeps another bin/claude ==="
-make_consumer
-mkdir -p "$sandbox/other tools/bin"
-cat > "$sandbox/other tools/bin/claude" <<OTHER
-#!/usr/bin/env bash
-printf ran > "$sandbox/rec/other"
-exit 0
-OTHER
-chmod +x "$sandbox/other tools/bin/claude"
-path_head="$shim_dir:$sandbox/other tools/bin:$stubdir"
-run_claude
-assert_eq "$(recorded other)" "ran" \
-    "the shim keeps another bin/claude: the one ahead of the stub ran"
-assert_absent "$sandbox/rec/argv" \
-    "the shim keeps another bin/claude: the stub behind it did not"
-
-# A leading empty entry is the working directory: dropping it would change
-# which claude a later lookup finds.
-echo "=== the shim keeps the rest of PATH as spelled ==="
-make_consumer
-path_head=":$shim_dir:$stubdir"
-run_claude
-# shellcheck disable=SC2031  # the suite's own PATH, which the launch appended
-assert_eq "$(recorded path)" ":$stubdir:$PATH" \
-    "the shim keeps the rest of PATH as spelled"
-
-echo "=== a subdirectory launch resolves the root ==="
-make_consumer
-launch_dir="$consumer/skills/demo"
-run_claude
-assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
-    "a subdirectory launch resolves the root: the copy"
-assert_eq "$(recorded pwd)" "$consumer/skills/demo" \
-    "a subdirectory launch resolves the root: the shim did not change directory"
-
-# From the shim's own directory a leading empty entry is the shim: the one case
-# where dropping an empty entry is required, else the exec finds the shim again.
-# The launch appends only the runner's absolute entries: an empty or relative
-# one would name plugin-dev/bin too, and the shim rightly drops it as well.
-echo "=== a launch from plugin-dev/bin drops the empty entry ==="
-make_consumer
-launch_dir="$consumer/plugin-dev/bin"
-path_head=":$shim_dir:$stubdir"
-# shellcheck disable=SC2031  # the suite's own PATH, not run_claude's subshell's
-runner_path="" rest="$PATH:"
-while [[ -n "$rest" ]]; do
-    entry="${rest%%:*}"
-    rest="${rest#*:}"
-    [[ "$entry" == /* ]] && runner_path+="${runner_path:+:}$entry"
-done
-PATH="$runner_path" run_claude
-assert_file "$sandbox/rec/path" \
-    "a launch from plugin-dev/bin drops the empty entry: the stub ran"
-assert_eq "$(recorded path)" "$stubdir:$runner_path" \
-    "a launch from plugin-dev/bin drops the empty entry"
-
-# The whole PATH is the shim's directory and a directory of symlinks to the
-# commands the shim runs: no claude, and nothing inherited that could hold one.
-# The negative only means something if a lookup under this PATH finds the shim,
-# and one under what the shim leaves of it finds nothing. Bash's own exec
-# failure also exits 127, and so does any command missing from that PATH, so
-# stderr must be the shim's one line and nothing else.
-echo "=== no next claude exits 127 ==="
-make_consumer
-mkdir "$sandbox/tools"
-for tool in bash dirname; do
-    ln -s "$(command -v "$tool")" "$sandbox/tools/$tool"
-done
-path_exact="$shim_dir:$sandbox/tools"
-found="$(PATH="$path_exact" command -v claude || true)"
-assert_eq "$found" "$shim_dir/claude" \
-    "no next claude exits 127: the shim is the claude on the PATH"
-found="$(PATH="$sandbox/tools" command -v claude || true)"
-assert_eq "$found" "" \
-    "no next claude exits 127: the PATH without the shim holds no claude"
-run_claude
-assert_eq "$rc" "127" "no next claude exits 127"
-assert_eq "$(cat "$sandbox/stderr")" "dogfood: no other claude on PATH" \
-    "no next claude exits 127: stderr is the shim's one line"
-
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\nall dogfood launcher scenarios passed\n'
+printf '\nall dogfood launcher exec scenarios passed\n'

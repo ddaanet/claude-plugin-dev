@@ -19,9 +19,9 @@ the `dist-vX.Y.Z` split ref consumers actually vendor (see
 Folding the one into the other would make the toolkit consume its own
 consumer-shaped code, which the "don't run `release.just`'s recipes from this
 repo" rule exists to prevent. The cost is a second script covering the same
-ground, paid for by `tests/self-release-test.sh` driving it end to end against
-real repos with local bare origins and a `gh` stub — the same fixture shape
-`tests/release-test.sh` uses for the consumer flow.
+ground, paid for by the `tests/self-release-*-test.sh` suites driving it end to
+end against real repos with local bare origins and a `gh` stub — the same
+fixture shape the `tests/release-*-test.sh` suites use for the consumer flow.
 
 ## The clean-tree exclusions are literal pathspecs here
 

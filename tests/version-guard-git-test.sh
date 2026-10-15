@@ -8,14 +8,18 @@
 # nothing with this one but the six-line assertion harness every suite here
 # carries its own copy of.
 #
-# Usage: bash tests/version-guard-test.sh   (run from repo root)
+# Scope: how the guard lists tags -- the order of work, a leaked GIT_DIR, and a
+# git or grep that fails. Its siblings version-guard-decision-test.sh and
+# version-guard-wording-test.sh cover the decision and the wording.
+#
+# Usage: bash tests/version-guard-git-test.sh   (run from repo root)
 set -euo pipefail
 
 # When run as this repo's own pre-commit hook, the enclosing `git commit`
 # leaks GIT_DIR/GIT_INDEX_FILE/etc. into this process's environment. The new
 # git-repo fixture below runs real git commands of its own, and a leaked
 # GIT_DIR would redirect them at this repo instead. See
-# `tests/release-test.sh`'s own header comment, just above its own
+# `tests/release-core-test.sh`'s own header comment, just above its own
 # `unset $(git rev-parse --local-env-vars)` line, for the same explanation.
 # shellcheck disable=SC2046  # word-splitting is the point: a var-name list
 unset $(git rev-parse --local-env-vars)
@@ -67,29 +71,20 @@ assert_not_contains() {
 # whatever consumer plugin happens to vendor this toolkit.
 proj="$(mktemp -d)"
 guard_err="$(mktemp)"
-# $git_proj is allocated here, not beside the fixture it belongs to below,
-# so the trap can name it: under `set -u` a failure between the trap and a
-# later assignment runs the trap with it unbound, which aborts the trap
-# before the rm and leaks every temp dir. Same reason release-test.sh
-# declares `sandboxes=()` ahead of its own trap.
+# The fixtures are allocated here, ahead of the trap, so the trap can name
+# them: under `set -u` a failure between the trap and a later assignment runs
+# the trap with one unbound, which aborts it before the rm and leaks every
+# temp dir. They are a repo with no tags, a repo tagged v1.2.3 (which the
+# leaked-GIT_DIR scenario also points GIT_DIR at), a PATH stub directory for a
+# `git` that exits 127, one for a `grep` that exits 2, and one for a recording
+# `git`.
 git_proj="$(mktemp -d)"
-# Fixtures for slices 3-5: a repo tagged v1.2.3 (the steady-state half of
-# slices 3 and 4, and reused as the "second fixture carrying v1.2.3" slice 5
-# points a leaked GIT_DIR at -- one repo honestly serves both roles, since
-# slice 5 only needs a real repository whose tag listing would answer STEADY
-# if discovered), a repo tagged vnext/v1.2 only (slice 4's discriminating
-# half: two real tags, neither semver), and a PATH stub directory for a
-# `git` that exits 127 (slice 6), and a second stub directory for a `grep`
-# that exits 2 (the failing-filter scenario). All allocated here, ahead of
-# the trap, for the same reason $git_proj is: an unbound name in the trap
-# body skips cleanup of every temp dir, not just its own.
 git_tagged_proj="$(mktemp -d)"
-git_vnext_proj="$(mktemp -d)"
 guard_stub127_dir="$(mktemp -d)"
 guard_stubgrep_dir="$(mktemp -d)"
 guard_recordgit_dir="$(mktemp -d)"
 guard_recordgit_log="$(mktemp)"
-trap 'rm -rf "$proj" "$guard_err" "$git_proj" "$git_tagged_proj" "$git_vnext_proj" "$guard_stub127_dir" "$guard_stubgrep_dir" "$guard_recordgit_dir" "$guard_recordgit_log"' EXIT
+trap 'rm -rf "$proj" "$guard_err" "$git_proj" "$git_tagged_proj" "$guard_stub127_dir" "$guard_stubgrep_dir" "$guard_recordgit_dir" "$guard_recordgit_log"' EXIT
 mkdir -p "$proj/.claude-plugin"
 cat > "$proj/.claude-plugin/plugin.json" <<'JSON'
 {
@@ -98,7 +93,6 @@ cat > "$proj/.claude-plugin/plugin.json" <<'JSON'
   "license": "MIT"
 }
 JSON
-
 # Second fixture: a real git repo with no tags -- the "never been released"
 # state a first-time plugin author is in, as opposed to $proj above which
 # is deliberately not a repo at all (the listing-failure fallback). No
@@ -132,27 +126,6 @@ JSON
 git -C "$git_tagged_proj" -c user.name="version-guard-test" -c user.email="version-guard-test@example.com" \
     commit -q --allow-empty -m "fixture commit"
 git -C "$git_tagged_proj" tag v1.2.3
-
-# Fourth fixture: tagged vnext and v1.2 only -- both real tags, neither
-# matching the semver filter. Slice 4's discriminating half: an
-# implementation keyed on `git tag --list 'v*'` emptiness (rather than the
-# semver filter) sees two tags here and wrongly answers steady-state; the
-# intended predicate still answers initial-release, since neither tag is
-# semver.
-git init -q "$git_vnext_proj"
-mkdir -p "$git_vnext_proj/.claude-plugin"
-cat > "$git_vnext_proj/.claude-plugin/plugin.json" <<'JSON'
-{
-  "name": "fixture",
-  "version": "1.2.3",
-  "license": "MIT"
-}
-JSON
-git -C "$git_vnext_proj" -c user.name="version-guard-test" -c user.email="version-guard-test@example.com" \
-    commit -q --allow-empty -m "fixture commit"
-git -C "$git_vnext_proj" tag vnext
-git -C "$git_vnext_proj" tag v1.2
-
 # PATH stub for slice 6: a `git` that always exits 127, simulating the
 # listing failing outright (as a genuinely absent `git` would) rather than
 # succeeding with no output. It writes a line to stderr before failing, which
@@ -271,153 +244,6 @@ assert_no_escape_hatch() {
     assert_not_contains "$1" "settings.json" "$2: names no hook-config file"
     assert_not_contains "$1" "version-guard" "$2: names no hook script"
 }
-
-# version-guard denies an Edit that changes .version.
-echo "=== version-guard (Edit version change: deny) ==="
-run_guard "$(jq -nc --arg cwd "$proj" --arg fp "$proj/.claude-plugin/plugin.json" \
-    '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"\"version\": \"1.2.3\"", new_string:"\"version\": \"1.3.0\""}}')"
-assert_deny "version-guard Edit-bump"
-
-# The shortest edit that bumps the version replaces the value alone and
-# repeats no "version" key, so a guard that pattern-matches new_string for
-# one lets it straight through.
-echo "=== version-guard (Edit bare version value: deny) ==="
-run_guard "$(jq -nc --arg cwd "$proj" --arg fp "$proj/.claude-plugin/plugin.json" \
-    '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"1.2.3", new_string:"9.9.9"}}')"
-assert_deny "version-guard Edit-bare-value"
-
-# version-guard allows an Edit that touches plugin.json without changing version.
-echo "=== version-guard (Edit unrelated field: allow) ==="
-run_guard "$(jq -nc --arg cwd "$proj" --arg fp "$proj/.claude-plugin/plugin.json" \
-    '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"\"license\": \"MIT\"", new_string:"\"license\": \"Apache-2.0\""}}')"
-assert_allow "version-guard Edit-unrelated"
-
-# version-guard denies a Write whose content changes .version.
-echo "=== version-guard (Write version change: deny) ==="
-new_content="$(jq -c '.version="9.9.9"' "$proj/.claude-plugin/plugin.json")"
-run_guard "$(jq -nc --arg cwd "$proj" --arg fp "$proj/.claude-plugin/plugin.json" --arg c "$new_content" \
-    '{cwd:$cwd, tool_name:"Write", tool_input:{file_path:$fp, content:$c}}')"
-assert_deny "version-guard Write-bump"
-
-# version-guard ignores Edits to unrelated files.
-echo "=== version-guard (unrelated file: allow) ==="
-run_guard "$(jq -nc --arg cwd "$proj" --arg fp "$proj/README.md" \
-    '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"a", new_string:"b"}}')"
-assert_allow "version-guard unrelated-file"
-
-# The payload `cwd` tracks the Bash tool's shell and drifts with `cd` or
-# /add-dir. Locating the manifest from it disables the guard silently, so
-# the drifted value must not change the verdict.
-echo "=== version-guard (drifted payload cwd: deny) ==="
-mkdir -p "$proj/sub/dir"
-run_guard "$(jq -nc --arg cwd "$proj/sub/dir" --arg fp "$proj/.claude-plugin/plugin.json" \
-    '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"1.2.3", new_string:"9.9.9"}}')"
-assert_deny "version-guard drifted-cwd"
-
-# tool_input.file_path is whatever the model emitted, and it is not always
-# absolute -- a repo-root-relative form must still be recognised.
-echo "=== version-guard (relative file_path: deny) ==="
-run_guard "$(jq -nc --arg cwd "$proj" \
-    '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:".claude-plugin/plugin.json", old_string:"1.2.3", new_string:"9.9.9"}}')"
-assert_deny "version-guard relative-path"
-
-# BSD/macOS realpath has no -m. A guard built on it gets two empty strings,
-# compares them equal, and fires on files that are not the manifest. The
-# stub makes Linux CI reproduce that, so the fix stays fixed.
-echo "=== version-guard (BSD realpath, unrelated file: allow) ==="
-stubdir="$proj/stubbin"
-mkdir -p "$stubdir"
-real_realpath="$(command -v realpath || true)"
-# Unquoted heredoc: $real_realpath is baked in now, \$@ is left for run time.
-cat > "$stubdir/realpath" <<EOF
-#!/bin/sh
-for a in "\$@"; do
-    case "\$a" in -m) echo 'realpath: illegal option -- m' >&2; exit 1 ;; esac
-done
-exec ${real_realpath:-/bin/false} "\$@"
-EOF
-chmod 755 "$stubdir/realpath"
-other_content="$(jq -nc '{name:"other", version:"9.9.9"}')"
-guard_path="$stubdir:$PATH"
-run_guard "$(jq -nc --arg cwd "$proj" --arg fp "$proj/other.json" --arg c "$other_content" \
-    '{cwd:$cwd, tool_name:"Write", tool_input:{file_path:$fp, content:$c}}')"
-guard_path="$PATH"
-assert_allow "version-guard bsd-realpath-unrelated"
-
-# version-guard still denies the edit against a plugin with no tags at all
-# (the deny itself isn't new), but the opening sentence claiming the
-# manifest version "is the last released version" is false when there has
-# never been a release -- the wording must say so instead.
-echo "=== version-guard (no tags: initial-release wording) ==="
-run_guard "$(jq -nc --arg cwd "$git_proj" --arg fp "$git_proj/.claude-plugin/plugin.json" \
-    '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"1.2.3", new_string:"9.9.9"}}')" \
-    "$git_proj"
-assert_deny "version-guard no-tags"
-reason="$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<<"$guard_out")"
-assert_contains "$reason" "never been released" "version-guard no-tags reason: never-released wording"
-assert_contains "$reason" "will publish" "version-guard no-tags reason: will-publish wording"
-assert_not_contains "$reason" "last released version" "version-guard no-tags reason: no last-released wording"
-
-# Slice 2, same scenario as above (reuses $reason from the no-tags run just
-# above rather than re-invoking the hook): the refusal's "1.2.3 -> 9.9.9" is
-# the one legitimate mention of the proposed version. Any other mention is
-# the message offering a route to ship 9.9.9, which the guard must not do --
-# see outline.md:118-121. Excise that one pair and assert the rest is clean,
-# rather than checking the whole reason (which trips on the legitimate
-# mention) or dropping the first physical line (which is positional, not
-# semantic: it fires on a legitimate refusal whose opening merely wraps, and
-# misses a route that lands on line 1 -- both measured).
-reason_minus_refusal="${reason/1.2.3 -> 9.9.9/}"
-assert_not_contains "$reason_minus_refusal" "9.9.9" \
-    "version-guard no-tags reason: proposed version not offered as a route beyond the refusal"
-
-# Also slice 2, and the regression this branch actually shipped once: the
-# initial-release message must name no recipe invocation. `just release
-# {patch|minor|major}` is refused outright on a plugin that has never
-# released (`release.sh`'s `release_preflight`, the
-# `die "'$bump_arg' bump refused: this plugin has never been released"`
-# branch) and a bare `just release` publishes $current rather than $proposed
-# (`release_preflight`'s first-release branch, `V="$manifest_version"` with
-# no bump), so in THIS branch every mention of the invocation routes the
-# agent at something nobody asked for -- which is why the fix withheld the
-# identifier instead of qualifying it. Asserted
-# here and again over the vnext reason below (slice 4), which takes the same
-# initial-release branch -- the steady-state message is the only one that
-# names the recipe legitimately, so it alone is exempt from this assertion.
-# Residual bound: prose that routes at the recipe without naming it ("when
-# the release recipe runs") still passes here.
-assert_not_contains "$reason" "just release" \
-    "version-guard no-tags reason: initial-release branch names no recipe invocation"
-assert_no_escape_hatch "$reason" "version-guard no-tags reason"
-
-# Slice 3: only the agent channel (permissionDecisionReason) may branch on
-# release state. systemMessage is a factual one-liner, true in both states,
-# so it must come out byte-identical for the same payload whichever fixture
-# answers it. Re-invoke the hook here, deliberately fresh, rather than reuse
-# $guard_out from the no-tags run forty lines above: that capture is two
-# assertion blocks away, so a scenario inserted between would silently
-# retarget this byte-identity comparison. That is the opposite call from
-# the $reason reuse just above (slice 2) -- that reuse stays documented and
-# undisturbed because its run is immediately adjacent, with nothing able to
-# land between it and the read.
-run_guard "$(jq -nc --arg cwd "$git_proj" --arg fp "$git_proj/.claude-plugin/plugin.json" \
-    '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"1.2.3", new_string:"9.9.9"}}')" \
-    "$git_proj"
-tagless_sysmsg="$(jq -r '.systemMessage' <<<"$guard_out")"
-
-echo "=== version-guard (v1.2.3 tag: steady-state wording) ==="
-run_guard "$(jq -nc --arg cwd "$git_tagged_proj" --arg fp "$git_tagged_proj/.claude-plugin/plugin.json" \
-    '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"1.2.3", new_string:"9.9.9"}}')" \
-    "$git_tagged_proj"
-assert_deny "version-guard tagged-steady"
-reason="$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<<"$guard_out")"
-assert_contains "$reason" "last released version" "version-guard tagged-steady reason: last-released wording"
-assert_not_contains "$reason" "never been released" "version-guard tagged-steady reason: no never-released wording"
-assert_no_escape_hatch "$reason" "version-guard tagged-steady reason"
-tagged_sysmsg="$(jq -r '.systemMessage' <<<"$guard_out")"
-assert_eq "$tagged_sysmsg" "$tagless_sysmsg" \
-    "version-guard systemMessage byte-identical across tagless and tagged fixtures"
-
 # N5: no scenario above touches a real git repository (they all run against
 # $proj, deliberately not a repo), so the property "the tag listing runs
 # only after the early return at proposed==current" is unpinned -- a bare
@@ -454,25 +280,6 @@ guard_path="$PATH"
 assert_allow "version-guard git-tagged-unrelated"
 assert_not_contains "$(cat "$guard_recordgit_log")" "tag${US}--list" \
     "version-guard git-tagged-unrelated: no git tag listing runs before the early return"
-
-# Slice 4: the predicate is the semver filter, not tag-list emptiness or
-# repo-ness. A fixture tagged only vnext/v1.2 (neither semver) must still
-# read as never-released -- the v1.2.3 fixture above is this scenario's
-# steady-state half, already exercised.
-echo "=== version-guard (vnext/v1.2 tags only, no semver tag: initial-release wording) ==="
-run_guard "$(jq -nc --arg cwd "$git_vnext_proj" --arg fp "$git_vnext_proj/.claude-plugin/plugin.json" \
-    '{cwd:$cwd, tool_name:"Edit", tool_input:{file_path:$fp, old_string:"1.2.3", new_string:"9.9.9"}}')" \
-    "$git_vnext_proj"
-assert_deny "version-guard vnext-tags"
-reason="$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<<"$guard_out")"
-assert_contains "$reason" "never been released" "version-guard vnext-tags reason: never-released wording"
-assert_not_contains "$reason" "last released version" "version-guard vnext-tags reason: no last-released wording"
-# Same initial-release branch as the no-tags case above, so the same two
-# properties apply: no escape hatch, and no recipe invocation -- this reason
-# is not the steady-state message, which alone is exempt from the latter.
-assert_no_escape_hatch "$reason" "version-guard vnext-tags reason"
-assert_not_contains "$reason" "just release" \
-    "version-guard vnext-tags reason: initial-release branch names no recipe invocation"
 
 # Slice 5: the guard clears repo-local GIT_* variables before listing tags,
 # so a leaked GIT_DIR (e.g. a `claude` process started from inside a git
@@ -538,4 +345,4 @@ if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\nall version-guard scenarios passed\n'
+printf '\nall version-guard git scenarios passed\n'

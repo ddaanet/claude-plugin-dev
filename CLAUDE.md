@@ -96,7 +96,7 @@ or removing a shipped file means updating the list in
   (`toolkit/VERSION`, no marketplace, two tags). Same shape, though —
   every step past the local commit is probed before it is taken, so
   `--resume` finishes a run that died mid-flight. Root-level, so it is
-  not shipped; covered by `tests/self-release-test.sh`.
+  not shipped; covered by `tests/self-release-*-test.sh`.
 - `README.md` — presents this repo and carries the consumer install and
   update instructions. Root-level, so it is not shipped: the vendored
   manual is `toolkit/README.md`, and a change to the install or update
@@ -132,27 +132,37 @@ just precommit
 Runs `bash -n` and `shellcheck` on the shell scripts, a private
 `_import-check` that imports `release.just` into a stub consumer to
 catch justfile syntax errors, and then **every test under `tests/`** —
-`version-guard-test.sh`, `check-version-test.sh`, `release-test.sh`,
-`release-dist-test.sh` (`release.sh` publishing the `dist` branch),
-`self-release-test.sh`, `update-plugin-dev-test.sh`,
-`install-test.sh` (`install.sh`'s vendoring and settings wiring),
-`dist-tree-test.sh` (the shipped-file list), `dist-test.sh` (`dist.sh`'s
-allowlist, tree build and commit), `docs-test.sh` (the
+`version-guard-{decision,wording,git}-test.sh`, `check-version-test.sh`,
+the eleven `release-*-test.sh` suites that split `release.sh`'s consumer flow by
+scenario group (`release-core`, `-resume-push`, `-resume-hint`, `-tree`,
+`-first`, `-lost-tag`, `-push-route`, `-tags`, `-rollback`, `-pipefail`,
+`-hint-size`), `release-dist-{publish,resume,refusal,optin}-test.sh`
+(`release.sh` publishing the `dist` branch),
+`self-release-{publish,refusal}-test.sh`, `update-plugin-dev-test.sh`,
+`install-{vendor,settings,legacy}-test.sh` (`install.sh`'s vendoring, settings
+wiring and legacy-entry migration),
+`dist-tree-test.sh` (the shipped-file list),
+`dist-{build,refusal,warning,subcommands}-test.sh` (`dist.sh`'s allowlist,
+tree build, refusals, warnings and other subcommands), `docs-test.sh` (the
 400-line cap over `docs/` and `plans/`, plus pointer resolution),
+`line-cap-test.sh` (the same 400-line cap over every other tracked file; a
+suite that outgrows it is split along its scenario groups, never exempted),
 `doc-sync-test.sh` (the install/update command blocks shared by the two
 READMEs, and the Layout list above against `toolkit/`'s actual
 contents), `citation-test.sh` (refuses a `<script>.sh:<line>`
 citation into a tracked file outside `plans/` and `docs/changelog/`),
-the four `dogfood.sh` suites (`dogfood-sync-test.sh`,
-`dogfood-sync-refusal-test.sh`, `dogfood-pre-tool-test.sh`,
-`dogfood-session-start-test.sh`) and `dogfood-launcher-test.sh` (the
+the `dogfood.sh` suites (`dogfood-sync-{copy,nested,allowlist,refusal}-test.sh`,
+`dogfood-pre-tool-{paths,jq}-test.sh` and
+`dogfood-session-start-test.sh`) and `dogfood-launcher-{exec,path}-test.sh` (the
 `bin/claude` shim). A green `precommit` — including the one a
 pre-commit hook runs — is therefore evidence the whole release suite
 passed, not just the linters. **One script under test per suite
 file**, each carrying its
 own copy of the small assertion harness rather than sourcing a shared
 one: a suite that can be read and run alone is worth more than the
-duplicated six lines. It also runs `whitespace` and
+duplicated six lines. **No suite file passes 400 lines**: a suite that
+would is split along its scenario groups into sibling files, each with
+its own fixture setup, and `line-cap-test.sh` fails the gate otherwise. It also runs `whitespace` and
 `format-docs`, which needs rumdl: `uv sync` once, and the recipe finds
 `.venv/bin/rumdl` whether or not direnv has exported it. Must be green
 before committing.

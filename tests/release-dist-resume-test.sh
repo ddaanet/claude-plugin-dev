@@ -2,12 +2,17 @@
 # End-to-end test of release.sh's dist publishing against real git repos in a
 # temp dir: the pre-flight validation, the dist branch and its tag, the
 # marketplace `ref`, the resume paths and the not-opted-in case. Same fixture
-# shape as release-test.sh: origins are local bare repos, `gh` is a stub on
+# shape as release-core-test.sh: origins are local bare repos, `gh` is a stub on
 # PATH, and so is `claude`, which logs its argv and exits with a status taken
 # from CLAUDE_STUB_RC. The fixture plugin opts in with a committed
 # dist.include and carries a dev file (plans/x.md) outside the list.
 #
-# Usage: bash tests/release-dist-test.sh   (run from repo root)
+# Scope: resume after each kill point finishes the dist release. Its siblings
+# release-dist-publish-test.sh, release-dist-refusal-test.sh and
+# release-dist-optin-test.sh cover the publish, the refusals and the opt-in
+# handling.
+#
+# Usage: bash tests/release-dist-resume-test.sh   (run from repo root)
 set -euo pipefail
 
 # When run as this repo's own pre-commit hook, the enclosing `git commit`
@@ -182,24 +187,6 @@ JSON
     export MARKETPLACE_DIR="$marketplace"
 }
 
-# no_claude_path: build $sandbox/nobin, a directory of symlinks to the tools
-# release.sh needs and to nothing else, so the system's real claude cannot be
-# found through it. gh is the sandbox stub. Sets $nobin.
-no_claude_path() {
-    local t p
-    nobin="$sandbox/nobin"
-    mkdir -p "$nobin"
-    for t in git bash sh env jq mktemp tar sed awk grep cat tr wc sort cut head tail rm \
-        mkdir dirname basename find xargs od ls cp mv date uniq tee readlink realpath \
-        chmod ln cmp stat expr gzip printf sleep touch true false test; do
-        p="$(PATH="$base_path" type -P "$t" 2>/dev/null || true)"
-        if [[ -n "$p" ]]; then ln -s "$p" "$nobin/$t"; fi
-    done
-    ln -s "$sandbox/bin/gh" "$nobin/gh"
-    assert_eq "$(PATH="$nobin" type -P claude 2>/dev/null || true)" "" \
-        "fixture: no claude reachable on the stripped PATH"
-}
-
 # --- origin readers: the end state is read from origin, never the clone ---
 
 origin_sha() {
@@ -291,72 +278,6 @@ marketplace_version() {
         "$marketplace/.claude-plugin/marketplace.json"
 }
 
-echo "=== first opted-in release: dist is a root commit of the listed paths ==="
-new_sandbox "1.2.3"
-run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "0" "first opted-in release exit code"
-assert_contains "$out" "dist: pushed" "first opted-in release reports the dist push"
-assert_contains "$out" "dist tag dist-v1.2.4: pushed" "first opted-in release reports the dist tag"
-expect_published 1.2.4 1 "first opted-in release"
-assert_eq "$(entry_source)" '{"ref":"dist","repo":"o/fixture","source":"github"}' \
-    "first opted-in release: existing github source kept, ref added"
-assert_contains "$(cat "$CLAUDE_LOG" 2>/dev/null || true)" "--strict" "first opted-in release: claude validated with --strict"
-assert_contains "$(cat "$CLAUDE_LOG" 2>/dev/null || true)" "validate" "first opted-in release: claude validate was called"
-assert_contains "$(cat "$GH_LOG")" "release create v1.2.4" "first opted-in release: gh release created"
-assert_no_force "first opted-in release"
-assert_eq "$(grep -c 'refs/heads/dist' "$sandbox/push.log" || true)" "1" \
-    "first opted-in release: exactly one push targeted refs/heads/dist"
-
-echo "=== first publication: a created url entry carries ref dist and keeps its type ==="
-new_sandbox ""
-run_in "$plugin" bash plugin-dev/release.sh minor
-assert_eq "$rc" "0" "created-entry release exit code"
-expect_published 1.3.0 1 "created-entry release"
-assert_eq "$(entry_source)" \
-    "$(jq -S -cn --arg u "https://github.com/$(basename "$sandbox")/plugin-origin.git" \
-        '{ref: "dist", source: "url", url: $u}')" \
-    "created-entry release: url source kept, ref added"
-
-echo "=== second release: dist gains one commit whose parent is the first ==="
-new_sandbox "1.2.3"
-run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "0" "second-release setup exit code"
-first_tip="$(origin_sha refs/heads/dist)"
-run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "0" "second release exit code"
-expect_published 1.2.5 2 "second release"
-assert_eq "$(git -C "$origin" rev-parse "$(origin_sha refs/heads/dist)^" 2>/dev/null || true)" \
-    "$first_tip" "second release: the parent is the first release's dist commit"
-assert_eq "$(origin_sha refs/tags/dist-v1.2.4)" "$first_tip" "second release: dist-v1.2.4 did not move"
-assert_eq "$(entry_source)" '{"ref":"dist","repo":"o/fixture","source":"github"}' \
-    "second release: marketplace source still ref dist"
-
-echo "=== validation failure: nothing committed, tagged or pushed ==="
-new_sandbox "1.2.3"
-before="$(state_snapshot)"
-export CLAUDE_STUB_RC=1
-run_in "$plugin" bash plugin-dev/release.sh patch
-export CLAUDE_STUB_RC=0
-assert_eq "$rc" "1" "validation failure exit code"
-assert_contains "$(cat "$CLAUDE_LOG" 2>/dev/null || true)" "--strict" "validation failure: the stub was reached"
-assert_eq "$(state_snapshot)" "$before" "validation failure: clone, origin and marketplace untouched"
-assert_eq "$(git -C "$plugin" status --porcelain)" "" "validation failure: working tree clean"
-assert_eq "$(origin_sha refs/heads/dist)" "" "validation failure: no dist branch on origin"
-assert_eq "$(cat "$GH_LOG")" "" "validation failure: gh not called"
-
-echo "=== no claude on PATH: refused before any commit ==="
-new_sandbox "1.2.3"
-no_claude_path
-before="$(state_snapshot)"
-set +e
-out="$(cd "$plugin" && PATH="$nobin" "$(type -P bash)" plugin-dev/release.sh patch 2>&1)"
-rc=$?
-set -e
-assert_eq "$rc" "1" "no claude exit code"
-assert_contains "$out" "claude" "no claude: message names claude"
-assert_eq "$(state_snapshot)" "$before" "no claude: clone, origin and marketplace untouched"
-assert_eq "$(cat "$GH_LOG")" "" "no claude: gh not called"
-
 echo "=== resume after each kill point finishes the dist release ==="
 # Each kill is a push the git wrapper refuses, or (third) the gh release create
 # that follows the dist tag push. After the kill the release has stopped; the
@@ -421,159 +342,8 @@ for kp in "${kill_points[@]}"; do
     expect_published 1.2.4 1 "second resume after $kp"
 done
 
-echo "=== foreign dist tag on origin: refused, nothing moved ==="
-new_sandbox "1.2.3"
-foreign="$(git -C "$plugin" commit-tree -m foreign "$(git -C "$plugin" mktree </dev/null)")"
-git -C "$plugin" push -q origin "$foreign:refs/tags/dist-v1.2.4"
-assert_eq "$(origin_sha refs/tags/dist-v1.2.4)" "$foreign" "foreign tag fixture: planted on origin"
-run_in "$plugin" bash plugin-dev/release.sh patch
-if [[ "$rc" = 0 ]]; then fail "foreign dist tag: release did not refuse"; fi
-assert_contains "$out" "dist-v1.2.4" "foreign dist tag: message names the tag"
-assert_eq "$(origin_sha refs/tags/dist-v1.2.4)" "$foreign" "foreign dist tag: origin's tag did not move"
-local_dist_tag="$(git -C "$plugin" rev-parse -q --verify refs/tags/dist-v1.2.4 || true)"
-if [[ -n "$local_dist_tag" && "$local_dist_tag" != "$foreign" ]]; then
-    fail "foreign dist tag: the local dist-v1.2.4 was created at another sha: $local_dist_tag"
-fi
-# The conflicting tag is probed before the branch is pushed, so a refusal
-# leaves no orphan dist commit on origin.
-assert_eq "$(origin_sha refs/heads/dist)" "" "foreign dist tag: no dist branch on origin"
-assert_eq "$([ -f "$GH_RELEASES/v1.2.4" ] && echo yes || echo no)" "no" \
-    "foreign dist tag: no github release was created"
-assert_eq "$(jq -r '.plugins[] | select(.name=="fixture") | .version' \
-    "$marketplace/.claude-plugin/marketplace.json")" "1.2.3" "foreign dist tag: marketplace not bumped"
-
-echo "=== a local dist tag at another sha: refused, nothing moved ==="
-new_sandbox "1.2.3"
-foreign="$(git -C "$plugin" commit-tree -m foreign "$(git -C "$plugin" mktree </dev/null)")"
-git -C "$plugin" tag dist-v1.2.4 "$foreign"
-run_in "$plugin" bash plugin-dev/release.sh patch
-if [[ "$rc" = 0 ]]; then fail "local foreign dist tag: release did not refuse"; fi
-assert_contains "$out" "dist-v1.2.4" "local foreign dist tag: message names the tag"
-assert_eq "$(git -C "$plugin" rev-parse refs/tags/dist-v1.2.4)" "$foreign" "local foreign dist tag: local tag did not move"
-assert_eq "$(origin_sha refs/tags/dist-v1.2.4)" "" "local foreign dist tag: nothing for it on origin"
-assert_eq "$(origin_sha refs/heads/dist)" "" "local foreign dist tag: no dist branch on origin"
-assert_eq "$([ -f "$GH_RELEASES/v1.2.4" ] && echo yes || echo no)" "no" "local foreign dist tag: no github release"
-
-echo "=== a rejected dist push: hint names resume-release, never forced ==="
-new_sandbox "1.2.3"
-cat > "$origin/hooks/pre-receive" <<'HOOK'
-#!/bin/sh
-while read -r old new ref; do
-    if [ "$ref" = refs/heads/dist ]; then
-        echo "pre-receive: dist rejected" >&2
-        exit 1
-    fi
-done
-exit 0
-HOOK
-chmod +x "$origin/hooks/pre-receive"
-run_in "$plugin" bash plugin-dev/release.sh patch
-if [[ "$rc" = 0 ]]; then fail "rejected dist push: release did not fail"; fi
-assert_contains "$out" "resume-release" "rejected dist push: hint names resume-release"
-assert_eq "$(origin_sha refs/heads/dist)" "" "rejected dist push: no dist branch on origin"
-assert_eq "$(origin_sha refs/tags/dist-v1.2.4)" "" "rejected dist push: no dist tag on origin"
-assert_eq "$([ -f "$GH_RELEASES/v1.2.4" ] && echo yes || echo no)" "no" "rejected dist push: no github release"
-assert_eq "$(marketplace_version)" "1.2.3" "rejected dist push: marketplace not bumped"
-assert_eq "$(grep -c 'refs/heads/dist' "$sandbox/push.log" || true)" "1" \
-    "rejected dist push: exactly one push targeted refs/heads/dist (no retry)"
-assert_no_force "rejected dist push"
-rm -f "$origin/hooks/pre-receive"
-run_in "$plugin" bash plugin-dev/release.sh --resume
-assert_eq "$rc" "0" "resume after a rejected dist push: exit code"
-expect_published 1.2.4 1 "resume after a rejected dist push"
-assert_no_force "resume after a rejected dist push"
-
-echo "=== pre-flight: a tree refusal from dist.sh refuses the release before any commit ==="
-for variant in missing-path symlink; do
-    new_sandbox "1.2.3"
-    case "$variant" in
-        missing-path) printf 'nothere/file.md\n' >> "$plugin/dist.include"; needle="nothere/file.md" ;;
-        symlink)      ln -s ../README.md "$plugin/skills/link.md"; needle="link.md" ;;
-    esac
-    tweak_commit "break the tree ($variant)"
-    before="$(state_snapshot)"
-    run_in "$plugin" bash plugin-dev/release.sh patch
-    assert_eq "$rc" "1" "tree refusal ($variant): exit code"
-    assert_contains "$out" "$needle" "tree refusal ($variant): message names the offender"
-    assert_eq "$(state_snapshot)" "$before" "tree refusal ($variant): clone, origin and marketplace untouched"
-    assert_eq "$([ -s "$CLAUDE_LOG" ] && echo called || echo never)" "never" \
-        "tree refusal ($variant): validation never reached"
-    assert_eq "$(cat "$GH_LOG")" "" "tree refusal ($variant): gh not called"
-done
-
-echo "=== resume: opt-in is read from the release commit, not from HEAD ==="
-new_sandbox "1.2.3"
-export FAIL_PUSH_GLOB='*:refs/heads/dist'
-run_in "$plugin" bash plugin-dev/release.sh patch
-unset FAIL_PUSH_GLOB
-if [[ "$rc" = 0 ]]; then fail "opt-in from the tag: the release was not interrupted"; fi
-git -C "$plugin" rm -q dist.include
-tweak_commit "drop the allowlist after the release commit"
-run_in "$plugin" bash plugin-dev/release.sh --resume
-assert_eq "$rc" "0" "opt-in dropped after the tag: resume exit code"
-expect_published 1.2.4 1 "opt-in dropped after the tag"
-
-new_sandbox "1.2.3" plain
-run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "0" "opt-in added after the tag: setup release exit code"
-printf '%s\n' .claude-plugin README.md skills > "$plugin/dist.include"
-tweak_commit "add an allowlist after the release commit"
-run_in "$plugin" bash plugin-dev/release.sh --resume
-assert_eq "$rc" "0" "opt-in added after the tag: resume exit code"
-assert_contains "$out" "already complete (nothing to do)" "opt-in added after the tag: nothing to do"
-assert_eq "$(origin_sha refs/heads/dist)" "" "opt-in added after the tag: no dist branch"
-assert_eq "$([ -s "$CLAUDE_LOG" ] && echo called || echo never)" "never" "opt-in added after the tag: claude never called"
-
-echo "=== a complete release: resume leaves the marketplace byte-identical ==="
-new_sandbox "1.2.3"
-run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "0" "no-op guard setup release exit code"
-cp "$marketplace/.claude-plugin/marketplace.json" "$sandbox/marketplace.before"
-mp_head="$(git -C "$marketplace" rev-parse HEAD)"
-mp_origin_head="$(git ls-remote "$marketplace-origin.git" refs/heads/main | cut -f1)"
-dist_refs="$(git ls-remote "$origin" | sort)"
-for pass in 1 2; do
-    run_in "$plugin" bash plugin-dev/release.sh --resume
-    assert_eq "$rc" "0" "no-op guard resume $pass: exit code"
-    assert_contains "$out" "already complete (nothing to do)" "no-op guard resume $pass: nothing to do"
-    if ! cmp -s "$sandbox/marketplace.before" "$marketplace/.claude-plugin/marketplace.json"; then
-        fail "no-op guard resume $pass: marketplace.json changed"
-    fi
-    assert_eq "$(git -C "$marketplace" rev-parse HEAD)" "$mp_head" "no-op guard resume $pass: marketplace HEAD unchanged"
-    assert_eq "$(git ls-remote "$marketplace-origin.git" refs/heads/main | cut -f1)" "$mp_origin_head" \
-        "no-op guard resume $pass: marketplace origin unchanged"
-    assert_eq "$(git ls-remote "$origin" | sort)" "$dist_refs" "no-op guard resume $pass: plugin origin unchanged"
-done
-assert_eq "$(entry_source)" '{"ref":"dist","repo":"o/fixture","source":"github"}' "no-op guard: ref dist kept"
-
-echo "=== not opted in: output and refs are those of a plain release ==="
-new_sandbox "1.2.3" plain
-run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "0" "not opted in exit code"
-assert_not_contains "$out" "dist:" "not opted in: no dist note"
-assert_not_contains "$out" "dist tag" "not opted in: no dist tag note"
-assert_eq "$(origin_sha refs/heads/dist)" "" "not opted in: no dist branch on origin"
-assert_eq "$(git ls-remote "$origin" 'refs/tags/dist-v*' | wc -l | tr -d ' ')" "0" \
-    "not opted in: no dist tag on origin"
-assert_eq "$([ -s "$CLAUDE_LOG" ] && echo called || echo never)" "never" "not opted in: claude never called"
-assert_eq "$(jq -r '.plugins[] | select(.name=="fixture") | .source.ref' \
-    "$marketplace/.claude-plugin/marketplace.json")" "null" "not opted in: marketplace entry has no ref"
-assert_eq "$(entry_source)" '{"repo":"o/fixture","source":"github"}' "not opted in: source untouched"
-
-echo "=== not opted in: a created entry has no ref and needs no claude ==="
-new_sandbox "" plain
-no_claude_path
-set +e
-out="$(cd "$plugin" && PATH="$nobin" "$(type -P bash)" plugin-dev/release.sh minor 2>&1)"
-rc=$?
-set -e
-assert_eq "$rc" "0" "not opted in, no claude: exit code"
-assert_eq "$(jq -r '.plugins[] | select(.name=="fixture") | .source.ref' \
-    "$marketplace/.claude-plugin/marketplace.json")" "null" "not opted in, created entry: no ref"
-assert_eq "$(origin_sha refs/heads/dist)" "" "not opted in, created entry: no dist branch"
-
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\nall release dist scenarios passed\n'
+printf '\nall release dist resume scenarios passed\n'

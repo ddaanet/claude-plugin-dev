@@ -7,7 +7,7 @@
 # Usage: bash tests/update-plugin-dev-test.sh   (run from repo root)
 set -euo pipefail
 
-# See release-test.sh's identical comment: an enclosing `git commit` leaks
+# See release-core-test.sh's identical comment: an enclosing `git commit` leaks
 # GIT_DIR/GIT_INDEX_FILE/etc. into this process. Every git command below
 # targets a synthetic fixture repo via `-C`, never this repo, so it's always
 # safe to drop them here.

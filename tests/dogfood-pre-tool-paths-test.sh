@@ -4,7 +4,11 @@
 # scenario builds a consumer fixture and runs the script as a consumer would,
 # from its vendored spot at plugin-dev/dogfood.sh.
 #
-# Usage: bash tests/dogfood-pre-tool-test.sh   (run from repo root)
+# Scope: which paths the hook denies and allows -- the copy, a source edit, a path
+# outside the copy, symlinked repos, .. segments, odd names. Its sibling
+# dogfood-pre-tool-jq-test.sh covers a missing or failing jq and leaf symlinks.
+#
+# Usage: bash tests/dogfood-pre-tool-paths-test.sh   (run from repo root)
 set -euo pipefail
 
 # When run as this repo's own pre-commit hook, the enclosing `git commit`
@@ -321,130 +325,8 @@ run_dogfood sync
 run_pre_tool Edit file_path "$consumer/dist/plugin/skills/demo/SKILL.md"
 assert_denied "pre-tool denies an edit into the copy of a root ending in a newline" "$consumer"
 
-# The payload is built with the real jq before the PATH narrows: run_pre_tool
-# would call jq under it. The same payload is denied with jq on PATH first, so
-# the silence below is the missing jq and not the allow of a path outside the
-# copy.
-echo "=== pre-tool is silent without jq ==="
-make_consumer
-run_dogfood sync
-root="$(cd "$consumer" && pwd -P)"
-make_jqless_bin "$sandbox/nojq"
-label="pre-tool is silent without jq"
-if PATH="$sandbox/nojq" command -v jq >/dev/null; then
-    fail "$label: jq is still reachable on the jq-less PATH"
-fi
-payload="$(pre_tool_payload Edit file_path "$root/dist/plugin/skills/demo/SKILL.md")"
-run_dogfood pre-tool <<<"$payload"
-assert_denied "$label: control with jq on PATH" "$root"
-PATH="$sandbox/nojq" run_dogfood pre-tool <<<"$payload"
-assert_eq "$rc" "0" "$label exit code"
-assert_eq "$out" "" "$label prints nothing on stdout"
-assert_eq "$err" "" "$label prints nothing on stderr"
-
-# The silence above is a jq-presence guard, not jq's stderr thrown away: with
-# jq present, a payload it cannot read still fails the hook with jq's own error.
-echo "=== pre-tool fails loudly on a payload jq cannot read ==="
-make_consumer
-label="pre-tool fails loudly on a payload jq cannot read"
-run_dogfood pre-tool <<<"not json"
-# Exactly 1: Claude Code blocks the tool call on exit 2, and jq's own status
-# varies by version (5 on a parse error in jq 1.7, 4 in jq 1.6 by its source).
-assert_eq "$rc" "1" "$label exit code"
-assert_eq "$out" "" "$label prints nothing on stdout"
-assert_contains "$err" "jq: " "$label shows jq's error"
-
-# jq exits 2 on a usage or system error, and exit 2 blocks the tool call under
-# Claude Code. The stub stands in for that jq; its directory name holds a space.
-echo "=== pre-tool maps a jq exit of 2 to a non-blocking status ==="
-make_consumer
-label="pre-tool maps a jq exit of 2 to a non-blocking status"
-mkdir -p "$sandbox/stub bin"
-cat > "$sandbox/stub bin/jq" <<'STUB'
-#!/bin/sh
-echo "jq: stub parse error" >&2
-exit 2
-STUB
-chmod +x "$sandbox/stub bin/jq"
-if [[ "$(PATH="$sandbox/stub bin:$PATH" command -v jq)" != "$sandbox/stub bin/jq" ]]; then
-    fail "$label: the stub is not the jq found first on PATH"
-fi
-PATH="$sandbox/stub bin:$PATH" run_dogfood pre-tool <<<"not json"
-assert_eq "$rc" "1" "$label exit code"
-assert_eq "$out" "" "$label prints nothing on stdout"
-assert_contains "$err" "jq: stub parse error" "$label keeps the stub's diagnostic on stderr"
-
-# The second jq call, the one building the deny, fails too: mapping only the
-# payload read passes both scenarios above and lets this one exit 2. The stub
-# hands every call to the real jq except one whose filter builds the decision,
-# so the payload is read and the path judged as in production; its diagnostic
-# on stderr is what shows the deny build was reached. The payload is built
-# before the stub goes on PATH, and denied first with the real jq.
-echo "=== pre-tool maps a jq failure building the deny to a non-blocking status ==="
-make_consumer
-run_dogfood sync
-root="$(cd "$consumer" && pwd -P)"
-label="pre-tool maps a jq failure building the deny to a non-blocking status"
-payload="$(pre_tool_payload Edit file_path "$root/dist/plugin/skills/demo/SKILL.md")"
-run_dogfood pre-tool <<<"$payload"
-assert_denied "$label: control with the real jq" "$root"
-real_jq="$(command -v jq)"
-mkdir -p "$sandbox/stub bin"
-cat > "$sandbox/stub bin/jq" <<STUB
-#!/bin/sh
-for a in "\$@"; do
-    case "\$a" in
-        *permissionDecision*)
-            echo "jq: stub failure building the deny" >&2
-            exit 2
-            ;;
-    esac
-done
-exec "$real_jq" "\$@"
-STUB
-chmod +x "$sandbox/stub bin/jq"
-if [[ "$(PATH="$sandbox/stub bin:$PATH" command -v jq)" != "$sandbox/stub bin/jq" ]]; then
-    fail "$label: the stub is not the jq found first on PATH"
-fi
-PATH="$sandbox/stub bin:$PATH" run_dogfood pre-tool <<<"$payload"
-assert_eq "$rc" "1" "$label exit code"
-assert_eq "$out" "" "$label prints nothing on stdout"
-assert_contains "$err" "jq: stub failure building the deny" "$label keeps the stub's diagnostic on stderr"
-
-# Claude Code realpaths the leaf, so a symlink at the leaf into the copy is an
-# edit of the copy. In the chain, y.md reaches it through x.md: a one-hop
-# readlink stops at x.md. Both chain links are relative, so a hop resolved
-# against the cwd rather than the link's own directory misses the copy.
-echo "=== pre-tool follows a symlink at the leaf into the copy ==="
-make_consumer
-run_dogfood sync
-root="$(cd "$consumer" && pwd -P)"
-ln -s "$root/dist/plugin/skills/demo/SKILL.md" "$root/skills/x.md"
-run_pre_tool Edit file_path "$root/skills/x.md"
-assert_denied_source "pre-tool follows a symlink at the leaf into the copy" "$root"
-
-echo "=== pre-tool follows a chain of leaf symlinks into the copy ==="
-make_consumer
-run_dogfood sync
-root="$(cd "$consumer" && pwd -P)"
-ln -s ../dist/plugin/skills/demo/SKILL.md "$root/skills/x.md"
-ln -s x.md "$root/skills/y.md"
-run_pre_tool Edit file_path "$root/skills/y.md"
-assert_denied_source "pre-tool follows a chain of leaf symlinks into the copy" "$root"
-
-echo "=== pre-tool allows a leaf symlink out of the copy ==="
-make_consumer
-run_dogfood sync
-root="$(cd "$consumer" && pwd -P)"
-ln -s "$root/skills/demo/SKILL.md" "$root/dist/plugin/skills/z.md"
-run_pre_tool Edit file_path "$root/dist/plugin/skills/z.md"
-label="pre-tool allows a leaf symlink out of the copy"
-assert_eq "$rc" "0" "$label exit code"
-assert_eq "$out" "" "$label prints nothing on stdout"
-assert_eq "$err" "" "$label prints nothing on stderr"
-
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\nall dogfood pre-tool scenarios passed\n'
+printf '\nall dogfood pre-tool path scenarios passed\n'

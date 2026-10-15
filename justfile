@@ -6,25 +6,51 @@ _default:
 # Run all syntax + style checks on the toolkit's own scripts.
 precommit: whitespace format-docs
     shellcheck -x toolkit/install.sh toolkit/version-guard.sh toolkit/check-version.sh toolkit/release.sh toolkit/release-preflight.sh toolkit/release-tags.sh toolkit/release-publish.sh toolkit/release-marketplace.sh toolkit/update.sh toolkit/dogfood.sh toolkit/dist.sh toolkit/bin/claude scripts/self-release.sh
-    bash -n tests/version-guard-test.sh tests/check-version-test.sh tests/release-test.sh tests/release-dist-test.sh tests/self-release-test.sh tests/update-plugin-dev-test.sh tests/install-test.sh tests/dist-tree-test.sh tests/dist-test.sh tests/docs-test.sh tests/doc-sync-test.sh tests/citation-test.sh tests/dogfood-sync-test.sh tests/dogfood-sync-refusal-test.sh tests/dogfood-pre-tool-test.sh tests/dogfood-session-start-test.sh tests/dogfood-launcher-test.sh
+    bash -n tests/version-guard-decision-test.sh tests/version-guard-wording-test.sh tests/version-guard-git-test.sh tests/check-version-test.sh tests/release-core-test.sh tests/release-resume-push-test.sh tests/release-resume-hint-test.sh tests/release-tree-test.sh tests/release-first-test.sh tests/release-lost-tag-test.sh tests/release-push-route-test.sh tests/release-tags-test.sh tests/release-rollback-test.sh tests/release-pipefail-test.sh tests/release-hint-size-test.sh tests/release-dist-publish-test.sh tests/release-dist-resume-test.sh tests/release-dist-refusal-test.sh tests/release-dist-optin-test.sh tests/self-release-publish-test.sh tests/self-release-refusal-test.sh tests/update-plugin-dev-test.sh tests/install-vendor-test.sh tests/install-settings-test.sh tests/install-legacy-test.sh tests/dist-tree-test.sh tests/dist-build-test.sh tests/dist-refusal-test.sh tests/dist-warning-test.sh tests/dist-subcommands-test.sh tests/docs-test.sh tests/doc-sync-test.sh tests/citation-test.sh tests/line-cap-test.sh tests/dogfood-sync-copy-test.sh tests/dogfood-sync-nested-test.sh tests/dogfood-sync-allowlist-test.sh tests/dogfood-sync-refusal-test.sh tests/dogfood-pre-tool-paths-test.sh tests/dogfood-pre-tool-jq-test.sh tests/dogfood-session-start-test.sh tests/dogfood-launcher-exec-test.sh tests/dogfood-launcher-path-test.sh
     just _import-check
-    bash tests/version-guard-test.sh
+    bash tests/version-guard-decision-test.sh
+    bash tests/version-guard-wording-test.sh
+    bash tests/version-guard-git-test.sh
     bash tests/check-version-test.sh
-    bash tests/release-test.sh
-    bash tests/release-dist-test.sh
-    bash tests/self-release-test.sh
+    bash tests/release-core-test.sh
+    bash tests/release-resume-push-test.sh
+    bash tests/release-resume-hint-test.sh
+    bash tests/release-tree-test.sh
+    bash tests/release-first-test.sh
+    bash tests/release-lost-tag-test.sh
+    bash tests/release-push-route-test.sh
+    bash tests/release-tags-test.sh
+    bash tests/release-rollback-test.sh
+    bash tests/release-pipefail-test.sh
+    bash tests/release-hint-size-test.sh
+    bash tests/release-dist-publish-test.sh
+    bash tests/release-dist-resume-test.sh
+    bash tests/release-dist-refusal-test.sh
+    bash tests/release-dist-optin-test.sh
+    bash tests/self-release-publish-test.sh
+    bash tests/self-release-refusal-test.sh
     bash tests/update-plugin-dev-test.sh
-    bash tests/install-test.sh
+    bash tests/install-vendor-test.sh
+    bash tests/install-settings-test.sh
+    bash tests/install-legacy-test.sh
     bash tests/dist-tree-test.sh
-    bash tests/dist-test.sh
+    bash tests/dist-build-test.sh
+    bash tests/dist-refusal-test.sh
+    bash tests/dist-warning-test.sh
+    bash tests/dist-subcommands-test.sh
     bash tests/docs-test.sh
     bash tests/doc-sync-test.sh
     bash tests/citation-test.sh
-    bash tests/dogfood-sync-test.sh
+    bash tests/line-cap-test.sh
+    bash tests/dogfood-sync-copy-test.sh
+    bash tests/dogfood-sync-nested-test.sh
+    bash tests/dogfood-sync-allowlist-test.sh
     bash tests/dogfood-sync-refusal-test.sh
-    bash tests/dogfood-pre-tool-test.sh
+    bash tests/dogfood-pre-tool-paths-test.sh
+    bash tests/dogfood-pre-tool-jq-test.sh
     bash tests/dogfood-session-start-test.sh
-    bash tests/dogfood-launcher-test.sh
+    bash tests/dogfood-launcher-exec-test.sh
+    bash tests/dogfood-launcher-path-test.sh
     @echo ok
 
 # Checks that run before a release. Add slow or paid checks here.

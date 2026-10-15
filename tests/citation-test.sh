@@ -17,7 +17,7 @@
 # Residual bound: a citation INTO a `.md` file (e.g. an executed outline) is
 # not one of the three forbidden target forms and is never flagged, because an
 # extension alone cannot tell a living document from a frozen dated one --
-# tests/version-guard-test.sh's own citation of the executed outline by line
+# tests/version-guard-wording-test.sh's own citation of the executed outline by line
 # number is correct forever and is meant to stay exactly as it is.
 #
 # Usage: bash tests/citation-test.sh   (run from repo root)
@@ -27,7 +27,7 @@ set -euo pipefail
 # leaks GIT_DIR/GIT_INDEX_FILE/etc. into this process's environment. The
 # self-fixture below runs real git commands of its own (`init`, `add`,
 # `commit`), and a leaked GIT_DIR would redirect them at this repo instead.
-# See `tests/release-test.sh`'s own header comment, just above its own
+# See `tests/release-core-test.sh`'s own header comment, just above its own
 # `unset $(git rev-parse --local-env-vars)` line, for the same explanation.
 # shellcheck disable=SC2046  # word-splitting is the point: a var-name list
 unset $(git rev-parse --local-env-vars)
