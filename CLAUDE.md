@@ -119,6 +119,7 @@ Runs `bash -n` and `shellcheck` on the shell scripts, a private
 `_import-check` that imports `release.just` into a stub consumer to
 catch justfile syntax errors, and then **every test under `tests/`** —
 `version-guard-test.sh`, `check-version-test.sh`, `release-test.sh`,
+`release-dist-test.sh` (`release.sh` publishing the `dist` branch),
 `self-release-test.sh`, `update-plugin-dev-test.sh`,
 `install-test.sh` (`install.sh`'s vendoring and settings wiring),
 `dist-tree-test.sh` (the shipped-file list), `dist-test.sh` (`dist.sh`'s
