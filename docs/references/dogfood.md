@@ -89,21 +89,31 @@ exit 1 holds whichever version meets the payload.
 
 `session-start` speaks in two cases and is silent otherwise.
 
-**The session does not load `<root>/dist/plugin`.** It was launched past the
-shim — no direnv, an IDE or the desktop app, an absolute path to `claude` — or
-it inherited another repository's value. The test splits
-`CLAUDE_CODE_PLUGIN_DIRS` on `:` and compares each entry whole. An absolute
-entry naming a directory that can be entered is resolved physically, because
-Claude Code writes the variable back normalized and a symlinked spelling must
-still match; any other entry is compared as spelled, trailing slashes stripped,
-and a relative one, which Claude Code drops, never matches. A substring or
-prefix match would accept `/other/<root>/dist/plugin`. The payload is not read.
+**The session does not load `<root>/dist/plugin`, or there is no directory
+there.** The first is a launch past the shim — no direnv, an IDE or the desktop
+app, an absolute path to `claude` — or an inherited other repository's value.
+The second is a shim launch before the first `just dogfood`, or a regular file
+where the copy belongs. The test splits `CLAUDE_CODE_PLUGIN_DIRS` on `:` and
+compares each entry whole. An absolute entry naming a directory that can be
+entered is resolved physically, because Claude Code writes the variable back
+normalized and a symlinked spelling must still match; any other entry is
+compared as spelled, trailing slashes stripped, and a relative one, which Claude
+Code drops, never matches. A substring or prefix match would accept
+`/other/<root>/dist/plugin`. A match is then silent only if `<root>/dist/plugin`
+is a directory (`-d`): the shim names the path whether or not the copy exists,
+so the variable alone cannot tell a session that loads the copy from one that
+loads nothing, and the shim stays silent so the hook is where that is said. The
+payload is not read.
 
-The finding goes to both channels. `systemMessage` names the remedy:
-`just dogfood` and a relaunch when no `<root>/dist/plugin` directory exists, as
-after a shim launch with no copy, else launching through `plugin-dev/bin/claude`
-from the repo root. `additionalContext` gives the agent the finding as a fact —
-no copy exists, or behaviour observed here is not the promoted copy's — and
+The finding goes to both channels, in one of three shapes. `systemMessage` names
+the remedy. The variable names the path and no directory is there:
+`just dogfood`, then `/reload-plugins`, no relaunch. The variable does not name
+it and there is no copy: `just dogfood`, then `direnv allow` in the root and a
+relaunch of `claude`. The variable does not name it and the copy exists:
+`direnv allow` and a relaunch. The user is never told the shim's path:
+`direnv allow` loads the `.envrc` that puts the shim first on PATH, and that is
+the control they have. `additionalContext` gives the agent the finding as a fact
+— no copy exists, or behaviour observed here is not the promoted copy's — and
 nothing to act on: promoting and relaunching are the human's acts.
 
 **`jq` is missing.** There is then no object to build and no copy guard, so the
@@ -120,11 +130,10 @@ A bash script, put first on PATH by the consumer's `.envrc` as
 `PATH_add plugin-dev/bin`, after gitlore's `PATH_add .gitlore/bin` so that it
 wins. It finds the root from its own location (`<shim dir>/../..`), resolved
 physically as `dogfood.sh` resolves its own, exports `CLAUDE_CODE_PLUGIN_DIRS`
-at `<root>/dist/plugin` over any inherited value when the copy exists and warns
-instead when it does not (see "A launch with no copy warns and starts without
-it" in [dogfood-sync.md](dogfood-sync.md)), unsets `CDPATH`, and execs the next
-`claude` on PATH with its arguments unchanged — typically gitlore's launcher. It
-never syncs.
+at `<root>/dist/plugin` over any inherited value, copy or no copy (see "A launch
+with no copy exports the path anyway" in [dogfood-sync.md](dogfood-sync.md)),
+unsets `CDPATH`, and execs the next `claude` on PATH with its arguments
+unchanged — typically gitlore's launcher. It never syncs.
 
 **The copy's `bin/` on PATH.** Measured on CC 2.1.299: a marketplace-installed
 plugin's `bin/` is on the PATH of the main thread's Bash and of a
@@ -139,29 +148,22 @@ command's PATH or a plugin-shipped agent's Bash carries a marketplace `bin/` is
 unmeasured. So a dogfood session could not exercise a plugin's `bin/`, and a
 command shipped for agents' Bash was untestable until released and installed.
 
-The shim therefore appends `<root>/dist/plugin/bin` to the PATH it execs with
-whenever there is a copy. **Appended**, because Claude Code appends too and its
-docs say a plugin's `bin/` cannot shadow system commands such as `ls`;
-prepending would let a dogfood command shadow a system one the release never
-shadows. It is appended after the strip above, since the strip would drop a shim
-of its own, and after the check for another `claude`, so a `claude` shipped in
-`bin/` is never the one it execs when there is none.
+The shim therefore appends `<root>/dist/plugin/bin` to the PATH it execs with,
+unconditionally. **Appended**, because Claude Code appends too and its docs say
+a plugin's `bin/` cannot shadow system commands such as `ls`; prepending would
+let a dogfood command shadow a system one the release never shadows. It is
+appended after the strip above, since the strip would drop a shim of its own,
+and after the check for another `claude`, so a `claude` shipped in `bin/` is
+never the one it execs when there is none.
 
-**For the copy, not the directory.** The check is for `dist/plugin`, not for
-`dist/plugin/bin`. A `just dogfood` run later in the session can create `bin/`,
-and PATH is fixed at launch, so a directory test would leave that session
-without it until a relaunch. A missing PATH directory is harmless. A copy with
-no `bin/` therefore still gets the entry; no copy gets none.
-
-**What counts as already listed.** An absolute entry spelled as the directory or
-naming the same one (`-ef`: a trailing slash, a symlinked directory) is left
-where the user put it and not repeated. An empty or relative entry never counts:
-it names whatever directory the launch happens to be in, so `.` from inside
-`bin/`, or a relative `dist/plugin/bin` from the root, would suppress the append
-for a launch from anywhere else. The path is quoted whole, so a root with a
-space stays one entry; a root holding a colon would split on PATH's delimiter
-and is not handled. Both questions are answered by the one walk of PATH that
-also does the strip.
+**Unconditional.** The shim does not test for the copy, for `bin/`, or for an
+entry already naming the directory. PATH is fixed at launch and a `just dogfood`
+run later in the session can create the copy or its `bin/`; a PATH entry that
+names a missing directory is inert, so a probe could only be wrong. A repeated
+entry is inert too: the first one resolves a name and the later one is never
+reached, so no deduplication earns its walk of PATH. The path is quoted whole,
+so a root with a space stays one entry; a root holding a colon would split on
+PATH's delimiter and is not handled.
 
 **A known divergence.** The shim sets PATH on the `claude` process, so hooks,
 MCP servers and plugin agents inherit `bin/` too, while a marketplace install is

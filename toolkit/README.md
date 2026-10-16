@@ -48,8 +48,9 @@ dotfiles).
   [Dogfooding](#dogfooding).
 - **`bin/claude`** — the dogfood shim. First on PATH, it points
   `CLAUDE_CODE_PLUGIN_DIRS` at `dist/plugin/`, appends the copy's `bin/` to
-  PATH, and execs the next `claude` on PATH. It never syncs;
-  while the copy is missing it warns and launches without it.
+  PATH, and execs the next `claude` on PATH. It never syncs, and sets both
+  whether or not the copy exists yet: `/reload-plugins` loads one made later.
+  It never warns about a missing copy; the `SessionStart` check does.
 - **`gates.just`** — opt-in, imported beside `release.just`. Defines the prolog
   that turns a gate recipe into one that skips itself while the files it reads
   are unchanged. See [Gate sentinels](#gate-sentinels).

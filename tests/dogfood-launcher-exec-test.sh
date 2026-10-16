@@ -4,9 +4,8 @@
 # the shim vendored at plugin-dev/bin/claude, puts a stub claude behind it, and
 # launches `claude` by PATH lookup as a developer would.
 #
-# Scope: what the shim execs and when it warns -- argv, no sync, a missing or
-# non-directory copy, no next claude. Its sibling dogfood-launcher-path-test.sh
-# covers the exported copy and the PATH handling.
+# Scope: what the shim execs -- argv, no sync, a missing copy. Its sibling
+# dogfood-launcher-path-test.sh covers the exported copy and the PATH handling.
 #
 # Usage: bash tests/dogfood-launcher-exec-test.sh   (run from repo root)
 set -euo pipefail
@@ -193,76 +192,32 @@ assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
 assert_eq "$(cat "$sandbox/stderr")" "" \
     "a launch does not sync, the variable unset: stderr is empty"
 
-# With no copy the shim still launches: it warns on one line naming the step
-# that makes the copy, and exports nothing, so the session starts plain and
-# session-start reports it. Creating the copy would be a promotion nobody asked
-# for, and exporting a path that is not there would hand the next claude a
-# plugin dir with nothing in it.
-echo "=== a missing copy warns and launches without it ==="
+# With no copy the shim launches silently and exports the path anyway: claude
+# starts cleanly with a plugin directory that does not exist yet, so a copy made
+# by `just dogfood` in the running session needs /reload-plugins and no
+# relaunch. Creating the copy would be a promotion nobody asked for.
+echo "=== a missing copy launches silently with the variable set ==="
 make_consumer
 rm -r "$consumer/dist"
 run_claude --foo 'a b'
-assert_eq "$rc" "0" "a missing copy warns and launches: exit code"
-assert_eq "$(wc -l < "$sandbox/stderr" | tr -d ' ')" "1" \
-    "a missing copy warns and launches: stderr is one line"
-if ! grep -qE '^dogfood: .*just dogfood' "$sandbox/stderr"; then
-    fail "a missing copy warns and launches: no dogfood: line naming just dogfood: $(cat "$sandbox/stderr")"
-fi
+assert_eq "$rc" "0" "a missing copy launches: exit code"
+assert_eq "$(cat "$sandbox/stderr")" "" "a missing copy launches: stderr is empty"
 assert_eq "$(recorded argv | tr '\0' '|')" "--foo|a b|" \
-    "a missing copy warns and launches: the next claude gets argv intact"
+    "a missing copy launches: the next claude gets argv intact"
 assert_eq "$(recorded pid)" "$launch_pid" \
-    "a missing copy warns and launches: exec, not a child"
-assert_eq "$(recorded plugin_dirs)" "<unset>" \
-    "a missing copy warns and launches: the variable stays unset"
-assert_absent "$consumer/dist" "a missing copy warns and launches: no copy made"
+    "a missing copy launches: exec, not a child"
+assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
+    "a missing copy launches: the variable names the copy that is not there yet"
+assert_absent "$consumer/dist" "a missing copy launches: no copy made"
 
-# An inherited value is the environment's, not the shim's: with no copy to
-# point at, the shim leaves it as it came.
-echo "=== a missing copy passes an inherited variable through ==="
+# The shim's value replaces an inherited one, copy or no copy.
+echo "=== a missing copy replaces an inherited variable ==="
 make_consumer
 rm -r "$consumer/dist"
 CLAUDE_CODE_PLUGIN_DIRS="/elsewhere/dist/plugin:/other" run_claude
-assert_eq "$rc" "0" "a missing copy passes an inherited variable through: exit code"
-assert_eq "$(recorded plugin_dirs)" "/elsewhere/dist/plugin:/other" \
-    "a missing copy passes an inherited variable through"
-
-# A regular file where the copy belongs is no copy: exported, it would hand
-# the next claude a variable naming a file, and session-start, comparing it as
-# spelled, would stay silent.
-echo "=== a file at dist/plugin is no copy ==="
-make_consumer
-rmdir "$consumer/dist/plugin"
-printf 'not a copy\n' > "$consumer/dist/plugin"
-run_claude --foo
-assert_eq "$rc" "0" "a file at dist/plugin is no copy: exit code"
-if ! grep -qE '^dogfood: .*just dogfood' "$sandbox/stderr"; then
-    fail "a file at dist/plugin is no copy: no dogfood: line naming just dogfood: $(cat "$sandbox/stderr")"
-fi
-assert_eq "$(recorded plugin_dirs)" "<unset>" \
-    "a file at dist/plugin is no copy: the variable stays unset"
-assert_file "$consumer/dist/plugin" "a file at dist/plugin is no copy: the file is left alone"
-
-# With no copy and no other claude both lines appear, the warning first: the
-# copy check runs before the lookup. The PATH is the 127 scenario's: the shim
-# and the commands it runs.
-echo "=== a missing copy and no next claude: the warning, then 127 ==="
-make_consumer
-rm -r "$consumer/dist"
-mkdir "$sandbox/tools"
-for tool in bash dirname; do
-    ln -s "$(command -v "$tool")" "$sandbox/tools/$tool"
-done
-path_exact="$shim_dir:$sandbox/tools"
-run_claude
-assert_eq "$rc" "127" "a missing copy and no next claude: exit code"
-assert_eq "$(wc -l < "$sandbox/stderr" | tr -d ' ')" "2" \
-    "a missing copy and no next claude: stderr is two lines"
-first="$(head -n1 "$sandbox/stderr")"
-if ! grep -qE '^dogfood: .*just dogfood' <<<"$first"; then
-    fail "a missing copy and no next claude: the first line is not the warning: $(cat "$sandbox/stderr")"
-fi
-assert_eq "$(tail -n1 "$sandbox/stderr")" "dogfood: no other claude on PATH" \
-    "a missing copy and no next claude: the second line is the 127 line"
+assert_eq "$rc" "0" "a missing copy replaces an inherited variable: exit code"
+assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
+    "a missing copy replaces an inherited variable"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2

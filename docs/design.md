@@ -299,32 +299,36 @@ the dated record of the reversal goes in the changelog.
   promote the working tree repo-wide on every `claude` that reaches the shim,
   and syncing on each edit would cost a sync per tool call; both would run
   half-edited hook scripts in live sessions.
-- **A launch with no copy warns and starts without it** — the shim prints one
-  `dogfood:` line naming `just dogfood`, leaves `CLAUDE_CODE_PLUGIN_DIRS` as it
-  came and execs, so `session-start` reports the plain session. A refusal would
-  leave no `claude` through the shim while the copy cannot be made, and creating
-  the copy would be a sync at launch by another trigger; the check is for
-  presence, never staleness.
+- **A launch with no copy exports the copy's path anyway** — the shim sets
+  `CLAUDE_CODE_PLUGIN_DIRS` and execs, silently; Claude Code starts cleanly with
+  a missing plugin directory, and `/reload-plugins` loads the copy the first
+  `just dogfood` makes, with no relaunch (verified headless). The warning is
+  `session-start`'s. A refusal would leave no `claude` through the shim while
+  the copy cannot be made, and creating the copy would be a sync at launch by
+  another trigger.
 - **`dogfood.sh` carries `sync`, `pre-tool` and `session-start`, each rooted at
   the script's own location** — never `CLAUDE_PROJECT_DIR` or a payload `cwd`,
   which a resumed session can take from another repository.
 - **The copy guard denies an edit into `dist/plugin/`, compared on physical
   paths, and does not rewrite it** — the agent is given the source path, since a
   silent rewrite would hide the mapping.
-- **`session-start` reports a session that does not load the copy, and a missing
-  `jq`** — whole-entry matching on the variable; the human gets the remedy, the
-  agent the fact, and nothing refuses.
+- **`session-start` reports a session that does not load the copy, a missing
+  copy directory, and a missing `jq`** — whole-entry matching on the variable,
+  then a directory test; the human gets the remedy (`just dogfood` and
+  `/reload-plugins`, or `direnv allow` and a relaunch, never the shim's path),
+  the agent the fact, and nothing refuses.
 - **A failed sync is loud** — `just dogfood` exits non-zero, and rsync's stderr
   is never redirected. Every refusal, `rsync` missing from PATH included, comes
-  before the copy is made, so a refused first sync leaves no copy, which the
-  shim warns about, rather than an empty one it would load in silence.
+  before the copy is made, so a refused first sync leaves no copy rather than an
+  empty one the session would load in silence.
 - **The shim exports `CLAUDE_CODE_PLUGIN_DIRS` rather than passing
   `--plugin-dir`, and execs the next `claude` on PATH** — the variable reaches
   hooks, which is what `session-start` checks. The shim never syncs.
-- **The shim appends `<root>/dist/plugin/bin` to PATH whenever there is a copy**
-  — after the user's entries, standing in for a marketplace install, which
-  `CLAUDE_CODE_PLUGIN_DIRS` does not do; the argument is in
-  [dogfood.md](references/dogfood.md).
+- **The shim appends `<root>/dist/plugin/bin` to PATH unconditionally** — after
+  the user's entries, standing in for a marketplace install, which
+  `CLAUDE_CODE_PLUGIN_DIRS` does not do, with no probe for the copy, the
+  directory or a prior entry, since a PATH entry that is missing or repeated is
+  harmless; the argument is in [dogfood.md](references/dogfood.md).
 - **`just dogfood` syncs and does nothing else** — the one promotion; it starts
   no `claude` and depends on no gate.
 - **`install.sh` wires the hooks; `.envrc`, `.gitignore` and `clean` are

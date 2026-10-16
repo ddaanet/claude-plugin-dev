@@ -175,7 +175,7 @@ recorded() {
 # decoy consumer with a copy of its own: a git repo with a manifest and a
 # dist/plugin/. A <root> taken from the launch directory, from git's toplevel
 # there or from the nearest manifest above it finds the decoy's copy and
-# exports it, rather than warning for a missing copy.
+# exports it.
 echo "=== the shim exports the copy ==="
 make_consumer
 ln -s "$consumer" "$sandbox/link"

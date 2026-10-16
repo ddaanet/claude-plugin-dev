@@ -132,8 +132,8 @@ assert_session_warns() {
 }
 
 # CLAUDE_CODE_PLUGIN_DIRS is unset by the preamble; a test wanting it passes it
-# as a prefix. The warn test below is this one's positive: the same fixture,
-# differing only in the variable.
+# as a prefix. The unset-variable warning in dogfood-session-warn-test.sh is
+# this one's positive: the same fixture, differing only in the variable.
 echo "=== session-start is silent on the copy ==="
 make_consumer
 run_dogfood sync
@@ -144,71 +144,9 @@ assert_eq "$rc" "0" "$label exit code"
 assert_eq "$out" "" "$label prints nothing on stdout"
 assert_eq "$err" "" "$label prints nothing on stderr"
 
-# The same entry with no copy on disk: the match is decided by the variable
-# alone, before the no-copy check. A check run first would warn here that no
-# copy exists, in a session that did name the path.
-echo "=== session-start is silent on the copy named before any sync ==="
-make_consumer
-root="$(cd "$consumer" && pwd -P)"
-label="session-start is silent on the copy named before any sync"
-if [[ -e "$root/dist" ]]; then
-    fail "$label: the fixture already has a dist/"
-fi
-CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin" run_session_start
-assert_eq "$rc" "0" "$label exit code"
-assert_eq "$out" "" "$label prints nothing on stdout"
-assert_eq "$err" "" "$label prints nothing on stderr"
-
-echo "=== session-start warns when the variable is unset ==="
-make_consumer
-run_dogfood sync
-root="$(cd "$consumer" && pwd -P)"
-label="session-start warns when the variable is unset"
-run_session_start
-assert_session_warns "$label" "$root"
-# The exact text pins the copy-present wording, which the no-copy branch below
-# must leave alone.
-# shellcheck disable=SC2016  # $c is a jq variable bound by --arg
-jq_holds "$label: systemMessage is the launch-through-the-shim line" \
-    '.systemMessage == "\u001b[0mdogfood: this session does not load " + $c + " — launch claude through plugin-dev/bin/claude from the repo root"' \
-    --arg c "$root/dist/plugin"
-# shellcheck disable=SC2016  # $c is a jq variable bound by --arg
-jq_holds "$label: additionalContext is the not-the-promoted-copy fact" \
-    '.hookSpecificOutput.additionalContext == "This session does not load " + $c + ", so plugin behaviour observed in it is not that of the promoted copy."' \
-    --arg c "$root/dist/plugin"
-
-# The shim's no-copy launch: no copy, variable left unset. The remedy the human
-# needs is the promotion, not a launch through the shim, which is how this
-# session started. The agent gets the fact and no command: the promotion is the
-# human's act. A file where the copy belongs is no copy either, as for the shim.
-# Their copy-present control is the warn test above.
-for shape in absent file; do
-    echo "=== session-start names the promotion when the copy is $shape ==="
-    make_consumer
-    root="$(cd "$consumer" && pwd -P)"
-    if [[ "$shape" == file ]]; then
-        mkdir "$root/dist"
-        printf 'not a copy\n' > "$root/dist/plugin"
-    fi
-    label="session-start with the copy $shape"
-    run_session_start
-    assert_session_warns "$label" "$root"
-    jq_holds "$label: systemMessage names just dogfood" \
-        '.systemMessage | contains("just dogfood")'
-    jq_holds "$label: systemMessage does not name the shim launch" \
-        '.systemMessage | contains("launch claude through") | not'
-    jq_holds "$label: additionalContext states no copy exists" \
-        '.hookSpecificOutput.additionalContext | ascii_downcase | contains("no copy exists")'
-    for word in "just dogfood" sync promote; do
-        # shellcheck disable=SC2016  # $w is a jq variable bound by --arg
-        jq_holds "$label: additionalContext does not name '$word'" \
-            '.hookSpecificOutput.additionalContext | ascii_downcase | contains($w) | not' \
-            --arg w "$word"
-    done
-done
-
+# The same entry with no copy on disk, as in a shim launch before the first
 # Each spelling below names the copy, so each is silent; the variable, and for
-# the last a link to the root, is all that differs from the warn test above.
+# the last a link to the root, is all that differs from the silent test above.
 # The copy sits between two entries, so neither the first nor the last entry
 # alone, nor a suffix of the whole value, can stand in for splitting on ':'.
 # The link spelling is set while the script is invoked at the physical path, so
@@ -320,49 +258,16 @@ assert_eq "$rc" "0" "$label exit code"
 assert_eq "$out" "" "$label prints nothing on stdout"
 assert_eq "$err" "" "$label prints nothing on stderr"
 
-# Each entry below names something other than the copy, so each warns. The
-# other repo's copy is real and synced, so an entry that merely is an existing
-# plugin directory, or ends in /dist/plugin, does not match; the /x entry does
-# not exist, so it is compared literally and a substring does not match; the
-# skills entry is a real directory inside the copy, so a prefix does not match.
-echo "=== session-start warns on another repo's real copy ==="
-make_consumer
-run_dogfood sync
-other_root="$(cd "$consumer" && pwd -P)"
-make_consumer
-run_dogfood sync
-root="$(cd "$consumer" && pwd -P)"
-[[ -d "$other_root/dist/plugin" ]] || fail "fixture: the other repo's copy does not exist"
-label="session-start warns on another repo's copy"
-CLAUDE_CODE_PLUGIN_DIRS="$other_root/dist/plugin" run_session_start
-assert_session_warns "$label" "$root"
-
-echo "=== session-start warns on a longer, non-existent entry ==="
-make_consumer
-run_dogfood sync
-root="$(cd "$consumer" && pwd -P)"
-label="session-start warns on /x<root>/dist/plugin"
-CLAUDE_CODE_PLUGIN_DIRS="/x$root/dist/plugin" run_session_start
-assert_session_warns "$label" "$root"
-
-echo "=== session-start warns on a longer, real entry ==="
-make_consumer
-run_dogfood sync
-root="$(cd "$consumer" && pwd -P)"
-[[ -d "$root/dist/plugin/skills" ]] || fail "fixture: the copy has no skills directory"
-label="session-start warns on <root>/dist/plugin/skills"
-CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin/skills" run_session_start
-assert_session_warns "$label" "$root"
-
 # The payload is built with the real jq before the PATH narrows, and stdout is
 # read with the suite's own jq after the run. The message is static, and only a
 # user can install jq, so it stays off hookSpecificOutput. The copy check needs
 # jq's absence to be skipped, not merely survived: the second run names the copy
 # in the variable, where the check would be silent, and still gets the message.
-# Their jq-present controls are `session-start is silent on the copy` and
-# `session-start warns when the variable is unset` above: the same fixture and
-# payload, differing only in the PATH. The sandbox path is random and may hold
-# "jq", so it is cut out of the message before the message is searched for jq.
+# Their jq-present controls are `session-start is silent on the copy` above and
+# the unset-variable warning in dogfood-session-warn-test.sh: the same fixture
+# and payload, differing only in the PATH. The sandbox path is random and may
+# hold "jq", so it is cut out of the message before the message is searched for
+# jq.
 echo "=== session-start reports a missing jq on systemMessage only ==="
 make_consumer
 run_dogfood sync
