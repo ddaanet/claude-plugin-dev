@@ -62,8 +62,8 @@ or removing a shipped file means updating the list in
   consumer's `.envrc` puts first on PATH as `PATH_add plugin-dev/bin`.
   Never syncs: it execs the next `claude` on PATH with its arguments
   unchanged and `CLAUDE_CODE_PLUGIN_DIRS` set to `dist/plugin/`, the
-  copy only `just dogfood` writes, and the copy's `bin/`, when it has one,
-  appended to PATH after the user's entries. While that copy is missing it
+  copy only `just dogfood` writes, and the copy's `bin/`, whenever
+  there is a copy, appended to PATH after the user's entries. While that copy is missing it
   warns, leaves the variable as it came and launches anyway.
 - `toolkit/version-guard.sh` — `PreToolUse(Write|Edit)` hook that fires
   inside consumer plugins to refuse agent edits to
@@ -155,7 +155,7 @@ contents), `citation-test.sh` (refuses a `<script>.sh:<line>`
 citation into a tracked file outside `plans/` and `docs/changelog/`),
 the `dogfood.sh` suites (`dogfood-sync-{copy,nested,allowlist,refusal}-test.sh`,
 `dogfood-pre-tool-{paths,jq}-test.sh` and
-`dogfood-session-start-test.sh`) and `dogfood-launcher-{exec,path}-test.sh` (the
+`dogfood-session-start-test.sh`) and `dogfood-launcher-{exec,path,bin}-test.sh` (the
 `bin/claude` shim). A green `precommit` — including the one a
 pre-commit hook runs — is therefore evidence the whole release suite
 passed, not just the linters. **One script under test per suite
