@@ -97,6 +97,62 @@ assert_eq "$rc" "1" "check-version drift exit code"
 grep -q "version drift" <<<"$out" \
     || fail "check-version did not report drift"
 
+# A marketplace file with no plugins list is malformed, not a plugin with no
+# entry: it fails with its own diagnosis rather than jq's raw exit 5, which a
+# caller would report as drift.
+echo "=== check-version (marketplace has no plugins list: fail) ==="
+jq -n '{name: "m"}' > "$market"
+set +e
+out="$(bash toolkit/check-version.sh "$proj/.claude-plugin/plugin.json" "$market" 2>&1)"
+rc=$?
+set -e
+assert_eq "$rc" "1" "check-version no-plugins-list exit code"
+grep -q "no plugins list" <<<"$out" \
+    || fail "check-version did not name the missing plugins list"
+if grep -q "version drift" <<<"$out"; then
+    fail "check-version reported drift for a malformed marketplace file"
+fi
+
+# Unparseable JSON is not "no plugins list": jq's parse error goes to stderr
+# beside the script's own line, and the line names the real problem.
+echo "=== check-version (marketplace is not JSON: fail) ==="
+printf '{"plugins": [\n' > "$market"
+set +e
+out="$(bash toolkit/check-version.sh "$proj/.claude-plugin/plugin.json" "$market" 2>&1)"
+rc=$?
+set -e
+assert_eq "$rc" "1" "check-version unparseable-marketplace exit code"
+grep -q "not valid JSON" <<<"$out" \
+    || fail "check-version did not say the marketplace file is not valid JSON"
+if grep -q "no plugins list" <<<"$out"; then
+    fail "check-version called an unparseable marketplace file a missing plugins list"
+fi
+
+# A plugins list holding a non-object passes a type-is-array test and then
+# aborts the entry lookup with a bare jq status.
+echo "=== check-version (plugins list holds a non-object: fail) ==="
+jq -n '{plugins: ["x"]}' > "$market"
+set +e
+out="$(bash toolkit/check-version.sh "$proj/.claude-plugin/plugin.json" "$market" 2>&1)"
+rc=$?
+set -e
+assert_eq "$rc" "1" "check-version non-object-entry exit code"
+grep -q "entry that is not an object" <<<"$out" \
+    || fail "check-version did not name the non-object plugins entry"
+
+# A manifest with no .name makes jq print the literal `null`, which would then
+# look up an entry named "null": refuse it instead.
+echo "=== check-version (plugin.json has no name: fail) ==="
+jq 'del(.name)' "$proj/.claude-plugin/plugin.json" > "$proj/nameless.json"
+jq -n '{plugins: []}' > "$market"
+set +e
+out="$(bash toolkit/check-version.sh "$proj/nameless.json" "$market" 2>&1)"
+rc=$?
+set -e
+assert_eq "$rc" "1" "check-version nameless-manifest exit code"
+grep -q "has no .name" <<<"$out" \
+    || fail "check-version did not report the missing .name"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1

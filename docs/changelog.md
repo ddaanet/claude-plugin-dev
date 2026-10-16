@@ -9,6 +9,9 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-16 — The two shell audits are closed out](changelog/2026-10-16-shell-audit-closeout.md)
+  — the open latent items re-checked: six fixed, three left with the reason; the
+  `chmod 555` scenarios skip loudly when run as root.
 - [2026-10-16 — Gate sentinels and the quiet bats runner ship as an opt-in](changelog/2026-10-16-gate-sentinels.md)
   — `toolkit/gates.just` carries gitlore's sentinel functions as an interpolated
   prolog and `toolkit/run-bats.sh` its quiet runner; neither is imported by

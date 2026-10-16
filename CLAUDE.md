@@ -155,7 +155,9 @@ catch justfile syntax errors (it imports `gates.just` beside it too), and then
 the eleven `release-*-test.sh` suites that split `release.sh`'s consumer flow by
 scenario group (`release-core`, `-resume-push`, `-resume-hint`, `-tree`,
 `-first`, `-lost-tag`, `-push-route`, `-tags`, `-rollback`, `-pipefail`,
-`-hint-size`), `release-dist-{publish,resume,refusal,optin}-test.sh`
+`-hint-size`), `release-core-root-skip-test.sh` (which runs the `release-core`
+suite under a stub `id` printing 0, to pin its root guard),
+`release-dist-{publish,resume,refusal,optin}-test.sh`
 (`release.sh` publishing the `dist` branch),
 `self-release-{publish,refusal}-test.sh`, `update-plugin-dev-test.sh`,
 `run-bats-test.sh` (the quiet runner, against a stub `bats`),

@@ -231,7 +231,12 @@ After the pull, `update.sh` prints every note in the crossed range (old
 the human to apply: an upgrade never touches files outside `plugin-dev/`,
 because a consumer's justfile and settings are theirs, and a silently-mutating
 upgrade is exactly the class of surprise the rest of this design exists to
-prevent. Most releases need no note; the directory may not exist at all.
+prevent. Most releases need no note; the directory may not exist at all. The
+incoming end of the range is the pulled `VERSION`, or the version in the
+`dist-vX.Y.Z` ref when the pulled tree has none, so it is always known. Only the
+outgoing end can be missing (a consumer copy with no `VERSION`); then the range
+cannot be decided, and `update.sh` says so and points at
+`plugin-dev/migrations/` instead of printing nothing.
 
 Structural limit, the same one that ruled out pruning leaked paths in
 `update-plugin-dev`: the consumer's *existing* vendored copy executes the
