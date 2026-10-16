@@ -96,6 +96,13 @@ if [ ! -d "$TOOLKIT_PREFIX" ]; then
           exit 1
           ;;
     esac
+    # With no commit there is no HEAD to diff against: `git diff HEAD` fails
+    # with a "fatal: ambiguous argument", which the next line would report as a
+    # dirty tree. `subtree add` needs a commit to attach to, so refuse, truthfully.
+    git rev-parse -q --verify HEAD >/dev/null || {
+        echo "error: no commits yet — commit the plugin before vendoring" >&2
+        exit 1
+    }
     git diff --quiet HEAD || { echo "error: uncommitted changes — commit or stash before vendoring" >&2; exit 1; }
     git subtree add --prefix="$TOOLKIT_PREFIX" "$TOOLKIT_URL" "$ref" --squash
     changed+=("$TOOLKIT_PREFIX/ (vendored at $ref)")
