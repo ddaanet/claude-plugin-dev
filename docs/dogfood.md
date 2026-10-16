@@ -149,5 +149,7 @@ version-guard:
   an absolute path to `claude`), or inherited another repo's
   `CLAUDE_CODE_PLUGIN_DIRS`, as a `claude` started from another plugin's
   dogfood session does. `direnv allow` loads the `.envrc` that puts the shim
-  first on PATH. The agent is told each as a fact, with no command to run. After
-  the fourth, Claude Code's own sensitive-file prompt still stops a copy edit.
+  first on PATH. The agent never sees these lines: it gets the finding as a
+  fact with no command to run, and nothing for the fourth. After the fourth,
+  Claude Code's
+  own sensitive-file prompt still stops a copy edit.
