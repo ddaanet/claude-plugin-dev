@@ -5,7 +5,8 @@
 # launches `claude` by PATH lookup as a developer would.
 #
 # Scope: the exported variable and PATH handling -- the copy the shim exports,
-# CDPATH, the shim's own entry in any spelling, the launch directory. Its sibling
+# CDPATH, the shim's own entry in any spelling, the launch directory, the
+# copy's bin/ appended to PATH. Its sibling
 # dogfood-launcher-exec-test.sh covers the exec, argv and missing-copy paths.
 #
 # Usage: bash tests/dogfood-launcher-path-test.sh   (run from repo root)
@@ -309,6 +310,67 @@ run_claude
 assert_eq "$rc" "127" "no next claude exits 127"
 assert_eq "$(cat "$sandbox/stderr")" "dogfood: no other claude on PATH" \
     "no next claude exits 127: stderr is the shim's one line"
+
+# The plugin's bin/ in the copy is on PATH for a marketplace install, after the
+# user's entries, and not for a plugin loaded through CLAUDE_CODE_PLUGIN_DIRS.
+# The shim stands in for the install, so it appends <root>/dist/plugin/bin, and
+# only when that directory exists. $consumer holds a space: an unquoted append
+# would split it into two entries. Residual bound: a root holding a colon would
+# split on PATH's own delimiter, and nothing here claims to survive that.
+echo "=== the shim appends the copy's bin to PATH ==="
+make_consumer
+bin="$consumer/dist/plugin/bin"
+mkdir -p "$bin"
+printf '#!/bin/sh\n' > "$bin/demo-tool"
+chmod +x "$bin/demo-tool"
+run_claude
+# shellcheck disable=SC2031  # the suite's own PATH, which the launch appended
+assert_eq "$(recorded path)" "$stubdir:$PATH:$bin" \
+    "the shim appends the copy's bin to PATH: last, after every inherited entry"
+found="$(PATH="$(recorded path)" command -v demo-tool || true)"
+assert_eq "$found" "$bin/demo-tool" \
+    "the shim appends the copy's bin to PATH: a bin command resolves"
+assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
+    "the shim appends the copy's bin to PATH: the copy is still exported"
+
+# An entry already naming the directory, in any spelling, is not repeated, and
+# stays where the user put it.
+echo "=== the shim does not repeat the copy's bin ==="
+make_consumer
+bin="$consumer/dist/plugin/bin"
+mkdir -p "$bin"
+path_head="$shim_dir:$stubdir:$bin/"
+run_claude
+# shellcheck disable=SC2031  # the suite's own PATH, which the launch appended
+assert_eq "$(recorded path)" "$stubdir:$bin/:$PATH" \
+    "the shim does not repeat the copy's bin: PATH is as spelled"
+
+# A copy without a bin/ is a consumer with no executables: PATH is the stripped
+# PATH, whatever other bin directories the root holds.
+echo "=== no bin in the copy adds nothing ==="
+make_consumer
+mkdir -p "$consumer/bin" "$consumer/dist/plugin/skills"
+run_claude
+# shellcheck disable=SC2031  # the suite's own PATH, which the launch appended
+assert_eq "$(recorded path)" "$stubdir:$PATH" \
+    "no bin in the copy adds nothing"
+
+# The appended directory is added after the check for another claude: a claude
+# the plugin ships in bin/ is not the next claude, and must not be exec'd when
+# there is none.
+echo "=== a claude in the copy's bin is not the next claude ==="
+make_consumer
+mkdir "$sandbox/tools" "$consumer/dist/plugin/bin"
+for tool in bash dirname; do
+    ln -s "$(command -v "$tool")" "$sandbox/tools/$tool"
+done
+printf '#!/bin/sh\nprintf ran > "%s/rec/shipped"\n' "$sandbox" > "$consumer/dist/plugin/bin/claude"
+chmod +x "$consumer/dist/plugin/bin/claude"
+path_exact="$shim_dir:$sandbox/tools"
+run_claude
+assert_eq "$rc" "127" "a claude in the copy's bin is not the next claude: exit"
+assert_absent "$sandbox/rec/shipped" \
+    "a claude in the copy's bin is not the next claude: it did not run"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2

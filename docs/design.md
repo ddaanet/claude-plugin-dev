@@ -283,6 +283,14 @@ the dated record of the reversal goes in the changelog.
 - **The shim exports `CLAUDE_CODE_PLUGIN_DIRS` rather than passing
   `--plugin-dir`, and execs the next `claude` on PATH** — the variable reaches
   hooks, which is what `session-start` checks. The shim never syncs.
+- **The shim appends `<root>/dist/plugin/bin` to PATH when it exists** — Claude
+  Code puts a marketplace-installed plugin's `bin/` last on the Bash tool's PATH
+  and puts none there for a plugin loaded through `CLAUDE_CODE_PLUGIN_DIRS` (CC
+  2.1.299), so dogfood stands in for the install or a `bin/` command is
+  untestable until released. After the user's entries and not repeated, never
+  prepended; `bin/` serves agents' and users' Bash, and hooks find their own
+  scripts by `${CLAUDE_PLUGIN_ROOT}` or `$0`. `sync` keeps `bin/`'s executable
+  bit. Hook and plugin-agent PATH are unmeasured, so the shim promises neither.
 - **`just dogfood` syncs and does nothing else** — the one promotion; it starts
   no `claude` and depends on no gate.
 - **`install.sh` wires the hooks; `.envrc`, `.gitignore` and `clean` are

@@ -3,7 +3,12 @@
 # <root>/plugin-dev/bin/claude and put first on PATH, it execs the next claude on
 # PATH (every entry whose claude is the shim itself is dropped) with argv
 # unchanged, CLAUDE_CODE_PLUGIN_DIRS pointing at <root>/dist/plugin over any
-# inherited value, and CDPATH unset. It never syncs: a launch is not a
+# inherited value, and CDPATH unset. When <root>/dist/plugin/bin exists it is
+# appended to that PATH, after every other entry and not repeated if an entry
+# already names it: a marketplace install puts a plugin's bin/ last on PATH and a
+# CLAUDE_CODE_PLUGIN_DIRS load puts nothing there, so the shim stands in for the
+# install, and prepending would let a bin/ command shadow what the release
+# never shadows. It never syncs: a launch is not a
 # promotion, and only `just dogfood` writes the copy. With no copy it says so on
 # one dogfood: line naming that step, leaves the variable as it came, and
 # launches anyway; session-start then reports a session without the copy. With
@@ -26,12 +31,31 @@ main() {
         echo "dogfood: no copy at $root/dist/plugin, so claude starts without it; run just dogfood to create it" >&2
     fi
     path="$(path_without "${BASH_SOURCE[0]}" && printf x)"
-    export PATH="${path%x}"
+    path="${path%x}"
+    export PATH="$path"
     if ! command -v claude >/dev/null; then
         echo "dogfood: no other claude on PATH" >&2
         exit 127
     fi
+    # After the claude check, so a claude the plugin ships in bin/ is never the
+    # next claude; the exec still finds the first one ahead of it.
+    if [[ -d "$root/dist/plugin/bin" ]] && ! path_has "$path" "$root/dist/plugin/bin"; then
+        export PATH="${path:+$path:}$root/dist/plugin/bin"
+    fi
     exec claude "$@"
+}
+
+# Whether the colon-separated list $1 has an entry naming the directory $2, however
+# the entry is spelled (-ef). An empty entry is the working directory. A root
+# holding a colon would split on the delimiter; nothing here claims to survive it.
+path_has() {
+    local entry rest="$1:"
+    while [[ -n "$rest" ]]; do
+        entry="${rest%%:*}"
+        rest="${rest#*:}"
+        [[ -d "${entry:-.}" && "${entry:-.}" -ef "$2" ]] && return 0
+    done
+    return 1
 }
 
 # PATH minus every entry whose claude is the file $1, however the entry is
