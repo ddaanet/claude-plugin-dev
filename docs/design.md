@@ -224,20 +224,23 @@ the dated record of the reversal goes in the changelog.
   justfile string, so a test lints it.
 - **The consumer declares the inputs, and the cache is true only while every
   check reads inside them** — the toolkit cannot see the checks. A gitlink
-  hashes by name only, so a check over one runs uncached ahead of the guard. No
-  drift check ships; the manual carries the rule and a procedure to prove a
-  list.
+  hashes by name only, so a check over one runs uncached ahead of the guard. The
+  guard adds `justfile` and `plugin-dev` itself and refuses a pathspec that
+  matches no file; no drift check ships, and the manual carries the rule and a
+  procedure to prove a list. Execute bits are hashed, other modes are not.
 - **Tool versions are an exported `PLUGIN_DEV_GATE_TOOLS`, empty by default** —
   one shell command per line, since the set differs per consumer and a lockfile
   pins some of it.
 - **A pass is recorded only against the hash taken before the checks, and never
-  from a hash that failed** — moved inputs fail the recipe, an uncomputable hash
-  passes it and says the pass was not recorded.
+  from a hash that failed** — moved inputs and an uncomputable hash alike leave
+  the checks' verdict standing and say the pass was not recorded.
 - **One guard per recipe body, enforced** — a second gate, a record with no
   guard, no pathspec and a gate name holding a `/` are each refused.
 - **Names are toolkit-neutral, with no aliases** — `PLUGIN_DEV_GATE_DIR`,
   `PLUGIN_DEV_GATE_FORCE`, the `plugin-dev/gates` gitdir path and the
   `plugin-dev-bats.` log prefix.
+- **The quiet runner shows the log whenever bats failed with nothing else to
+  show, and keeps it only then** — a green run leaves no log in `$TMPDIR`.
 - **gitlore's per-suite bats cache stays out** — bats-specific and larger; a
   later opt-in.
 
@@ -371,9 +374,9 @@ the dated record of the reversal goes in the changelog.
 - **Solo-author workflow assumed.** The toolkit is built around one maintainer's
   plugins. Multi-contributor scenarios (e.g. forks proposing changes back to the
   toolkit) work mechanically but haven't been ergonomics-tested.
-- **A gate's input list is unchecked.** A pathspec matching nothing, or a check
-  reading outside the list, narrows the cache silently; only the manual's rule
-  and its procedure for proving a list stand against it.
+- **A gate's input list is partly unchecked.** A check reading outside the list
+  narrows the cache silently; only the manual's rule and its procedure for
+  proving a list stand against it. A pathspec matching nothing is refused.
 - **No standardised hook library yet.** The toolkit doesn't prescribe
   shellcheck, trailing-whitespace, end-of-file-fixer, etc. for consumer plugins
   — each consumer defines its own `precommit` recipe. May change if patterns

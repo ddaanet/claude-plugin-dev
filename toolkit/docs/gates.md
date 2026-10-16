@@ -28,7 +28,7 @@ import 'plugin-dev/gates.just'
 
 precommit:
     #!{{ plugin_dev_gate_prolog }}
-    sentinel-guard precommit .claude-plugin hooks scripts tests justfile plugin-dev
+    sentinel-guard precommit .claude-plugin hooks scripts tests
     shellcheck scripts/*.sh
     plugin-dev/run-bats.sh tests/*.bats
     record-sentinel
@@ -42,9 +42,13 @@ command, and just still interpolates `{{ }}` in it. Dependencies
 
 The sentinel is a file under the gitdir (`git rev-parse --git-path
 plugin-dev/gates/<gate>`), so it never shows in `git status` or in its own hash,
-and each clone and worktree has its own. The hash covers the names and contents
-of every non-ignored file matching the pathspecs, tracked or not, so a rename, a
-deletion and a brand-new file each count; ignored files do not.
+and each clone and worktree has its own. The hash covers the names, contents and
+execute bits of every non-ignored file matching the pathspecs, tracked or not,
+so a rename, a deletion, a `chmod +x` and a brand-new file each count; ignored
+files do not. Two paths are always added to the pathspecs you give: `justfile`,
+since the commands of the gate are part of what it checks, and `plugin-dev`, so
+that a toolkit update invalidates every pass. A pathspec of yours that matches no
+file is refused, so a typo cannot cache forever.
 
 ### What is never recorded
 
@@ -53,8 +57,10 @@ nothing when it cannot vouch for it:
 
 - **The inputs moved during the run** (another session edited one): the recipe
   prints `inputs changed while the checks ran; the pass was NOT recorded` and
-  exits 1, because a caller that saw status 0 would read it as green.
-- **The hash could not be computed** (a listed tool is missing): the checks run,
+  keeps the checks' own verdict, exiting 0 when they passed. Only the sentinel is
+  withheld, so the next run does the work again.
+- **The hash could not be computed** (a listed tool is missing, an input file
+  cannot be read): the checks run,
   the recipe passes, and `could not hash inputs; the pass was NOT recorded` goes
   to stderr. A gate that never caches is slow, not wrong, but the message is how
   you hear that it stopped caching.
@@ -76,7 +82,8 @@ precommit: check-distribution lint
 
 - `PLUGIN_DEV_GATE_FORCE=1 just precommit` runs the checks whatever the
   sentinels say, and records the result. Use it before a release if you do not
-  trust the declared inputs.
+  trust the declared inputs. Any non-empty value forces, `0` included; unset it
+  to turn it off.
 - `PLUGIN_DEV_GATE_DIR=/some/dir` keeps sentinels there instead of in the
   gitdir. Set it when you run a recipe without meaning its verdict, for example
   a test that drives the real recipe with its checks stubbed: a pass recorded
@@ -89,8 +96,7 @@ The pathspecs are an allow-list you declare. The cache is correct exactly while
 **every check in the recipe reads only inside it**. A check that reads a path
 the hash ignores can go red because of a file the hash never saw: the commit
 that adds the file reports a cached pass, and the failure surfaces days later,
-on an unrelated edit that finally moves the hash. Nothing warns about it, and
-`git ls-files` says nothing about a pathspec that matches no file.
+on an unrelated edit that finally moves the hash. Nothing warns about it.
 
 For each check in the recipe, list what it reads, and reconcile that with the
 pathspecs:
@@ -105,12 +111,10 @@ pathspecs:
   one's recipe depend on it. Declare everything *its* check reads, not only the
   paths the other gate misses.
 
-Besides the paths your checks name, a plugin almost always needs:
+`justfile` and `plugin-dev` are inputs of every gate already. Besides the paths
+your checks name, a plugin almost always needs:
 
-- `plugin-dev`, so that a toolkit update (a new runner, a new prolog) invalidates
-  every pass.
-- `justfile`, since the commands of the gate are part of what it checks, and any
-  `import`ed justfile beside it.
+- Any justfile the root `justfile` `import`s; the root one is already an input.
 - Lockfiles and tool configuration the checks read: `uv.lock`, `pyproject.toml`,
   `package-lock.json`, `.shellcheckrc`, `.gitignore`. `.gitignore` decides which
   untracked files the hash enumerates.
@@ -137,7 +141,7 @@ same recipe body:
 precommit:
     #!{{ plugin_dev_gate_prolog }}
     scripts/check-memory-hygiene.sh
-    sentinel-guard precommit .claude-plugin scripts tests justfile plugin-dev
+    sentinel-guard precommit .claude-plugin scripts tests
     ...
     record-sentinel
 ```
@@ -175,13 +179,21 @@ the tools your checks use and that no lockfile in the pathspecs pins.
 ## The quiet bats runner
 
 `plugin-dev/run-bats.sh` takes the arguments `bats` takes. It runs bats into a
-log under `$TMPDIR`, prints only the `not ok` blocks (the whole log when no TAP
-line appeared at all, as when bats died before a plan), then one line:
+log under `$TMPDIR`, prints only the `not ok` blocks (the whole log when bats
+failed without one, as when it died before a plan or a `teardown_file` crashed),
+then one line, and exits with bats' own status. A green run is that line alone
+and leaves no log:
 
 ```text
-bats: 412 passed, 0 failed — full log: /tmp/plugin-dev-bats.Ab3dEf
+bats: 412 passed, 0 failed
 ```
 
-and exits with bats' own status. A green run is that one line; a red run is the
-failing tests with their diagnostics and the same line. Replace direct `bats …`
-calls in the gate with it. It is independent of the sentinels: use either alone.
+A red run is the failing tests with their diagnostics, and the same line naming
+the log it kept:
+
+```text
+bats: 411 passed, 1 failed — full log: /tmp/plugin-dev-bats.Ab3dEf
+```
+
+Replace direct `bats …` calls in the gate with it. It is independent of the
+sentinels: use either alone.

@@ -10,7 +10,7 @@
 #
 #     precommit:
 #         #!{{ plugin_dev_gate_prolog }}
-#         sentinel-guard precommit .claude-plugin hooks scripts tests justfile plugin-dev
+#         sentinel-guard precommit .claude-plugin hooks scripts tests
 #         shellcheck scripts/*.sh
 #         plugin-dev/run-bats.sh tests/*.bats
 #         record-sentinel
@@ -27,7 +27,8 @@
 #
 # Environment:
 #
-#   PLUGIN_DEV_GATE_FORCE=1   run the checks whatever the sentinel says
+#   PLUGIN_DEV_GATE_FORCE=1   run the checks whatever the sentinel says; any
+#                             non-empty value does, `0` included
 #   PLUGIN_DEV_GATE_DIR=dir   keep sentinels there instead of in the gitdir
 #   PLUGIN_DEV_GATE_TOOLS     tool versions to fold into the hash: one shell
 #                             command per line, each printing a version. Empty
@@ -39,17 +40,61 @@
 # the first's, and the prolog refuses it. Give each gate its own recipe.
 #
 # The pathspecs are an allow-list the consumer declares, and a gate caches
-# correctly only while every check it runs reads inside it. See
+# correctly only while every check it runs reads inside it. `justfile` and
+# `plugin-dev` are always added to it: both sit at a fixed path in every
+# consumer. A pathspec that matches no file is refused. See
 # plugin-dev/docs/gates.md before choosing one.
 
 [private]
 plugin_dev_gate_prolog := "/usr/bin/env bash\nset -euo pipefail\n" + '''
-# Gate name, then input pathspecs. Sets `sentinel_dir`, `sentinel`,
+# Recipe name, then input pathspecs. The recipe name is the gate name: it
+# keys the sentinel file and heads the report. Leaves the recipe when the
+# inputs are unchanged -- `exit`, not `return`, because a shebang recipe is one
+# script and the checks follow on the next line.
+sentinel-guard () {
+    if check-sentinel "$@"; then
+        echo "$1: cached (inputs unchanged)"
+        exit 0
+    fi
+}
+
+# Run after the checks, never before. A hash that cannot be computed leaves no
+# sentinel: a partial hash would match itself on the next run if the failure is
+# deterministic, skipping a tree nothing checked. Say so loudly; a cache that
+# quietly stopped caching is the failure nobody hears about.
+#
+# The pass is recorded only against the hash `check-sentinel` took before the
+# checks started. A peer session editing an input mid-run moves the hash, and
+# recording the new one would seal in a pass for a tree nothing checked. The
+# checks themselves passed -- the body is a script under errexit and got here --
+# so the recipe keeps their verdict and only the sentinel is withheld.
+record-sentinel () {
+    if [ -z "${sentinel:-}" ]; then
+        echo "record-sentinel: no sentinel-guard ran earlier in this recipe body" >&2
+        exit 1
+    fi
+    hash=$(gate-inputs-hash) || hash=""
+    if [ -z "$hash" ] || [ -z "${guard_hash:-}" ]; then
+        rm -f "$sentinel"
+        echo "gate: could not hash inputs; the pass was NOT recorded" >&2
+        return
+    fi
+    if [ "$hash" != "$guard_hash" ]; then
+        rm -f "$sentinel"
+        echo "gate: inputs changed while the checks ran; the pass was NOT recorded" >&2
+        return
+    fi
+    printf '%s\n' "$hash" > "$sentinel"
+}
+
+# Gate name, then input pathspecs. Sets `sentinel_dir`, `sentinel`, `gate_cwd`,
 # `gate_inputs` and `guard_hash` for `record-sentinel`.
 #
 # The sentinel lives under the gitdir, not the working tree: bookkeeping that
 # showed up in `git status` -- or in its own input hash -- would invalidate the
-# gate on every run.
+# gate on every run. Its path and the pathspecs are relative to the directory
+# the guard ran in, and a recipe body may `cd` before it records, so both are
+# pinned here: `sentinel` is absolute and `gate_cwd` is where the hash looks.
 #
 # `PLUGIN_DEV_GATE_DIR` puts it somewhere else, for a caller that runs a recipe
 # without meaning its verdict: a test that drives the real recipe with its
@@ -78,9 +123,25 @@ check-sentinel () {
         echo "check-sentinel: no sentinel directory -- not in a git repository, or git failed" >&2
         exit 1
     fi
+    case "$sentinel_dir" in
+        /*) ;;
+        *) sentinel_dir=$PWD/$sentinel_dir ;;
+    esac
     mkdir -p "$sentinel_dir" || exit 1
     sentinel="$sentinel_dir/$1"; shift
-    gate_inputs=("$@")
+    # A pathspec that matches nothing is a typo that would cache forever. An
+    # exclude has no files of its own to match.
+    for spec in "$@"; do
+        case "$spec" in
+            :*exclude*|:\!*|:^*) continue ;;
+        esac
+        [ -n "$(git ls-files --cached --others --exclude-standard -- "$spec")" ] || {
+            echo "check-sentinel: pathspec '$spec' matches no file" >&2
+            exit 1
+        }
+    done
+    gate_cwd=$PWD
+    gate_inputs=("$@" justfile plugin-dev)
     # Taken before the checks run, and on every path -- a forced run and a
     # first run reach `record-sentinel` too. It is what `record-sentinel`
     # compares against, so a pass describes the tree the checks read rather
@@ -93,52 +154,19 @@ check-sentinel () {
     [ "$recorded" = "$guard_hash" ]
 }
 
-# Recipe name, then input pathspecs. The recipe name is the gate name: it
-# keys the sentinel file and heads the report. Leaves the recipe when the
-# inputs are unchanged -- `exit`, not `return`, because a shebang recipe is one
-# script and the checks follow on the next line.
-sentinel-guard () {
-    if check-sentinel "$@"; then
-        echo "$1: cached (inputs unchanged)"
-        exit 0
-    fi
-}
-
-# Run after the checks, never before. A hash that cannot be computed leaves no
-# sentinel: a partial hash would match itself on the next run if the failure is
-# deterministic, skipping a tree nothing checked. Say so loudly; a cache that
-# quietly stopped caching is the failure nobody hears about.
-#
-# The pass is recorded only against the hash `check-sentinel` took before the
-# checks started. A peer session editing an input mid-run moves the hash, and
-# recording the new one would seal in a pass for a tree nothing checked; the
-# gate leaves no sentinel and fails, because a caller that saw the recipe exit
-# 0 would read it as green.
-record-sentinel () {
-    if [ -z "${sentinel:-}" ]; then
-        echo "record-sentinel: no sentinel-guard ran earlier in this recipe body" >&2
-        exit 1
-    fi
-    hash=$(gate-inputs-hash) || hash=""
-    if [ -z "$hash" ] || [ -z "${guard_hash:-}" ]; then
-        rm -f "$sentinel"
-        echo "gate: could not hash inputs; the pass was NOT recorded" >&2
-        return
-    fi
-    if [ "$hash" != "$guard_hash" ]; then
-        rm -f "$sentinel"
-        echo "gate: inputs changed while the checks ran; the pass was NOT recorded" >&2
-        exit 1
-    fi
-    printf '%s\n' "$hash" > "$sentinel"
-}
-
-# Names as well as contents, so a rename or deletion counts; the tool versions
-# `PLUGIN_DEV_GATE_TOOLS` lists, for a consumer that does not pin them;
+# Names as well as contents, so a rename or deletion counts; each regular
+# file's execute bit, since a hook that loses it stops running; the tool
+# versions `PLUGIN_DEV_GATE_TOOLS` lists, for a consumer that does not pin them;
 # `--others --exclude-standard` so a brand-new file is hashed before it is
 # added -- when a stale pass hurts most -- while ignored files stay out. A
-# gitlink path is hashed by name only: it is not a regular file, so nothing
-# inside it, nor its commit, reaches the hash.
+# gitlink path, or a tracked file since deleted, is hashed by name only: it is
+# not a regular file, so nothing inside it, nor its commit, reaches the hash.
+#
+# Contents go through `cksum`, one process over the whole list. Its line holds
+# the file's checksum, size and name, so a name and a content cannot run
+# together into the bytes of another tree. A file it cannot read fails it, and
+# `xargs` and `pipefail` carry that to the caller. Residual bound: a file name
+# holding a newline can imitate a `cksum` line.
 #
 # Every component fails explicitly rather than leaning on errexit: this runs in
 # a command substitution inside a condition, where bash suspends errexit, so an
@@ -147,7 +175,9 @@ record-sentinel () {
 gate-inputs-hash () {
     {
         # The group heads a pipeline, so it is a subshell: `exit` fails the
-        # pipeline and pipefail carries that to the caller.
+        # pipeline and pipefail carries that to the caller, and the `cd` is not
+        # the recipe's.
+        cd "$gate_cwd" || exit 1
         if [ -n "${PLUGIN_DEV_GATE_TOOLS:-}" ]; then
             while IFS= read -r tool_cmd; do
                 [ -n "$tool_cmd" ] || continue
@@ -157,12 +187,19 @@ gate-inputs-hash () {
         fi
         git ls-files -z --cached --others --exclude-standard -- "${gate_inputs[@]}" \
             | sort -z \
-            | while IFS= read -r -d '' file; do
-                  printf '%s\n' "$file"
-                  # `if`, not `&&`: a non-regular path would otherwise make the
-                  # loop body -- and so the whole pipeline -- report failure.
-                  if [ -f "$file" ]; then cat -- "$file"; fi
-              done || exit 1
+            | {
+                  regular=()
+                  while IFS= read -r -d '' file; do
+                      mode='?'
+                      if [ -f "$file" ]; then
+                          regular+=("$file")
+                          if [ -x "$file" ]; then mode=x; else mode=-; fi
+                      fi
+                      printf '%s %s\0' "$mode" "$file"
+                  done
+                  [ "${#regular[@]}" -eq 0 ] \
+                      || printf '%s\0' "${regular[@]}" | xargs -0 cksum --
+              } || exit 1
     } | cksum
 }
 '''

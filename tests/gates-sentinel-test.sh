@@ -58,10 +58,11 @@ sandbox="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$sandbox"' EXIT
 
 # mk_consumer: a fresh repo $repo, whose own path holds a space, importing the
-# toolkit's gates.just. `gate` guards over src and the two files that shape it;
+# toolkit's gates.just. `gate` guards over src and .gitignore, which shapes it;
 # `narrow` subtracts src/b.txt with an exclude pathspec; `other` is a second
-# gate in its own recipe; `failing` fails after its guard. Every recipe appends
-# to $RUN_LOG, which lives outside the repo so it is not an input.
+# gate in its own recipe; `cded` changes directory between guard and record;
+# `failing` fails after its guard. Every recipe appends to $RUN_LOG, which lives
+# outside the repo so it is not an input.
 mk_consumer() {
     n=$((${n:-0} + 1))
     repo="$sandbox/con sumer $n"
@@ -78,7 +79,7 @@ import '@TOOLKIT@/gates.just'
 
 gate:
     #!{{ plugin_dev_gate_prolog }}
-    sentinel-guard gate src justfile .gitignore
+    sentinel-guard gate src .gitignore
     echo ran >> "$RUN_LOG"
     record-sentinel
 
@@ -91,6 +92,13 @@ narrow:
 other:
     #!{{ plugin_dev_gate_prolog }}
     sentinel-guard other src
+    echo ran >> "$RUN_LOG"
+    record-sentinel
+
+cded:
+    #!{{ plugin_dev_gate_prolog }}
+    sentinel-guard cded src
+    cd src
     echo ran >> "$RUN_LOG"
     record-sentinel
 
@@ -175,10 +183,10 @@ printf 'x2\n' > "$repo/other/x.txt"
 run_gate gate
 assert_eq "$(runs)" "5" "an edit outside the allow-list leaves the pass cached"
 
-echo "=== an input that is a file outside src counts when it is declared ==="
+echo "=== the justfile counts though no guard lists it ==="
 printf '# touched\n' >> "$repo/justfile"
 run_gate gate
-assert_eq "$(runs)" "6" "editing the justfile, a declared input, reruns"
+assert_eq "$(runs)" "6" "editing the justfile, a built-in input, reruns"
 
 echo "=== PLUGIN_DEV_GATE_FORCE reruns a cached gate and still records ==="
 run_gate gate PLUGIN_DEV_GATE_FORCE=1
@@ -201,6 +209,55 @@ run_gate gate "PLUGIN_DEV_GATE_DIR=$sandbox/elsewhere"
 assert_eq "$(runs)" "1" "the custom dir's sentinel caches"
 run_gate gate
 assert_eq "$(runs)" "2" "the default dir knows nothing of the custom one's pass"
+
+echo "=== plugin-dev counts though no guard lists it ==="
+mk_consumer
+mkdir "$repo/plugin-dev"
+printf 'v1\n' > "$repo/plugin-dev/run-bats.sh"
+run_gate other
+run_gate other
+assert_eq "$(runs)" "1" "plugin-dev present: cached"
+printf 'v2\n' > "$repo/plugin-dev/run-bats.sh"
+run_gate other
+assert_eq "$(runs)" "2" "editing a file under plugin-dev, a built-in input, reruns"
+
+echo "=== the execute bit counts, tracked or not ==="
+mk_consumer
+run_gate other
+chmod +x "$repo/src/a.txt"
+run_gate other
+assert_eq "$(runs)" "2" "setting the execute bit on an untracked file reruns"
+chmod -x "$repo/src/a.txt"
+run_gate other
+assert_eq "$(runs)" "3" "clearing it reruns"
+git -C "$repo" add src/a.txt
+run_gate other
+assert_eq "$(runs)" "3" "adding the file to the index alone moves nothing"
+chmod +x "$repo/src/a.txt"
+run_gate other
+assert_eq "$(runs)" "4" "setting the execute bit on a tracked file reruns"
+
+echo "=== a name and a content that stream the same bytes are told apart ==="
+mk_consumer
+printf 'c1\n' > "$repo/src/a.txt"
+printf 'c2\n' > "$repo/src/b.txt"
+run_gate other
+rm "$repo/src/b.txt"
+printf 'c1\nsrc/b.txt\nc2\n' > "$repo/src/a.txt"
+run_gate other
+assert_eq "$(runs)" "2" "one file holding another's name and content is not the same tree"
+
+echo "=== a cd between guard and record does not break the gate ==="
+mk_consumer
+run_gate cded
+assert_eq "$rc" "0" "run with a cd after the guard: exit status"
+assert_eq "$(runs)" "1" "run with a cd executes the checks"
+if [[ ! -s "$(sentinel_file cded)" ]]; then
+    fail "a recipe that cd'd left no sentinel at $(sentinel_file cded)"
+fi
+run_gate cded
+assert_eq "$rc" "0" "second run with a cd: exit status"
+assert_eq "$(runs)" "1" "a recipe that cd'd is cached on an untouched tree"
 
 echo "=== gates in separate recipes keep separate sentinels ==="
 mk_consumer
@@ -239,4 +296,4 @@ if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\ngates sentinel ok (record, cache, inputs, force, dir, separate gates, exclude, failure)\n'
+printf '\ngates sentinel ok (record, cache, inputs, built-ins, execute bit, name/content boundary, cd, force, dir, separate gates, exclude, failure)\n'

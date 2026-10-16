@@ -54,6 +54,33 @@ since `update.sh` prints notes by the version they are named for.
   nor a new commit of it moves the hash. gitlore's comment had it as "one path
   and nothing to `cat`"; the commit is invisible too.
 
+## Changes from review, before release
+
+The code review of the first commit found these, fixed the same day:
+
+- **Moved inputs no longer fail the recipe.** `record-sentinel` keeps the
+  checks' own verdict, records nothing and prints one line. It had exited 1,
+  failing a gate whose checks passed.
+- **The guard adds `justfile` and `plugin-dev` itself.** Both are fixed paths in
+  every consumer; the manual no longer tells a maintainer to list them, and the
+  recipe's own `$0` is not hashed.
+- **The hash covers each file's execute bit**, and no other mode bit.
+- **A `cd` between guard and record works.** The sentinel path is absolute and
+  the hash runs from the directory the guard ran in.
+- **A pathspec matching no file is refused** at the guard, naming it. Excludes
+  are not held to it.
+- **A file that cannot be read fails the hash.** A middle file's failing `cat`
+  was swallowed by the loop and a partial hash recorded.
+- **Name and content are delimited.** Contents go through one `xargs -0 cksum`
+  over the list, whose line carries the size and the name, in place of a `cat`
+  per file. A tree of two files and a tree of one file holding the other's name
+  and content no longer hash alike.
+- **`run-bats.sh` shows the log whenever bats exited non-zero with no `not ok`
+  block**, and removes it on a green run, whose summary line then names no log.
+- **`sentinel-guard` is defined ahead of `check-sentinel`.**
+  `PLUGIN_DEV_GATE_FORCE` is documented as any non-empty value, as the code has
+  always read it.
+
 ## Tests
 
 `tests/run-bats-test.sh` drives the runner against a stub `bats`.
@@ -61,4 +88,5 @@ since `update.sh` prints notes by the version they are named for.
 recipes in a fixture consumer whose path holds a space; the second also runs
 `shellcheck` over the evaluated prolog. Each was written before the file it
 tests existed and failed on assertions first. `_import-check` now imports
-`gates.just` beside `release.just`.
+`gates.just` beside `release.just`. Each fix above was written as a failing
+assertion first.

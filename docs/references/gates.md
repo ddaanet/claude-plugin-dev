@@ -56,15 +56,20 @@ nothing about them was gitlore's.
 
 ## The inputs are a list the consumer owns
 
-The hash covers the names and contents of the non-ignored files matching the
-pathspecs the guard is given, tracked or not. The toolkit cannot infer the list:
-it does not know what the consumer's checks read, and a hash of the whole tree
-would be invalidated by every scratch file and, under the command sandbox, by
-the phantom dotfiles it masks into the root. So the consumer names paths, and
-the cache is correct exactly while every check reads inside them. That rule is
-the memory `gate-cache-must-cover-every-check` carried from ghmem: a check whose
-scope exceeds the hash goes red on an unrelated commit, days after the file that
-broke it.
+The hash covers the names, contents and execute bits of the non-ignored files
+matching the pathspecs the guard is given, tracked or not. The toolkit cannot
+infer the list: it does not know what the consumer's checks read, and a hash of
+the whole tree would be invalidated by every scratch file and, under the command
+sandbox, by the phantom dotfiles it masks into the root. So the consumer names
+paths, and the cache is correct exactly while every check reads inside them. The
+guard adds two itself, `justfile` and `plugin-dev`: both sit at a fixed path in
+every consumer (`install.sh` writes the import into the root `justfile`, and the
+toolkit is vendored at `plugin-dev/`), so listing them was a step to forget that
+named no choice. The hash does not cover `$0`, the recipe's own script, because
+the `justfile` already holds it. That rule is the memory
+`gate-cache-must-cover-every-check` carried from ghmem: a check whose scope
+exceeds the hash goes red on an unrelated commit, days after the file that broke
+it.
 
 A gitlink is the case no list can fix. `git ls-files` yields the one path, which
 is not a regular file, so only its name reaches the hash; neither an edit inside
@@ -78,9 +83,11 @@ every declared path exists and every top-level entry is declared or excluded. It
 reads gitlore's own justfile and its own exclusion list, so a shipped version
 would need a second declaration from each consumer, and the consumer's checks —
 the thing the list must cover — are still invisible to it. The coverage rule is
-documented in the manual instead, with a procedure to prove a list. The cost is
-that a pathspec matching nothing narrows the hash silently. Revisit when a
-second consumer adopts and a pattern for the declaration shows.
+documented in the manual instead, with a procedure to prove a list. The one
+check that needs no declaration ships: the guard refuses a pathspec that matches
+no file, because a typo there would narrow the hash and cache forever. An
+exclude pathspec has no files of its own and is not held to it. Revisit the rest
+when a second consumer adopts and a pattern for the declaration shows.
 
 ## Tool versions are the consumer's list
 
@@ -102,8 +109,11 @@ stderr, and a failing line fails the hash.
 
 - **A pass is recorded only against the hash taken before the checks.** A peer
   session editing an input mid-run moves the hash; recording the new one would
-  seal in a pass for a tree nothing checked. The gate leaves no sentinel and
-  exits 1, because a caller that saw status 0 would read it as green.
+  seal in a pass for a tree nothing checked. The gate leaves no sentinel, prints
+  a one-line notice, and keeps the checks' own verdict. The checks did pass,
+  against the tree they read, so failing the recipe would report a failure that
+  did not happen and make a concurrent edit break an unrelated commit; the cost
+  of withholding the sentinel is one redundant run.
 - **A hash that cannot be computed records nothing and says so.** A partial hash
   would match itself on the next run if the failure were deterministic. The
   recipe still passes, since the checks did; a cache that quietly stopped
@@ -111,9 +121,19 @@ stderr, and a failing line fails the hash.
 - **Every component of the hash fails explicitly.** The hash runs inside a
   command substitution inside a condition, where bash suspends errexit, so a
   version command that died would drop out of the stream and the gate would keep
-  caching against a hash that no longer covers it. The same reason makes every
-  refusal inside `check-sentinel` an explicit `exit`: it runs as the condition
-  of an `if`.
+  caching against a hash that no longer covers it. A file that cannot be read
+  fails it likewise: the first version read files in a loop whose status was its
+  last iteration's, and recorded a partial hash.
+- **A name and its content are delimited, and the execute bit is in.** Name
+  followed by content streamed the same bytes for a tree of two files and a tree
+  of one file holding the second's name and content. Each regular file now
+  contributes `cksum`'s line (checksum, size, name), and a manifest line carries
+  its execute bit: a hook that loses it stops running and nothing else changed.
+  `cksum` runs once over the whole list through `xargs -0`, in place of one
+  `cat` per file, twice per uncached run; it is POSIX and takes `--` on GNU and
+  BSD alike. No other mode bit is hashed. The same reason makes every refusal
+  inside `check-sentinel` an explicit `exit`: it runs as the condition of an
+  `if`.
 - **One guard per recipe body, enforced.** `check-sentinel` leaves shell
   variables for `record-sentinel`, so a second gate in one body would clobber
   the first's state and record the wrong pass. gitlore documented this in a
@@ -125,6 +145,13 @@ stderr, and a failing line fails the hash.
   show in `git status` or in its own hash and invalidate the gate on every run.
   `git rev-parse --git-path` resolves per worktree, so a worktree has its own
   passes.
+- **The guard pins the directory it ran in.** The gitdir path and the pathspecs
+  are relative to the working directory, and a recipe body may `cd` before it
+  records. The sentinel path is made absolute and the starting directory kept at
+  guard time, and the hash runs from there.
+- **`PLUGIN_DEV_GATE_FORCE` is any non-empty value.** `0` forces too. The test
+  is the shortest one, and the manual says so rather than the code growing a
+  comparison to match a spelling.
 
 The hash is a `cksum`, a 32-bit CRC. Two different trees colliding is a
 one-in-four-billion event per edit; it is inherited from gitlore, and `cksum` is
@@ -138,9 +165,14 @@ repairs.
 hundreds of lines, and piping it through `tail` risks cropping the one `not ok`.
 The runner logs the whole stream, prints only the `not ok` blocks (or the whole
 log when no TAP line appeared, as when bats died before a plan), then one
-summary line, and exits with bats' own status. The log template ends in its `X`s
-because BSD `mktemp` randomises only a trailing run of them. It does not depend
-on the sentinels, and a consumer may take either alone.
+summary line, and exits with bats' own status. The whole log is shown whenever
+bats failed with no `not ok` block to show (a `teardown_file` crash, a test
+count that does not add up, an abort mid-run), since it is then the only account
+of the failure. A green run removes the log, because `$TMPDIR` can be a small
+tmpfs and a passing log is never read; a failed run keeps it, and only then does
+the summary line name it. The log template ends in its `X`s because BSD `mktemp`
+randomises only a trailing run of them. It does not depend on the sentinels, and
+a consumer may take either alone.
 
 ## Out of scope
 

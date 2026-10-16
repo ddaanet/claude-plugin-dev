@@ -2,7 +2,8 @@
 # Tests the guards in toolkit/gates.just that stop a gate from recording a pass
 # it cannot vouch for, and the refusals that stop a misused prolog: inputs that
 # move during a run, a hash that cannot be computed, the tool-version list, a
-# second gate in one recipe body, a record with no guard, and bad arguments.
+# second gate in one recipe body, a record with no guard, and bad arguments
+# (including a pathspec that matches nothing).
 # Same fixture shape as gates-sentinel-test.sh, which covers the cache itself.
 #
 # Usage: bash tests/gates-guards-test.sh   (run from repo root)
@@ -62,9 +63,9 @@ trap 'rm -rf "$sandbox"' EXIT
 # mk_consumer: a fresh repo $repo, whose own path holds a space, importing the
 # toolkit's gates.just. Each recipe appends to $RUN_LOG, which lives outside the
 # repo so it is not an input. `moving` edits an input between guard and record;
-# `twice` opens two gates in one body; `bare` records with no guard; `nopaths`
-# and `badname` misuse the guard; `exported` sets the tool list the documented
-# way, as an exported just variable.
+# `twice` opens two gates in one body; `bare` records with no guard; `nopaths`,
+# `badname` and `typo` misuse the guard; `exported` sets the tool list the
+# documented way, as an exported just variable.
 mk_consumer() {
     n=$((${n:-0} + 1))
     repo="$sandbox/con sumer $n"
@@ -114,6 +115,11 @@ badname:
     #!{{ plugin_dev_gate_prolog }}
     sentinel-guard ../escape src
     echo ran >> "$RUN_LOG"
+
+typo:
+    #!{{ plugin_dev_gate_prolog }}
+    sentinel-guard typo src ':(exclude)src/none' srcs
+    echo ran >> "$RUN_LOG"
 JUSTFILE
     sed -i.bak "s|@TOOLKIT@|$repo_root/toolkit|" "$repo/justfile"
     rm -f "$repo/justfile.bak"
@@ -148,15 +154,15 @@ sentinel_file() {
     printf '%s/.git/plugin-dev/gates/%s' "$repo" "$1"
 }
 
-echo "=== inputs that move during the run: the pass is not recorded ==="
+echo "=== inputs that move during the run: the checks' verdict stands, the pass is not recorded ==="
 mk_consumer
 run_gate moving
-assert_eq "$rc" "1" "moving inputs exit status"
+assert_eq "$rc" "0" "moving inputs: the checks passed, so the recipe does"
 assert_contains "$out" "inputs changed while the checks ran; the pass was NOT recorded" "moving inputs message"
 if [[ -e "$(sentinel_file moving)" ]]; then
     fail "a sentinel was recorded against a tree that moved"
 fi
-assert_not_contains "$(cat "$runlog")" "after record" "the recipe stops at the refused record"
+assert_contains "$(cat "$runlog")" "after record" "the recipe runs on past the unrecorded pass"
 run_gate moving
 assert_eq "$(runs)" "2" "the next run executes the checks again"
 
@@ -180,6 +186,23 @@ run_gate_tools gate "no-such-tool-xyz --version"
 if [[ -e "$(sentinel_file gate)" ]]; then
     fail "an earlier sentinel survived a run whose hash failed"
 fi
+
+echo "=== a file that cannot be read fails the hash, whichever its place in the list ==="
+mk_consumer
+printf 'b\n' > "$repo/src/b.txt"
+printf 'c\n' > "$repo/src/c.txt"
+chmod 000 "$repo/src/b.txt"
+if [[ -r "$repo/src/b.txt" ]]; then
+    printf 'skipped: this user reads a mode 000 file (root?), so no read can fail\n'
+else
+    run_gate gate
+    assert_eq "$rc" "0" "unreadable input: the recipe still passes"
+    assert_contains "$out" "could not hash inputs; the pass was NOT recorded" "unreadable input message"
+    if [[ -e "$(sentinel_file gate)" ]]; then
+        fail "a sentinel was recorded from a hash that skipped an unreadable file"
+    fi
+fi
+chmod 644 "$repo/src/b.txt"
 
 echo "=== tool versions are folded into the hash ==="
 mk_consumer
@@ -230,6 +253,14 @@ assert_nonzero "$rc" "guard with no pathspec"
 assert_contains "$out" "at least one pathspec" "no-pathspec message"
 assert_eq "$(runs)" "0" "no checks ran"
 
+echo "=== a pathspec that matches nothing is refused, and named ==="
+mk_consumer
+run_gate typo
+assert_nonzero "$rc" "pathspec matching nothing"
+assert_contains "$out" "'srcs'" "the message names the pathspec"
+assert_not_contains "$out" "'src/none'" "an exclude pathspec is not held to matching a file"
+assert_eq "$(runs)" "0" "no checks ran"
+
 echo "=== a gate name that is a path is refused ==="
 mk_consumer
 run_gate badname
@@ -264,4 +295,4 @@ if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\ngates guards ok (moved inputs, unhashable, tool versions, one gate per body, misuse, shellcheck)\n'
+printf '\ngates guards ok (moved inputs, unhashable, tool versions, one gate per body, misuse, unmatched pathspec, unreadable input, shellcheck)\n'

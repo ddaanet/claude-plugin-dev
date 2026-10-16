@@ -2,8 +2,9 @@
 # Tests toolkit/run-bats.sh, the quiet bats runner, against a stub `bats` on
 # PATH: the stub prints a canned TAP stream and exits with a canned status, so
 # each scenario fixes exactly what the runner is handed and checks only what it
-# does with it. The runner's job is a summary: a green run is one line, a red
-# run is the `not ok` blocks and one line, and the status is bats' own.
+# does with it. The runner's job is a summary: a green run is one line and no
+# log left behind, a red run is the `not ok` blocks and one line naming the log,
+# and the status is bats' own.
 #
 # Usage: bash tests/run-bats-test.sh   (run from repo root)
 set -euo pipefail
@@ -75,18 +76,8 @@ for i in $(seq 1 300); do tap+="ok $i test number $i
 "; done
 run_runner "$tap" 0 tests/a.bats
 assert_eq "$rc" "0" "green: exit status"
-assert_eq "$out" "bats: 300 passed, 0 failed — full log: $log" "green: output is the summary line alone"
-base="$(basename "${log:-none}")"
-case "$base" in
-    plugin-dev-bats.*) ;;
-    *) fail "green: log '$log' is not named plugin-dev-bats.*" ;;
-esac
-assert_eq "$(dirname "${log:-none}")" "$sandbox/tmp" "green: log lives under TMPDIR"
-if [[ -f "$log" ]]; then
-    assert_eq "$(grep -c '^ok ' "$log")" "300" "green: the log keeps the whole stream"
-else
-    fail "green: the summary names a log that does not exist: '$log'"
-fi
+assert_eq "$out" "bats: 300 passed, 0 failed" "green: output is the summary line alone"
+assert_eq "$(ls -A "$sandbox/tmp")" "" "green: no log is left in TMPDIR"
 
 echo "=== a red run shows the not-ok block and not the passing tests ==="
 tap="1..3
@@ -98,17 +89,34 @@ ok 3 third passes
 "
 run_runner "$tap" 1 tests/a.bats
 assert_eq "$rc" "1" "red: bats' status is the exit status"
+base="$(basename "${log:-none}")"
+case "$base" in
+    plugin-dev-bats.*) ;;
+    *) fail "red: log '$log' is not named plugin-dev-bats.*" ;;
+esac
+assert_eq "$(dirname "${log:-none}")" "$sandbox/tmp" "red: log lives under TMPDIR"
+if [[ -f "$log" ]]; then
+    assert_eq "$(grep -c '^ok ' "$log")" "2" "red: the log keeps the whole stream"
+else
+    fail "red: the summary names a log that does not exist: '$log'"
+fi
 assert_contains "$out" "not ok 2 second fails" "red: failing test shown"
 assert_contains "$out" "# (in test file tests/a.bats, line 9)" "red: diagnostic line shown"
 assert_not_contains "$out" "ok 1 first passes" "red: a passing test before is hidden"
 assert_not_contains "$out" "ok 3 third passes" "red: a passing test after is hidden"
 assert_contains "$out" "bats: 2 passed, 1 failed — full log: " "red: summary line"
 
-echo "=== the exit status is bats' own, whatever its value ==="
-run_runner "1..1
-ok 1 x
+echo "=== a non-zero status with only ok lines still shows the stream ==="
+run_runner "1..2
+ok 1 first passes
+ok 2 second passes
 " 7 tests/a.bats
 assert_eq "$rc" "7" "status 7 passes through even with no failing test"
+assert_contains "$out" "ok 1 first passes" "ok-only failure: the stream is shown"
+assert_contains "$out" "bats: 2 passed, 0 failed — full log: " "ok-only failure: summary line names the log"
+if [[ ! -f "$log" ]]; then
+    fail "ok-only failure: the named log '$log' does not exist"
+fi
 
 echo "=== a stream with no TAP line is shown whole ==="
 run_runner "bats: error: could not parse the plan
@@ -127,14 +135,14 @@ tests/with space.bats
 --filter
 a b" "args"
 
-echo "=== two runs in one TMPDIR do not collide on the log ==="
+echo "=== two failing runs in one TMPDIR do not collide on the log ==="
 run_runner "1..1
-ok 1 x
-" 0 tests/a.bats
+not ok 1 x
+" 1 tests/a.bats
 first="$log"
 run_runner "1..1
-ok 1 x
-" 0 tests/a.bats
+not ok 1 x
+" 1 tests/a.bats
 if [[ "$first" == "$log" ]]; then
     fail "second run reused the first run's log $first"
 fi
@@ -160,4 +168,4 @@ if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\nrun-bats ok (green, red, status, no-TAP, args, log collision, no bats)\n'
+printf '\nrun-bats ok (green, red, ok-only failure, no-TAP, args, log collision, no bats)\n'
