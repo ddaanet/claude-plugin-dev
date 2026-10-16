@@ -63,8 +63,8 @@ or removing a shipped file means updating the list in
   Never syncs: it execs the next `claude` on PATH with its arguments
   unchanged and `CLAUDE_CODE_PLUGIN_DIRS` set to `dist/plugin/`, the
   copy only `just dogfood` writes, and the copy's `bin/` appended to PATH
-  after the user's entries, both whether or not that copy exists yet. It is
-  silent: `session-start` reports a missing copy.
+  after the user's entries, both whether or not that copy exists yet. It
+  never warns about a missing copy: `session-start` does.
 - `toolkit/version-guard.sh` — `PreToolUse(Write|Edit)` hook that fires
   inside consumer plugins to refuse agent edits to
   `.claude-plugin/plugin.json`'s `.version`.

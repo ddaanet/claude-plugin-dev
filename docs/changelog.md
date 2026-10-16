@@ -17,6 +17,10 @@ Newest first.
   prolog and `toolkit/run-bats.sh` its quiet runner; neither is imported by
   `release.just`, names are toolkit-neutral, and the manual and a 0.11.0
   migration note say how to choose the inputs and convert a `precommit`.
+- [2026-10-16 — The second review of the dogfood no-copy warning](changelog/2026-10-16-dogfood-second-review.md)
+  — probes that a missing plugin-dir entry reaches a `SessionStart` hook
+  unchanged, so the `/reload-plugins` branch stands; header, wording and shared
+  context fixes.
 - [2026-10-16 — The dogfood shim sets its variable and PATH unconditionally](changelog/2026-10-16-dogfood-shim-unconditional.md)
   — supersedes the probing in the entry below: the shim no longer checks for the
   copy, and the no-copy warning moves to `session-start`, which names
