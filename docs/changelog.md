@@ -9,6 +9,10 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-16 — Gate sentinels: a fourth review, before release](changelog/2026-10-16-gate-sentinel-fourth-review.md)
+  — the guard exempts the short top-anchored excludes, the pathspec and
+  runner-option docs are corrected, and the link tests gain `chmod -x` and
+  dangling-link cases.
 - [2026-10-16 — Gate sentinels: a third review, before release](changelog/2026-10-16-gate-sentinel-third-review.md)
   — symlinks hash their target path and keep the target's execute bit, the sort
   runs under `LC_ALL=C`, and the pathspec and runner-option docs say what git

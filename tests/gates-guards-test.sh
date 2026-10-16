@@ -131,6 +131,20 @@ forms:
     #!{{ plugin_dev_gate_prolog }}
     sentinel-guard forms src ':^src/none' ':!src/none' ':(top,exclude)src/none' ':(glob,exclude)src/none/**'
     echo ran >> "$RUN_LOG"
+
+# Run in src/, where an exclude of src itself leaves nothing for the listing to
+# find: only the exemption keeps these from being refused as matching no file.
+[working-directory: 'src']
+topbang:
+    #!{{ plugin_dev_gate_prolog }}
+    sentinel-guard topbang . ':/!src'
+    echo ran >> "$RUN_LOG"
+
+[working-directory: 'src']
+topcaret:
+    #!{{ plugin_dev_gate_prolog }}
+    sentinel-guard topcaret . ':/^src'
+    echo ran >> "$RUN_LOG"
 JUSTFILE
     mkdir -p "$repo/plugin-dev"
     cp "$repo_root/toolkit/gates.just" "$repo/plugin-dev/gates.just"
@@ -282,6 +296,12 @@ mk_consumer
 run_gate forms
 assert_eq "$rc" "0" "every exclude spelling is exempt ($out)"
 assert_eq "$(runs)" "1" "the exclude spellings run the checks"
+for form in topbang topcaret; do
+    mk_consumer
+    run_gate "$form"
+    assert_eq "$rc" "0" "the short top-anchored exclude spelling $form is exempt ($out)"
+    assert_eq "$(runs)" "1" "$form runs the checks"
+done
 
 echo "=== the match check stops at the first file ==="
 # A shim `git` logs how each `ls-files` exited. A listing longer than the pipe

@@ -107,10 +107,11 @@ documented in the manual instead, with a procedure to prove a list. The one
 check that needs no declaration ships: the guard refuses a pathspec that matches
 no file, because a typo there would narrow the hash and cache forever. An
 exclude pathspec has no files of its own and is not held to it: `:!…`, `:^…`,
-and `exclude` among the comma-separated magic words of `:(…)`. A positive
-pathspec that merely contains the word, `:(glob)excluded/**`, is held to it. The
-check stops at the first file it finds rather than listing them all. Revisit the
-rest when a second consumer adopts and a pattern for the declaration shows.
+their `:/` forms, and `exclude` among the comma-separated magic words of `:(…)`.
+A positive pathspec that merely contains the word, `:(glob)excluded/**`, is held
+to it. The check stops at the first file it finds rather than listing them all.
+Revisit the rest when a second consumer adopts and a pattern for the declaration
+shows.
 
 ## Tool versions are the consumer's list
 
@@ -193,9 +194,10 @@ repairs.
 hundreds of lines, and piping it through `tail` risks cropping the one `not ok`.
 The runner logs the whole stream, prints only the `not ok` blocks (or the whole
 log when no TAP line appeared, as when bats died before a plan), then one
-summary line, and exits with bats' own status. It reads TAP, so the options that
-change the output format (`--formatter`, `-F`, `--count`, `--version`) are not
-supported: they print no `ok` line and the run counts as a run of no test. The
+summary line, and exits with bats' own status. It reads TAP, so any option that
+changes the output format or prints something other than test results (`-p`,
+`-F` with a formatter other than `tap` or `tap13`, `-c`, `-v`, `-h`) is not
+supported: it prints no `ok` line and the run counts as a run of no test. The
 whole log is shown whenever bats failed with no `not ok` block to show (a
 `teardown_file` crash, a test count that does not add up, an abort mid-run),
 since it is then the only account of the failure. A run that exits 0 having run

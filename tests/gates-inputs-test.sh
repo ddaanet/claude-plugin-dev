@@ -211,21 +211,34 @@ run_gate gate
 assert_eq "$(runs)" "2" "the execute bit of a link's target reruns"
 run_gate gate
 assert_eq "$(runs)" "2" "the new bit caches in turn"
+chmod -x "$repo/other.txt"
+run_gate gate
+assert_eq "$(runs)" "3" "losing the execute bit of a link's target reruns"
+run_gate gate
+assert_eq "$(runs)" "3" "the lost bit caches in turn"
 rm "$repo/src/lnk"
 ln -s ../other2.txt "$repo/src/lnk"
-chmod +x "$repo/other2.txt"
 run_gate gate
-assert_eq "$(runs)" "3" "repointing a file link to an identical file reruns"
+assert_eq "$(runs)" "4" "repointing a file link to an identical file reruns"
 rm "$repo/src/lnk"
 ln -s ../other.txt "$repo/src/lnk"
 run_gate gate
-assert_eq "$(runs)" "4" "repointing it back reruns"
+assert_eq "$(runs)" "5" "repointing it back reruns"
 rm "$repo/src/dlnk"
 ln -s ../sub "$repo/src/dlnk"
 run_gate gate
-assert_eq "$(runs)" "5" "repointing a directory link reruns"
+assert_eq "$(runs)" "6" "repointing a directory link reruns"
 run_gate gate
-assert_eq "$(runs)" "5" "the repointed tree caches in turn"
+assert_eq "$(runs)" "6" "the repointed tree caches in turn"
+ln -s ../nowhere "$repo/src/dangling"
+run_gate gate
+assert_eq "$(runs)" "7" "adding a dangling link reruns"
+rm "$repo/src/dangling"
+ln -s ../elsewhere "$repo/src/dangling"
+run_gate gate
+assert_eq "$(runs)" "8" "repointing a dangling link to another missing target reruns"
+run_gate gate
+assert_eq "$(runs)" "8" "the repointed dangling link caches in turn"
 
 echo "=== a caller that sets only gate_inputs can hash ==="
 mk_consumer
