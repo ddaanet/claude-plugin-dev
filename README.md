@@ -55,6 +55,10 @@ alternatives that were rejected.
 - **`just dogfood`** — syncs the working tree (only the `dist.include` paths,
   where the plugin has one) into that copy, the only step
   that does; see [Dogfooding](toolkit/README.md#dogfooding).
+- **Opt-in gate sentinels and a quiet bats runner** — `gates.just` lets a
+  `precommit` skip itself while the files it reads are unchanged, and
+  `run-bats.sh` prints failures and a pass count in place of the TAP stream;
+  see [Gate sentinels](toolkit/README.md#gate-sentinels).
 
 [toolkit/README.md](toolkit/README.md) is the manual for all of it, and ships
 with the vendored copy — that is the file a plugin maintainer reads day to day.
