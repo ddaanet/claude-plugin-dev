@@ -61,10 +61,11 @@ sandbox="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$sandbox"' EXIT
 
 # mk_consumer: a fresh repo $repo, whose own path holds a space, importing the
-# toolkit's gates.just. Each recipe appends to $RUN_LOG, which lives outside the
+# toolkit's gates.just from plugin-dev/, where a consumer vendors it. Each recipe
+# appends to $RUN_LOG, which lives outside the
 # repo so it is not an input. `moving` edits an input between guard and record;
 # `twice` opens two gates in one body; `bare` records with no guard; `nopaths`,
-# `badname` and `typo` misuse the guard; `exported` sets the tool list the
+# `badname`, `typo` and `typoglob` misuse the guard, which `forms` does not; `exported` sets the tool list the
 # documented way, as an exported just variable.
 mk_consumer() {
     n=$((${n:-0} + 1))
@@ -75,7 +76,7 @@ mk_consumer() {
     git -C "$repo" init -q
     printf 'a\n' > "$repo/src/a.txt"
     cat > "$repo/justfile" <<'JUSTFILE'
-import '@TOOLKIT@/gates.just'
+import 'plugin-dev/gates.just'
 
 export PLUGIN_DEV_GATE_TOOLS := "echo tool-a 1\necho tool-b 1"
 
@@ -120,9 +121,19 @@ typo:
     #!{{ plugin_dev_gate_prolog }}
     sentinel-guard typo src ':(exclude)src/none' srcs
     echo ran >> "$RUN_LOG"
+
+typoglob:
+    #!{{ plugin_dev_gate_prolog }}
+    sentinel-guard typoglob src ':(glob)excluded/**'
+    echo ran >> "$RUN_LOG"
+
+forms:
+    #!{{ plugin_dev_gate_prolog }}
+    sentinel-guard forms src ':^src/none' ':!src/none' ':(top,exclude)src/none' ':(glob,exclude)src/none/**'
+    echo ran >> "$RUN_LOG"
 JUSTFILE
-    sed -i.bak "s|@TOOLKIT@|$repo_root/toolkit|" "$repo/justfile"
-    rm -f "$repo/justfile.bak"
+    mkdir -p "$repo/plugin-dev"
+    cp "$repo_root/toolkit/gates.just" "$repo/plugin-dev/gates.just"
 }
 
 # run_gate <recipe> [VAR=value...]: runs the recipe in $repo; sets $out (stdout
@@ -261,6 +272,37 @@ assert_contains "$out" "'srcs'" "the message names the pathspec"
 assert_not_contains "$out" "'src/none'" "an exclude pathspec is not held to matching a file"
 assert_eq "$(runs)" "0" "no checks ran"
 
+echo "=== only an exclude pathspec is exempt from matching a file ==="
+mk_consumer
+run_gate typoglob
+assert_nonzero "$rc" "a positive pathspec whose text says exclude"
+assert_contains "$out" "':(glob)excluded/**'" "the message names the pathspec"
+assert_eq "$(runs)" "0" "no checks ran"
+mk_consumer
+run_gate forms
+assert_eq "$rc" "0" "every exclude spelling is exempt ($out)"
+assert_eq "$(runs)" "1" "the exclude spellings run the checks"
+
+echo "=== the match check stops at the first file ==="
+# A shim `git` logs how each `ls-files` exited. A listing longer than the pipe
+# buffer is cut short by a reader that stops at the first file, and git then
+# dies of SIGPIPE: 141.
+mk_consumer
+mkdir -p "$repo/src/big" "$sandbox/shim"
+for i in $(seq 1 3000); do : > "$repo/src/big/a-file-with-a-longish-name-$i.txt"; done
+cat > "$sandbox/shim/git" <<'SHIM'
+#!/bin/bash
+rc=0
+"$REAL_GIT" "$@" || rc=$?
+[ "$1" != ls-files ] || echo "ls-files $rc" >> "$GIT_LOG"
+exit "$rc"
+SHIM
+chmod +x "$sandbox/shim/git"
+: > "$sandbox/git.log"
+run_gate gate "PATH=$sandbox/shim:$PATH" "REAL_GIT=$(command -v git)" "GIT_LOG=$sandbox/git.log"
+assert_eq "$rc" "0" "a gate over a large tree: exit status ($out)"
+assert_contains "$(cat "$sandbox/git.log")" "ls-files 141" "the match check closed its listing at the first file"
+
 echo "=== a gate name that is a path is refused ==="
 mk_consumer
 run_gate badname
@@ -275,6 +317,7 @@ echo "=== outside a git repository the guard refuses and writes nothing ==="
 mk_consumer
 mkdir "$sandbox/nogit"
 cp "$repo/justfile" "$sandbox/nogit/justfile"
+cp -R "$repo/plugin-dev" "$sandbox/nogit/plugin-dev"
 rc=0
 out="$(cd "$sandbox/nogit" && env RUN_LOG="$runlog" GIT_CEILING_DIRECTORIES="$sandbox" just gate 2>&1)" || rc=$?
 assert_nonzero "$rc" "guard outside a repository"
@@ -295,4 +338,4 @@ if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\ngates guards ok (moved inputs, unhashable, tool versions, one gate per body, misuse, unmatched pathspec, unreadable input, shellcheck)\n'
+printf '\ngates guards ok (moved inputs, unhashable, tool versions, one gate per body, misuse, unmatched pathspec, exclude spellings, first-file match, unreadable input, shellcheck)\n'

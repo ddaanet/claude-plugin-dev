@@ -45,10 +45,18 @@ plugin-dev/gates/<gate>`), so it never shows in `git status` or in its own hash,
 and each clone and worktree has its own. The hash covers the names, contents and
 execute bits of every non-ignored file matching the pathspecs, tracked or not,
 so a rename, a deletion, a `chmod +x` and a brand-new file each count; ignored
-files do not. Two paths are always added to the pathspecs you give: `justfile`,
-since the commands of the gate are part of what it checks, and `plugin-dev`, so
-that a toolkit update invalidates every pass. A pathspec of yours that matches no
-file is refused, so a typo cannot cache forever.
+files do not. A symlink is told from the regular file it points at. Two inputs
+are always hashed beside the pathspecs you give: the justfile, since the
+commands of the gate are part of what it checks, and the vendored `plugin-dev`
+tree, so that a toolkit update invalidates every pass. They are listed apart from
+your pathspecs, by the absolute paths just reports, so an exclude of yours never
+subtracts from them, and a justfile named `Justfile`, a recipe that runs under
+`[working-directory]` and a gate in a module all hash the same two inputs. That
+needs `gates.just` inside the repository, as `plugin-dev/` is. A pathspec of
+yours that matches no file is refused, so a typo cannot cache forever; an
+exclude (`:!…`, `:^…`, or `exclude` among the magic words of `:(…)`) has no
+files of its own and is not held to it. A list of excludes alone subtracts from
+the whole repository.
 
 ### What is never recorded
 
@@ -111,7 +119,8 @@ pathspecs:
   one's recipe depend on it. Declare everything *its* check reads, not only the
   paths the other gate misses.
 
-`justfile` and `plugin-dev` are inputs of every gate already. Besides the paths
+The justfile and `plugin-dev` are inputs of every gate already. A module's own
+file is not the justfile: list it. Besides the paths
 your checks name, a plugin almost always needs:
 
 - Any justfile the root `justfile` `import`s; the root one is already an input.
@@ -181,8 +190,10 @@ the tools your checks use and that no lockfile in the pathspecs pins.
 `plugin-dev/run-bats.sh` takes the arguments `bats` takes. It runs bats into a
 log under `$TMPDIR`, prints only the `not ok` blocks (the whole log when bats
 failed without one, as when it died before a plan or a `teardown_file` crashed),
-then one line, and exits with bats' own status. A green run is that line alone
-and leaves no log:
+then one line, and exits with bats' own status. A run that exits 0 having run no
+test, from a `--filter` that matches nothing or an empty `.bats` file, is a
+failure: it prints `bats: no tests ran` and the log, and exits 1. A green run is
+that line alone and leaves no log:
 
 ```text
 bats: 412 passed, 0 failed

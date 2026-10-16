@@ -161,8 +161,8 @@ suite under a stub `id` printing 0, to pin its root guard),
 (`release.sh` publishing the `dist` branch),
 `self-release-{publish,refusal}-test.sh`, `update-plugin-dev-test.sh`,
 `run-bats-test.sh` (the quiet runner, against a stub `bats`),
-`gates-{sentinel,guards}-test.sh` (`gates.just`'s cache and its guards, driven
-through real `just` recipes in a fixture consumer),
+`gates-{sentinel,guards,inputs}-test.sh` (`gates.just`'s cache, its guards and
+the files it hashes, driven through real `just` recipes in a fixture consumer),
 `install-{vendor,settings,legacy}-test.sh` (`install.sh`'s vendoring, settings
 wiring and legacy-entry migration),
 `dist-tree-test.sh` (the shipped-file list),
@@ -241,9 +241,9 @@ split dist ref" for the reasoning.
   neither must see no difference. Every refusal inside the prolog is an explicit
   `exit`: its guard runs as the condition of an `if`, where bash suspends
   errexit, so a bare failing command would be skipped. The sentinel functions'
-  variable names (`sentinel_dir`, `sentinel`, `gate_inputs`, `guard_hash`) are
-  read by gitlore's `run-suites`, which is not shipped: renaming one is a
-  breaking change, and wants a migration note.
+  variable names (`sentinel_dir`, `sentinel`, `gate_cwd`, `gate_inputs`,
+  `guard_hash`) are read by gitlore's `run-suites`, which is not shipped:
+  renaming one is a breaking change, and wants a migration note.
 - **Hook output is dual-channel.** When `version-guard.sh` denies an
   edit, `permissionDecisionReason` carries the verbose agent-facing
   message (no escape hatches the agent can self-authorise);

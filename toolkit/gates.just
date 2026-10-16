@@ -40,13 +40,17 @@
 # the first's, and the prolog refuses it. Give each gate its own recipe.
 #
 # The pathspecs are an allow-list the consumer declares, and a gate caches
-# correctly only while every check it runs reads inside it. `justfile` and
-# `plugin-dev` are always added to it: both sit at a fixed path in every
-# consumer. A pathspec that matches no file is refused. See
-# plugin-dev/docs/gates.md before choosing one.
+# correctly only while every check it runs reads inside it. The justfile and the
+# vendored `plugin-dev` tree are always hashed too, as absolute paths apart from
+# the list, so an exclude in the list never subtracts from them. A pathspec that
+# matches no file is refused. See plugin-dev/docs/gates.md before choosing one.
 
 [private]
-plugin_dev_gate_prolog := "/usr/bin/env bash\nset -euo pipefail\n" + '''
+plugin_dev_gate_prolog := "/usr/bin/env bash\nset -euo pipefail\n" + "gate_builtins=(" + quote(justfile()) + " " + quote(source_directory()) + ")\n" + '''
+# The inputs every gate hashes whatever its pathspecs say: the justfile and the
+# vendored toolkit tree, as absolute paths just reports. A literal name would be
+# resolved against the directory the recipe runs in, and match nothing under
+# `[working-directory]`, in a module, or for a file named `Justfile`.
 # Recipe name, then input pathspecs. The recipe name is the gate name: it
 # keys the sentinel file and heads the report. Leaves the recipe when the
 # inputs are unchanged -- `exit`, not `return`, because a shebang recipe is one
@@ -133,15 +137,20 @@ check-sentinel () {
     # exclude has no files of its own to match.
     for spec in "$@"; do
         case "$spec" in
-            :*exclude*|:\!*|:^*) continue ;;
+            :\!*|:^*) continue ;;
+            :\(*\)*)
+                magic=${spec#:(}
+                case ",${magic%%)*}," in *,exclude,*) continue ;; esac
+                ;;
         esac
-        [ -n "$(git ls-files --cached --others --exclude-standard -- "$spec")" ] || {
+        # Stops at the first file rather than listing them all.
+        IFS= read -r -d '' _ < <(git ls-files -z --cached --others --exclude-standard -- "$spec") || {
             echo "check-sentinel: pathspec '$spec' matches no file" >&2
             exit 1
         }
     done
     gate_cwd=$PWD
-    gate_inputs=("$@" justfile plugin-dev)
+    gate_inputs=("$@")
     # Taken before the checks run, and on every path -- a forced run and a
     # first run reach `record-sentinel` too. It is what `record-sentinel`
     # compares against, so a pass describes the tree the checks read rather
@@ -177,7 +186,7 @@ gate-inputs-hash () {
         # The group heads a pipeline, so it is a subshell: `exit` fails the
         # pipeline and pipefail carries that to the caller, and the `cd` is not
         # the recipe's.
-        cd "$gate_cwd" || exit 1
+        cd "${gate_cwd:-.}" || exit 1
         if [ -n "${PLUGIN_DEV_GATE_TOOLS:-}" ]; then
             while IFS= read -r tool_cmd; do
                 [ -n "$tool_cmd" ] || continue
@@ -185,15 +194,22 @@ gate-inputs-hash () {
                 bash -c "$tool_cmd" 2>&1 || exit 1
             done <<< "$PLUGIN_DEV_GATE_TOOLS"
         fi
-        git ls-files -z --cached --others --exclude-standard -- "${gate_inputs[@]}" \
-            | sort -z \
+        # Two listings, so an exclude in the caller's pathspecs subtracts from
+        # theirs alone and never from the built-ins.
+        {
+            git ls-files -z --cached --others --exclude-standard -- "${gate_inputs[@]}" || exit 1
+            git ls-files -z --cached --others --exclude-standard -- "${gate_builtins[@]/#/:(literal)}" || exit 1
+        } | sort -zu \
             | {
                   regular=()
                   while IFS= read -r -d '' file; do
                       mode='?'
                       if [ -f "$file" ]; then
                           regular+=("$file")
-                          if [ -x "$file" ]; then mode=x; else mode=-; fi
+                          if [ -L "$file" ]; then mode=l
+                          elif [ -x "$file" ]; then mode=x
+                          else mode=-
+                          fi
                       fi
                       printf '%s %s\0' "$mode" "$file"
                   done

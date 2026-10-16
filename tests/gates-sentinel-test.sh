@@ -58,7 +58,8 @@ sandbox="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$sandbox"' EXIT
 
 # mk_consumer: a fresh repo $repo, whose own path holds a space, importing the
-# toolkit's gates.just. `gate` guards over src and .gitignore, which shapes it;
+# toolkit's gates.just from plugin-dev/, where a consumer vendors it. `gate`
+# guards over src and .gitignore, which shapes it;
 # `narrow` subtracts src/b.txt with an exclude pathspec; `other` is a second
 # gate in its own recipe; `cded` changes directory between guard and record;
 # `failing` fails after its guard. Every recipe appends to $RUN_LOG, which lives
@@ -75,7 +76,7 @@ mk_consumer() {
     printf 'x\n' > "$repo/other/x.txt"
     printf '*.log\n' > "$repo/.gitignore"
     cat > "$repo/justfile" <<'JUSTFILE'
-import '@TOOLKIT@/gates.just'
+import 'plugin-dev/gates.just'
 
 gate:
     #!{{ plugin_dev_gate_prolog }}
@@ -110,8 +111,8 @@ failing:
     exit 3
     record-sentinel
 JUSTFILE
-    sed -i.bak "s|@TOOLKIT@|$repo_root/toolkit|" "$repo/justfile"
-    rm -f "$repo/justfile.bak"
+    mkdir -p "$repo/plugin-dev"
+    cp "$repo_root/toolkit/gates.just" "$repo/plugin-dev/gates.just"
 }
 
 # run_gate <recipe> [VAR=value...]: runs the recipe in $repo; sets $out (stdout
@@ -143,7 +144,7 @@ if [[ ! -s "$(sentinel_file gate)" ]]; then
     fail "first run left no sentinel at the gitdir path $(sentinel_file gate)"
 fi
 status="$(git -C "$repo" status --porcelain --untracked-files=all)"
-assert_not_contains "$status" "plugin-dev" "the sentinel is not in the working tree"
+assert_not_contains "$status" "plugin-dev/gates/" "the sentinel is not in the working tree"
 
 echo "=== an unchanged tree is a cached pass ==="
 run_gate gate
@@ -212,7 +213,7 @@ assert_eq "$(runs)" "2" "the default dir knows nothing of the custom one's pass"
 
 echo "=== plugin-dev counts though no guard lists it ==="
 mk_consumer
-mkdir "$repo/plugin-dev"
+mkdir -p "$repo/plugin-dev"
 printf 'v1\n' > "$repo/plugin-dev/run-bats.sh"
 run_gate other
 run_gate other

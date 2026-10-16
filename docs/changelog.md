@@ -9,6 +9,10 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-16 — Gate sentinels: two review rounds, before release](changelog/2026-10-16-gate-sentinel-review-fixes.md)
+  — the first round's fixes, and the second round's: exclude-only gates, the
+  built-in inputs as absolute paths hashed apart from the caller's list, the
+  exclude test, zero-test bats runs, `gate_cwd`, the first-file check, symlinks.
 - [2026-10-16 — The two shell audits are closed out](changelog/2026-10-16-shell-audit-closeout.md)
   — the open latent items re-checked: six fixed, three left with the reason; the
   `chmod 555` scenarios skip loudly when run as root.

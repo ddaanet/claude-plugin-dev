@@ -125,6 +125,19 @@ assert_eq "$rc" "2" "no TAP: exit status"
 assert_contains "$out" "bats: error: could not parse the plan" "no TAP: raw output shown"
 assert_contains "$out" "bats: 0 passed, 0 failed — full log: " "no TAP: summary line"
 
+echo "=== a run that ran no test is a failure, not a pass ==="
+run_runner "1..0
+" 0 tests/a.bats --filter "no such test"
+if [[ "$rc" == "0" ]]; then
+    fail "zero tests: exited 0"
+fi
+assert_contains "$out" "1..0" "zero tests: the stream is shown"
+assert_contains "$out" "no tests ran" "zero tests: the summary says so"
+assert_contains "$out" "bats: 0 passed, 0 failed — full log: " "zero tests: summary line names the log"
+if [[ ! -f "$log" ]]; then
+    fail "zero tests: the named log '$log' does not exist"
+fi
+
 echo "=== arguments reach bats unchanged ==="
 run_runner "1..1
 ok 1 x
@@ -168,4 +181,4 @@ if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\nrun-bats ok (green, red, ok-only failure, no-TAP, args, log collision, no bats)\n'
+printf '\nrun-bats ok (green, red, ok-only failure, no-TAP, zero tests, args, log collision, no bats)\n'
