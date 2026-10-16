@@ -131,27 +131,37 @@ restarting `claude` is not a decision to ship the working tree. A skip when
 started inside a dogfood session, which the shim's exported PATH strip already
 keeps off the shim, and would leave every other launch syncing.
 
-### A launch with no copy warns and starts without it
+### A launch with no copy exports the path anyway
 
-With no `<root>/dist/plugin` directory, a file in its place included, the shim
-prints one line,
-`dogfood: no copy at <root>/dist/plugin, so claude starts without it; run just dogfood to create it`,
-leaves `CLAUDE_CODE_PLUGIN_DIRS` as it came, and goes on to the PATH strip and
-the exec. The session starts without the copy, and `session-start` names
-`just dogfood` to the human and states the missing copy to the agent. Exporting
-the path anyway would name a plugin dir that is not there, which
-`session-start`, comparing entries as spelled, would pass in silence. Creating
-the copy would be a sync at launch under another trigger.
+With no `<root>/dist/plugin`, the shim sets `CLAUDE_CODE_PLUGIN_DIRS` at it all
+the same and execs, silently. Probed on CC 2.1.301: `claude -p` with the
+variable naming a directory that does not exist exits 0, answers on stdout and
+writes nothing to stderr; the missing entry is only a load error (the `/plugin`
+Errors tab, and `1 error during load` in the `/reload-plugins` summary). A
+headless session fed `/reload-plugins`, then a plugin directory created at the
+exported path, then `/reload-plugins` again, reported 16 plugins and that one
+error, then 17 plugins and none. The first `just dogfood` of a running session
+therefore needs `/reload-plugins` and no relaunch. The interactive command was
+not run; it shares the code path, which is unconfirmed.
+
+`session-start` matches the variable alone, before its no-copy check, so it is
+silent in that session. Its no-copy branch now means a session that started past
+the shim, which has no variable to reload. Creating the copy at launch would be
+a sync under another trigger.
+
+**Rejected: warn and leave the variable as it came.** That was the earlier
+design. It started a plain session whose variable never named the copy, so the
+first `just dogfood` needed a relaunch, and a warning on every such launch
+carried a remedy that the export makes unnecessary.
 
 **Rejected: refuse the launch.** A shim that exited instead would leave no
 `claude` through it while the copy cannot be made — `rsync` missing, say — short
-of a hand-typed launch past the shim, in a form for each shell. A warned plain
-session costs less, and `session-start` already names it.
+of a hand-typed launch past the shim, in a form for each shell.
 
 Every refusal of the sync, `rsync` missing included, comes before it makes
 `dist/plugin` (see "Sync failure is loud"), so a refused first sync leaves no
-copy and the next launch warns, rather than loading an empty one in silence. The
-check is for presence only: a copy that lags the source is the design.
+copy rather than an empty one the session would load in silence. The check is
+for presence only: a copy that lags the source is the design.
 
 ## Sync failure is loud
 

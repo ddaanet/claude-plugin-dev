@@ -11,22 +11,30 @@ lands here.
 ## What changed
 
 - `toolkit/bin/claude` appends `<root>/dist/plugin/bin` to the PATH it execs
-  `claude` with whenever `dist/plugin` exists, whether or not it holds a `bin/`
-  yet: PATH is fixed at launch and a later `just dogfood` can create the
-  directory in a running session, and a missing PATH directory is harmless. It
-  is appended after every entry the user had, and skipped when an absolute entry
-  already names the directory, spelled alike or the same by `-ef`. An empty or
-  relative entry never counts, since it names the launch directory and would
-  suppress the append for a launch from elsewhere. The append comes after the
-  strip of the shim's own entries and after the check for another `claude`, so a
-  `claude` shipped in `bin/` is never exec'd as the next one. One walk of PATH
-  does the strip and the already-listed test. No copy adds nothing, and the shim
-  still never syncs, leaves argv unchanged and launches without a copy.
+  `claude` with, after every entry the user had, and sets
+  `CLAUDE_CODE_PLUGIN_DIRS` at `<root>/dist/plugin`, both unconditionally. PATH
+  is fixed at launch and a later `just dogfood` can create the directory in a
+  running session; a PATH entry that names a missing directory is inert, so no
+  probe for the copy or for `bin/` is made, and a repeated entry is inert too,
+  so the walk that skipped an entry already on PATH is gone. The one remaining
+  walk strips the shim's own entries. The append comes after that strip and
+  after the check for another `claude`, so a `claude` shipped in `bin/` is never
+  exec'd as the next one. The shim still never syncs and leaves argv unchanged.
+  It no longer warns about a missing copy or leaves the variable as it came:
+  probed on CC 2.1.301, claude starts cleanly with a plugin directory that does
+  not exist (exit 0, answer on stdout, empty stderr, one load error in
+  `/plugin`), and a headless `/reload-plugins` after the directory was created
+  loaded it, 16 plugins and one error before, 17 and none after. So the first
+  `just dogfood` of a running session needs `/reload-plugins`, not a relaunch.
+  The interactive `/reload-plugins` was not run. `session-start` is silent in a
+  shim session with no copy, since the variable names it; its no-copy line is
+  unchanged and now reaches only a session that started past the shim.
 - `tests/dogfood-launcher-bin-test.sh` is a new suite split from the path suite
-  to stay under the 400-line cap. It pins the append (a root holding a space),
-  the no-repeat rule, a copy without a `bin/`, no copy, empty and relative
-  entries, and the shipped `claude` case. `tests/dogfood-sync-copy-test.sh` pins
-  that a `bin/` file keeps its executable bit through `sync`.
+  to stay under the 400-line cap. It pins the append last (a root holding a
+  space), a copy without a `bin/`, no copy, and the shipped `claude` case. The
+  exec suite pins a silent launch with no copy that exports the path and
+  replaces an inherited value. `tests/dogfood-sync-copy-test.sh` pins that a
+  `bin/` file keeps its executable bit through `sync`.
 - `docs/references/dogfood.md` records the Claude Code fact the behaviour rests
   on, and `docs/design.md` its one-line conclusion. `toolkit/README.md` and the
   CLAUDE.md layout line describe the shim's new step.

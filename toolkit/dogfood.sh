@@ -235,11 +235,12 @@ pre_tool() {
 # stderr. Anything else, unset included, gets one object. The payload is not
 # read. systemMessage is the one line for the human, opening with an ANSI reset
 # so Claude Code does not dim it like routine hook output; it names the remedy:
-# with no <root>/dist/plugin directory, the shim's own test, just dogfood and a
-# relaunch, else launching through the shim. additionalContext gives the agent
-# the same finding as a fact and nothing to act on: no command, no way to make
-# the session load the copy, since the promotion and the relaunch are the
-# human's. The object is built with jq --arg, never spliced.
+# with no <root>/dist/plugin directory, just dogfood and a relaunch, else
+# launching through the shim. A session the shim started always names the copy,
+# so it is silent here whether or not the copy exists yet. additionalContext
+# gives the agent the same finding as a fact and nothing to act on: no command,
+# no way to make the session load the copy, since the promotion and the relaunch
+# are the human's. The object is built with jq --arg, never spliced.
 # Without jq there is no object to build and no copy guard in pre-tool, so the
 # check is skipped and a static systemMessage says so; it stays off the agent's
 # channel, since only the human can install jq.

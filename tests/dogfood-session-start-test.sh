@@ -144,9 +144,9 @@ assert_eq "$rc" "0" "$label exit code"
 assert_eq "$out" "" "$label prints nothing on stdout"
 assert_eq "$err" "" "$label prints nothing on stderr"
 
-# The same entry with no copy on disk: the match is decided by the variable
-# alone, before the no-copy check. A check run first would warn here that no
-# copy exists, in a session that did name the path.
+# The same entry with no copy on disk, as in a shim launch before the first
+# `just dogfood`: the variable alone decides, before the no-copy check, which
+# would warn here in a session that did name the path.
 echo "=== session-start is silent on the copy named before any sync ==="
 make_consumer
 root="$(cd "$consumer" && pwd -P)"
@@ -177,11 +177,11 @@ jq_holds "$label: additionalContext is the not-the-promoted-copy fact" \
     '.hookSpecificOutput.additionalContext == "This session does not load " + $c + ", so plugin behaviour observed in it is not that of the promoted copy."' \
     --arg c "$root/dist/plugin"
 
-# The shim's no-copy launch: no copy, variable left unset. The remedy the human
-# needs is the promotion, not a launch through the shim, which is how this
-# session started. The agent gets the fact and no command: the promotion is the
-# human's act. A file where the copy belongs is no copy either, as for the shim.
-# Their copy-present control is the warn test above.
+# A launch past the shim with no copy: the shim always sets the variable, so
+# this is an IDE or a bare shell. The remedy the human needs is the promotion
+# and then a launch through the shim. The agent gets the fact and no command:
+# the promotion is the human's act. A file where the copy belongs is no copy
+# either. Their copy-present control is the warn test above.
 for shape in absent file; do
     echo "=== session-start names the promotion when the copy is $shape ==="
     make_consumer

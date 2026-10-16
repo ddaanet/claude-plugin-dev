@@ -46,14 +46,13 @@ with its arguments unchanged and `CLAUDE_CODE_PLUGIN_DIRS` set to
 `claude -c` relaunch or any other `claude` you run in the repo loads the copy as
 it stands. With no other `claude` on PATH the shim exits 127.
 
-With a copy, the shim also appends `<root>/dist/plugin/bin` to PATH, after your
-entries and only once, whether or not the copy has a `bin/` yet: a later
-`just dogfood` can create it in a session already running. A marketplace install
-puts a plugin's `bin/` on the Bash tool's PATH and a `CLAUDE_CODE_PLUGIN_DIRS`
-load does not, so without this a command your plugin ships for agents' Bash
-would work only after a release. It is appended, not prepended, because a
-released plugin's `bin/` cannot shadow system commands either. A PATH entry
-counts as already naming the directory only if it is absolute.
+The shim also appends `<root>/dist/plugin/bin` to PATH, after your entries,
+whether or not the copy or its `bin/` exists yet. A marketplace install puts a
+plugin's `bin/` on the Bash tool's PATH and a `CLAUDE_CODE_PLUGIN_DIRS` load
+does not, so without this a command your plugin ships for agents' Bash would
+work only after a release. It is appended, not prepended, because a released
+plugin's `bin/` cannot shadow system commands either. The entry is not
+deduplicated: a repeat on PATH is harmless.
 
 One divergence from the release: the shim sets PATH on the `claude` process, so
 hooks, MCP servers and plugin agents inherit the directory too, while a
@@ -62,15 +61,11 @@ that calls a bare `bin/` command works in dogfood and may fail once released.
 Hooks should find their scripts by `${CLAUDE_PLUGIN_ROOT}` or `$0`, never
 through `bin/`.
 
-With no copy, the shim says so on one line, leaves `CLAUDE_CODE_PLUGIN_DIRS` as
-it found it, and launches anyway:
-
-```text
-dogfood: no copy at <root>/dist/plugin, so claude starts without it; run just dogfood to create it
-```
-
-That session does not load the copy, and the `SessionStart` check says so. Run
-`just dogfood`, then relaunch.
+With no copy the shim sets the same variable and launches silently: Claude Code
+starts with a plugin directory that does not exist yet. Run `just dogfood` in
+that session, then `/reload-plugins`; no relaunch is needed. Until then `/plugin`
+lists the missing directory under Errors, and `/reload-plugins` reports one load
+error.
 
 From a subdirectory the session still loads the copy, but no project hook fires:
 Claude Code reads `.claude/settings.json` from the launch directory only. That
@@ -144,8 +139,8 @@ version-guard:
   dogfood: jq is not on PATH, so the copy guard and this check are off until it is installed
   ```
 
-  The first means there is no copy yet, as after a shim launch before the first
-  `just dogfood`. The second means the copy exists but the session started past
+  The first means there is no copy yet and the session started past the shim,
+  which names the copy before any `just dogfood`. The second means the copy exists but the session started past
   the shim (no direnv, an IDE or the desktop app, an absolute path to
   `claude`), or inherited another repo's `CLAUDE_CODE_PLUGIN_DIRS`, as a
   `claude` started from another plugin's dogfood session does. The agent is

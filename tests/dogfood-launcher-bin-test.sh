@@ -5,10 +5,9 @@
 # behind it, and launches `claude` by PATH lookup as a developer would.
 #
 # Scope: the directory <root>/dist/plugin/bin appended to PATH -- after the
-# user's entries, once, whenever a copy exists, and what counts as an entry
-# already naming it. Its siblings dogfood-launcher-path-test.sh and
-# dogfood-launcher-exec-test.sh cover the rest of the PATH handling, and the
-# exec, argv and missing-copy paths.
+# user's entries, with or without a copy. Its siblings
+# dogfood-launcher-path-test.sh and dogfood-launcher-exec-test.sh cover the rest
+# of the PATH handling, and the exec, argv and missing-copy paths.
 #
 # Usage: bash tests/dogfood-launcher-bin-test.sh   (run from repo root)
 set -euo pipefail
@@ -192,28 +191,9 @@ assert_eq "$found" "$bin/demo-tool" \
 assert_eq "$(recorded plugin_dirs)" "$consumer/dist/plugin" \
     "the shim appends the copy's bin to PATH: the copy is still exported"
 
-# An absolute entry already naming the directory, in any spelling or none that
-# exists, is not repeated, and stays where the user put it.
-echo "=== the shim does not repeat the copy's bin ==="
-make_consumer
-bin="$consumer/dist/plugin/bin"
-mkdir -p "$bin"
-path_head="$shim_dir:$stubdir:$bin/"
-run_claude
-# shellcheck disable=SC2031  # the suite's own PATH, which the launch appended
-assert_eq "$(recorded path)" "$stubdir:$bin/:$PATH" \
-    "the shim does not repeat the copy's bin: PATH is as spelled"
-make_consumer
-bin="$consumer/dist/plugin/bin"
-path_head="$shim_dir:$stubdir:$bin"
-run_claude
-# shellcheck disable=SC2031  # the suite's own PATH, which the launch appended
-assert_eq "$(recorded path)" "$stubdir:$bin:$PATH" \
-    "the shim does not repeat the copy's bin: a spelled entry for a missing directory"
-
-# A copy without a bin/ still gets the entry. `just dogfood` can create the
-# directory later, in a session already running, and a missing PATH directory
-# is harmless, so the check is for the copy and not for the directory.
+# Neither the copy nor its bin/ is probed: `just dogfood` can create either in a
+# session already running, and a PATH directory that does not exist is inert, so
+# the entry is there for a copy without a bin/ and for no copy at all.
 echo "=== a copy without a bin gets the entry ==="
 make_consumer
 run_claude
@@ -221,35 +201,13 @@ run_claude
 assert_eq "$(recorded path)" "$stubdir:$PATH:$consumer/dist/plugin/bin" \
     "a copy without a bin gets the entry"
 
-echo "=== no copy adds nothing ==="
+echo "=== no copy still gets the entry ==="
 make_consumer
 rm -rf "$consumer/dist"
 run_claude
 # shellcheck disable=SC2031  # the suite's own PATH, which the launch appended
-assert_eq "$(recorded path)" "$stubdir:$PATH" "no copy adds nothing"
-
-# An empty or relative entry names a directory by the launch directory, not by
-# the root: launched from the bin directory itself, "." is that directory, and a
-# relative dist/plugin/bin launched from the root is too. Neither is the entry
-# a later launch from elsewhere would find, so neither suppresses the append.
-echo "=== an empty or relative entry does not count as the copy's bin ==="
-make_consumer
-bin="$consumer/dist/plugin/bin"
-mkdir -p "$bin"
-launch_dir="$bin"
-path_head="$shim_dir:$stubdir:."
-run_claude
-# shellcheck disable=SC2031  # the suite's own PATH, which the launch appended
-assert_eq "$(recorded path)" "$stubdir:.:$PATH:$bin" \
-    "an empty or relative entry does not count: a . entry from the bin directory"
-make_consumer
-bin="$consumer/dist/plugin/bin"
-mkdir -p "$bin"
-path_head="$shim_dir:$stubdir:dist/plugin/bin"
-run_claude
-# shellcheck disable=SC2031  # the suite's own PATH, which the launch appended
-assert_eq "$(recorded path)" "$stubdir:dist/plugin/bin:$PATH:$bin" \
-    "an empty or relative entry does not count: a relative entry from the root"
+assert_eq "$(recorded path)" "$stubdir:$PATH:$consumer/dist/plugin/bin" \
+    "no copy still gets the entry"
 
 # The appended directory is added after the check for another claude: a claude
 # the plugin ships in bin/ is not the next claude, and must not be exec'd when
