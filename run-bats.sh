@@ -10,8 +10,9 @@ set -euo pipefail
 #
 # Usage: run-bats.sh <bats-args...>   (same args you'd pass to `bats` directly)
 #
-# Exits with bats' own status. Not tied to the gate sentinels in `gates.just`:
-# a consumer can use either without the other.
+# Exits with bats' own status, or 1 when bats exited 0 but ran no test. Not tied
+# to the gate sentinels in `gates.just`: a consumer can use either without the
+# other.
 
 # Xs last: BSD mktemp randomises only a trailing run of them, and uses a
 # template like `name-XXXXXX.log` literally -- the second run then dies on EEXIST.
@@ -24,6 +25,13 @@ set -e
 
 pass=$(grep -c '^ok ' "$log" || true)
 fail=$(grep -c '^not ok ' "$log" || true)
+
+if [ "$status" -eq 0 ] && [ "$pass" -eq 0 ] && [ "$fail" -eq 0 ]; then
+    # A typo'd `--filter` or an empty .bats file exits 0 having checked nothing,
+    # and a gate that records that has vouched for nothing.
+    echo "bats: no tests ran"
+    status=1
+fi
 
 if [ "$fail" -gt 0 ]; then
     awk '/^not ok /{show=1} /^ok /{show=0} show' "$log"
