@@ -137,7 +137,7 @@ check-sentinel () {
     # exclude has no files of its own to match.
     for spec in "$@"; do
         case "$spec" in
-            :\!*|:^*) continue ;;
+            :\!*|:^*|:/\!*|:/^*) continue ;;
             :\(*\)*)
                 magic=${spec#:(}
                 case ",${magic%%)*}," in *,exclude,*) continue ;; esac
@@ -177,8 +177,9 @@ check-sentinel () {
 # Contents go through `cksum`, one process over the whole list. Its line holds
 # the file's checksum, size and name, so a name and a content cannot run
 # together into the bytes of another tree. A file it cannot read fails it, and
-# `xargs` and `pipefail` carry that to the caller. Residual bound: a file name
-# holding a newline can imitate a `cksum` line.
+# `xargs` and `pipefail` carry that to the caller. Residual bounds: a file name
+# holding a newline can imitate a `cksum` line, and `$(readlink)` drops trailing
+# newlines, so two link targets that differ only by them hash alike.
 #
 # Every component fails explicitly rather than leaning on errexit: this runs in
 # a command substitution inside a condition, where bash suspends errexit, so an

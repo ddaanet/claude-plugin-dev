@@ -45,23 +45,24 @@ plugin-dev/gates/<gate>`), so it never shows in `git status` or in its own hash,
 and each clone and worktree has its own. The hash covers the names, contents and
 execute bits of every non-ignored file matching the pathspecs, tracked or not,
 so a rename, a deletion, a `chmod +x` and a brand-new file each count; ignored
-files do not. A symlink counts by where it points as well as by what it points at: the target
-path joins the hash, and the execute bit and contents of a file target are
-followed. Two inputs
-are always hashed beside the pathspecs you give: the justfile, since the
-commands of the gate are part of what it checks, and the vendored `plugin-dev`
-tree, so that a toolkit update invalidates every pass. They are listed apart from
-your pathspecs, by the absolute paths just reports, so an exclude of yours never
-subtracts from them, and a justfile named `Justfile`, a recipe that runs under
-`[working-directory]` and a gate in a module all hash the same two inputs. That
-needs `gates.just` inside the repository, as `plugin-dev/` is. A pathspec of
-yours that matches no file is refused, so a typo cannot cache forever; an
-exclude (`:!…`, `:^…`, or `exclude` among the magic words of `:(…)`) has no
-files of its own and is not held to it. Pathspecs resolve against the directory
-the recipe runs in, as git resolves them: a list of excludes alone subtracts
-from that directory's files, so under `[working-directory]` or in a module
-`':!docs'` lists only the files below it. Write `:/` or `:(top)` to mean the whole
-repository, and `':(top,exclude)docs'` to exclude from the top.
+files do not. A symlink counts by where it points as well as by what it points
+at: the target path joins the hash, and the execute bit and contents of a file
+target are followed. Two inputs are always hashed beside the pathspecs you give:
+the justfile, since the commands of the gate are part of what it checks, and the
+vendored `plugin-dev` tree, so that a toolkit update invalidates every pass.
+They are listed apart from your pathspecs, by the absolute paths just reports,
+so an exclude of yours never subtracts from them, and a justfile named
+`Justfile`, a recipe that runs under `[working-directory]` and a gate in a
+module all hash the same two inputs. That needs `gates.just` inside the
+repository, as `plugin-dev/` is. A pathspec of yours that matches no file is
+refused, so a typo cannot cache forever; an exclude (`:!…`, `:^…`, their `:/`
+forms, or `exclude` among the magic words of `:(…)`) has no files of its own and
+is not held to it. Pathspecs resolve against the directory the recipe runs in,
+as git resolves them: a list of excludes alone subtracts from that directory's
+files, so under `[working-directory]` or in a module `':!docs'` lists only the
+files below it, and so does `':(top,exclude)docs'`, which anchors the exclude
+and not the listing. A gate over the whole repository minus `docs` lists
+`:/` beside the exclude: `:/ ':(top,exclude)docs'`, or `:/ ':/!docs'`.
 
 ### What is never recorded
 
@@ -192,15 +193,16 @@ the tools your checks use and that no lockfile in the pathspecs pins.
 
 ## The quiet bats runner
 
-`plugin-dev/run-bats.sh` takes the arguments `bats` takes, except those that
-change the output format (`--formatter`, `-F`, `--count`, `--version`): it reads
-the TAP stream, and a run with no `ok` or `not ok` line counts as a run of no
-test. It runs bats into a log under `$TMPDIR`, prints only the `not ok` blocks (the whole log when bats
-failed without one, as when it died before a plan or a `teardown_file` crashed),
-then one line, and exits with bats' own status. A run that exits 0 having run no
-test, from a `--filter` that matches nothing or an empty `.bats` file, is a
-failure: it prints `bats: no tests ran` and the log, and exits 1. A green run is
-that line alone and leaves no log:
+`plugin-dev/run-bats.sh` takes the arguments `bats` takes, except any that
+change the output format or print something other than test results, such as
+`-p`, `-F` with a formatter other than `tap` or `tap13`, `-c`, `-v` and `-h`: it
+reads the TAP stream, and a run with no `ok` or `not ok` line counts as a run of
+no test. It runs bats into a log under `$TMPDIR`, prints only the `not ok`
+blocks (the whole log when bats failed without one, as when it died before a
+plan or a `teardown_file` crashed), then one line, and exits with bats' own
+status. A run that exits 0 having run no test, from a `--filter` that matches
+nothing or an empty `.bats` file, is a failure: it prints `bats: no tests ran`
+and the log, and exits 1. A green run is that line alone and leaves no log:
 
 ```text
 bats: 412 passed, 0 failed

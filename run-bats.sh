@@ -9,8 +9,9 @@ set -euo pipefail
 # removed when the run passes.
 #
 # Usage: run-bats.sh <bats-args...>   (the args you'd pass to `bats` directly,
-# bar those that change the output format: this reads TAP, and a run printing
-# none counts as a run of no test)
+# bar any that change the output format or print something other than test
+# results, such as -p, -F other than tap or tap13, -c, -v and -h: this reads
+# TAP, and a run printing none counts as a run of no test)
 #
 # Exits with bats' own status, or 1 when bats exited 0 but ran no test. Not tied
 # to the gate sentinels in `gates.just`: a consumer can use either without the
