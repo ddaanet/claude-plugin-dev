@@ -89,23 +89,32 @@ exit 1 holds whichever version meets the payload.
 
 `session-start` speaks in two cases and is silent otherwise.
 
-**The session does not load `<root>/dist/plugin`.** It was launched past the
-shim — no direnv, an IDE or the desktop app, an absolute path to `claude` — or
-it inherited another repository's value. The test splits
-`CLAUDE_CODE_PLUGIN_DIRS` on `:` and compares each entry whole. An absolute
-entry naming a directory that can be entered is resolved physically, because
-Claude Code writes the variable back normalized and a symlinked spelling must
-still match; any other entry is compared as spelled, trailing slashes stripped,
-and a relative one, which Claude Code drops, never matches. A substring or
-prefix match would accept `/other/<root>/dist/plugin`. The payload is not read.
+**The session does not load `<root>/dist/plugin`, or there is no directory
+there.** The first is a launch past the shim — no direnv, an IDE or the desktop
+app, an absolute path to `claude` — or an inherited other repository's value.
+The second is a shim launch before the first `just dogfood`, or a regular file
+where the copy belongs. The test splits `CLAUDE_CODE_PLUGIN_DIRS` on `:` and
+compares each entry whole. An absolute entry naming a directory that can be
+entered is resolved physically, because Claude Code writes the variable back
+normalized and a symlinked spelling must still match; any other entry is
+compared as spelled, trailing slashes stripped, and a relative one, which Claude
+Code drops, never matches. A substring or prefix match would accept
+`/other/<root>/dist/plugin`. A match is then silent only if `<root>/dist/plugin`
+is a directory (`-d`): the shim names the path whether or not the copy exists,
+so the variable alone cannot tell a session that loads the copy from one that
+loads nothing, and the shim stays silent so the hook is where that is said. The
+payload is not read.
 
-The finding goes to both channels. `systemMessage` names the remedy:
-`just dogfood` and a relaunch when no `<root>/dist/plugin` directory exists,
-else launching through `plugin-dev/bin/claude` from the repo root. A session the
-shim started names the copy, so it is silent whether or not the copy exists yet.
-`additionalContext` gives the agent the finding as a fact — no copy exists, or
-behaviour observed here is not the promoted copy's — and nothing to act on:
-promoting and relaunching are the human's acts.
+The finding goes to both channels, in one of three shapes. `systemMessage` names
+the remedy. The variable names the path and no directory is there:
+`just dogfood`, then `/reload-plugins`, no relaunch. The variable does not name
+it and there is no copy: `just dogfood`, then `direnv allow` in the root and a
+relaunch of `claude`. The variable does not name it and the copy exists:
+`direnv allow` and a relaunch. The user is never told the shim's path:
+`direnv allow` loads the `.envrc` that puts the shim first on PATH, and that is
+the control they have. `additionalContext` gives the agent the finding as a fact
+— no copy exists, or behaviour observed here is not the promoted copy's — and
+nothing to act on: promoting and relaunching are the human's acts.
 
 **`jq` is missing.** There is then no object to build and no copy guard, so the
 check is skipped and a static `systemMessage` says so. It stays off the agent's

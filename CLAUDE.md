@@ -55,15 +55,16 @@ or removing a shipped file means updating the list in
   `pre-tool` is the `PreToolUse(Write|Edit|NotebookEdit)` hook that
   refuses agent edits into that copy and names the source path;
   `session-start` is the `SessionStart` hook that warns when the session
-  does not load the copy or `jq` is missing. Each finds the repo root
-  from the script's own location, never from `CLAUDE_PROJECT_DIR` or a
-  hook payload's `cwd`.
+  does not load the copy, no directory is there to load, or `jq` is
+  missing. Each finds the repo root from the script's own location, never
+  from `CLAUDE_PROJECT_DIR` or a hook payload's `cwd`.
 - `toolkit/bin/claude` — the dogfood shim, a `claude` that the
   consumer's `.envrc` puts first on PATH as `PATH_add plugin-dev/bin`.
   Never syncs: it execs the next `claude` on PATH with its arguments
   unchanged and `CLAUDE_CODE_PLUGIN_DIRS` set to `dist/plugin/`, the
   copy only `just dogfood` writes, and the copy's `bin/` appended to PATH
-  after the user's entries, both whether or not that copy exists yet.
+  after the user's entries, both whether or not that copy exists yet. It is
+  silent: `session-start` reports a missing copy.
 - `toolkit/version-guard.sh` — `PreToolUse(Write|Edit)` hook that fires
   inside consumer plugins to refuse agent edits to
   `.claude-plugin/plugin.json`'s `.version`.
@@ -177,8 +178,9 @@ contents), `citation-test.sh` (refuses a `<script>.sh:<line>`
 citation into a tracked file outside `plans/` and `docs/changelog/`),
 the `dogfood.sh` suites (`dogfood-sync-{copy,nested,allowlist,refusal}-test.sh`,
 `dogfood-pre-tool-{paths,jq}-test.sh` and
-`dogfood-session-start-test.sh`) and `dogfood-launcher-{exec,path,bin}-test.sh` (the
-`bin/claude` shim). A green `precommit` — including the one a
+`dogfood-session-{start,warn}-test.sh`) and
+`dogfood-launcher-{exec,path,bin}-test.sh` (the `bin/claude` shim). A
+green `precommit` — including the one a
 pre-commit hook runs — is therefore evidence the whole release suite
 passed, not just the linters. **One script under test per suite
 file**, each carrying its

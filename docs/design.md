@@ -296,18 +296,21 @@ the dated record of the reversal goes in the changelog.
 - **A launch with no copy exports the copy's path anyway** — the shim sets
   `CLAUDE_CODE_PLUGIN_DIRS` and execs, silently; Claude Code starts cleanly with
   a missing plugin directory, and `/reload-plugins` loads the copy the first
-  `just dogfood` makes, with no relaunch. A refusal would leave no `claude`
-  through the shim while the copy cannot be made, and creating the copy would be
-  a sync at launch by another trigger.
+  `just dogfood` makes, with no relaunch (verified headless). The warning is
+  `session-start`'s. A refusal would leave no `claude` through the shim while
+  the copy cannot be made, and creating the copy would be a sync at launch by
+  another trigger.
 - **`dogfood.sh` carries `sync`, `pre-tool` and `session-start`, each rooted at
   the script's own location** — never `CLAUDE_PROJECT_DIR` or a payload `cwd`,
   which a resumed session can take from another repository.
 - **The copy guard denies an edit into `dist/plugin/`, compared on physical
   paths, and does not rewrite it** — the agent is given the source path, since a
   silent rewrite would hide the mapping.
-- **`session-start` reports a session that does not load the copy, and a missing
-  `jq`** — whole-entry matching on the variable; the human gets the remedy, the
-  agent the fact, and nothing refuses.
+- **`session-start` reports a session that does not load the copy, a missing
+  copy directory, and a missing `jq`** — whole-entry matching on the variable,
+  then a directory test; the human gets the remedy (`just dogfood` and
+  `/reload-plugins`, or `direnv allow` and a relaunch, never the shim's path),
+  the agent the fact, and nothing refuses.
 - **A failed sync is loud** — `just dogfood` exits non-zero, and rsync's stderr
   is never redirected. Every refusal, `rsync` missing from PATH included, comes
   before the copy is made, so a refused first sync leaves no copy rather than an

@@ -4,8 +4,8 @@
 # the shim vendored at plugin-dev/bin/claude, puts a stub claude behind it, and
 # launches `claude` by PATH lookup as a developer would.
 #
-# Scope: what the shim execs -- argv, no sync, a missing copy. Its sibling dogfood-launcher-path-test.sh
-# covers the exported copy and the PATH handling.
+# Scope: what the shim execs -- argv, no sync, a missing copy. Its sibling
+# dogfood-launcher-path-test.sh covers the exported copy and the PATH handling.
 #
 # Usage: bash tests/dogfood-launcher-exec-test.sh   (run from repo root)
 set -euo pipefail

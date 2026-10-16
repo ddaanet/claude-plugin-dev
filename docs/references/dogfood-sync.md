@@ -144,15 +144,18 @@ error, then 17 plugins and none. The first `just dogfood` of a running session
 therefore needs `/reload-plugins` and no relaunch. The interactive command was
 not run; it shares the code path, which is unconfirmed.
 
-`session-start` matches the variable alone, before its no-copy check, so it is
-silent in that session. Its no-copy branch now means a session that started past
-the shim, which has no variable to reload. Creating the copy at launch would be
-a sync under another trigger.
+The shim says nothing; `session-start` does. A match on the variable is silent
+only when the copy is a directory. With the path named and no directory there,
+the hook tells the user to run `just dogfood` and then `/reload-plugins`, no
+relaunch; a regular file at `dist/plugin` is the same case. A session that does
+not name the path has no variable to reload and is told `direnv allow` and a
+relaunch, preceded by `just dogfood` when there is no copy. Creating the copy at
+launch would be a sync under another trigger.
 
-**Rejected: warn and leave the variable as it came.** That was the earlier
-design. It started a plain session whose variable never named the copy, so the
-first `just dogfood` needed a relaunch, and a warning on every such launch
-carried a remedy that the export makes unnecessary.
+**Rejected: warn in the shim and leave the variable as it came.** That was the
+earlier design. It started a plain session whose variable never named the copy,
+so the first `just dogfood` needed a relaunch, and the TUI hides a warning
+printed before the exec.
 
 **Rejected: refuse the launch.** A shim that exited instead would leave no
 `claude` through it while the copy cannot be made — `rsync` missing, say — short
