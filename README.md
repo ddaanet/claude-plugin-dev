@@ -48,7 +48,7 @@ dotfiles).
   [Dogfooding](#dogfooding).
 - **`bin/claude`** — the dogfood shim. First on PATH, it points
   `CLAUDE_CODE_PLUGIN_DIRS` at `dist/plugin/`, appends the copy's `bin/` to
-  PATH when it has one, and execs the next `claude` on PATH. It never syncs;
+  PATH, and execs the next `claude` on PATH. It never syncs;
   while the copy is missing it warns and launches without it.
 - **`install.sh`** — one-shot install script: vendors the toolkit (resolving the
   newest `dist-` tag when no ref is given), inserts the justfile import line,
@@ -249,14 +249,21 @@ with its arguments unchanged and `CLAUDE_CODE_PLUGIN_DIRS` set to
 `claude -c` relaunch or any other `claude` you run in the repo loads the copy as
 it stands. With no other `claude` on PATH the shim exits 127.
 
-When the copy has a `bin/`, the shim also appends `<root>/dist/plugin/bin` to
-PATH, after your entries and only once. A marketplace install puts a plugin's
-`bin/` on the Bash tool's PATH and a `CLAUDE_CODE_PLUGIN_DIRS` load does not, so
-without this a command your plugin ships for agents' Bash would work only after
-a release. It is appended, not prepended, because a released plugin's `bin/`
-cannot shadow system commands either. Hooks should still find their scripts by
-`${CLAUDE_PLUGIN_ROOT}` or `$0`, never through `bin/`; nothing here promises
-that a hook's PATH or a plugin-shipped agent's carries it.
+With a copy, the shim also appends `<root>/dist/plugin/bin` to PATH, after your
+entries and only once, whether or not the copy has a `bin/` yet: a later
+`just dogfood` can create it in a session already running. A marketplace install
+puts a plugin's `bin/` on the Bash tool's PATH and a `CLAUDE_CODE_PLUGIN_DIRS`
+load does not, so without this a command your plugin ships for agents' Bash
+would work only after a release. It is appended, not prepended, because a
+released plugin's `bin/` cannot shadow system commands either. A PATH entry
+counts as already naming the directory only if it is absolute.
+
+One divergence from the release: the shim sets PATH on the `claude` process, so
+hooks, MCP servers and plugin agents inherit the directory too, while a
+marketplace install is only known to put `bin/` on the Bash tool's PATH. A hook
+that calls a bare `bin/` command works in dogfood and may fail once released.
+Hooks should find their scripts by `${CLAUDE_PLUGIN_ROOT}` or `$0`, never
+through `bin/`.
 
 With no copy, the shim says so on one line, leaves `CLAUDE_CODE_PLUGIN_DIRS` as
 it found it, and launches anyway:
