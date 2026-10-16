@@ -9,8 +9,9 @@
 #                  into <root>/dist/plugin/; exit 0 on either verdict, empty
 #                  stdout when allowing
 #   session-start  SessionStart hook: warn when this session does not load
-#                  <root>/dist/plugin/, or when jq is missing; exit 0,
-#                  empty stdout when silent
+#                  <root>/dist/plugin/, when it names that path and no
+#                  directory is there, or when jq is missing; exit 0, empty
+#                  stdout when silent
 set -euo pipefail
 unset CDPATH # else a relative cd searches it and prints its target
 
@@ -249,7 +250,7 @@ pre_tool() {
 # check is skipped and a static systemMessage says so; it stays off the agent's
 # channel, since only the human can install jq.
 session_start() {
-    local root copy rest entry named=0
+    local root copy rest entry named=0 no_copy
     if ! command -v jq >/dev/null; then
         printf '%s\n' '{"systemMessage":"\u001b[0mdogfood: jq is not on PATH, so the copy guard and this check are off until it is installed"}'
         exit 0
@@ -275,17 +276,16 @@ session_start() {
             break
         fi
     done
+    no_copy="No copy exists at $copy, so this session loads none; plugin behaviour observed in it does not come from that path."
     if [[ -d "$copy" && "$named" == 1 ]]; then
         exit 0
     elif [[ -d "$copy" ]]; then
         warn_session "this session does not load $copy; run direnv allow in $root, then relaunch claude" \
             "This session does not load $copy, so plugin behaviour observed in it is not that of the promoted copy."
     elif [[ "$named" == 1 ]]; then
-        warn_session "no copy at $copy yet; run just dogfood to create it, then /reload-plugins, no relaunch needed" \
-            "No copy exists at $copy, so this session loads none; plugin behaviour observed in it does not come from that path."
+        warn_session "no copy at $copy yet; run just dogfood to create it, then /reload-plugins, no relaunch needed" "$no_copy"
     else
-        warn_session "no copy at $copy, so this session does not load it; run just dogfood to create it, then direnv allow in $root and relaunch claude" \
-            "No copy exists at $copy, so this session loads none; plugin behaviour observed in it does not come from that path."
+        warn_session "no copy at $copy, so this session does not load it; run just dogfood to create it, then direnv allow in $root and relaunch claude" "$no_copy"
     fi
 }
 
