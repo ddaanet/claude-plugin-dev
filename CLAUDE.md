@@ -144,7 +144,8 @@ wiring and legacy-entry migration),
 `dist-tree-test.sh` (the shipped-file list),
 `dist-{build,refusal,warning,subcommands}-test.sh` (`dist.sh`'s allowlist,
 tree build, refusals, warnings and other subcommands), `docs-test.sh` (the
-400-line cap over `docs/` and `plans/`, plus pointer resolution),
+400-line cap over `docs/`, plus pointer resolution over `docs/` and
+`plans/`; the cap is soft for plans and gated nowhere),
 `line-cap-test.sh` (the same 400-line cap over every other tracked file; a
 suite that outgrows it is split along its scenario groups, never exempted),
 `doc-sync-test.sh` (the install/update command blocks shared by the two

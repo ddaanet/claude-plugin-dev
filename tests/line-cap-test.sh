@@ -4,12 +4,14 @@
 # an oversized suite is split along its scenario groups, not exempted.
 #
 # Scope, and why this is not part of docs-test.sh: that suite owns the cap over
-# the markdown under `docs/` and `plans/`, where it also counts untracked drafts
-# and honours a `<!-- cap-ok -->` marker for a plan that already landed. This
-# one owns every other tracked file. It skips what docs-test.sh already governs
-# (a `.md` under `docs/` or `plans/`) and `docs/changelog/` wholesale, which
-# holds dated records that are never revised. A non-markdown file under `docs/`
-# or `plans/` is not governed by docs-test.sh, so it is counted here.
+# the markdown under `docs/`, where it also counts untracked drafts. This one
+# owns every other tracked file. It skips what docs-test.sh already governs (a
+# `.md` under `docs/`) and `docs/changelog/` wholesale, which holds dated
+# records that are never revised. It also skips `plans/` wholesale, any file
+# type: the cap is soft for plans, judged at review and gated by neither suite,
+# because a warning would repeat on every gate run for a plan that is frozen
+# once it lands. A non-markdown file under `docs/` is not governed by
+# docs-test.sh, so it is counted here.
 #
 # Also skipped, because a line count says nothing about them: a gitlink (the
 # `memory` submodule is another repo's content), a symlink, a binary file (the
@@ -96,7 +98,8 @@ scan() {
         case "$mode" in 160000 | 120000) continue ;; esac
         case "$path" in
             docs/changelog/*) continue ;;
-            docs/*.md | plans/*.md) continue ;;
+            plans/*) continue ;;
+            docs/*.md) continue ;;
         esac
         is_exempt "$path" && continue
         [ -f "$root/$path" ] || continue
@@ -123,9 +126,8 @@ is_exempt() {
 
 got="$(scan "$fixture")"
 assert_eq "$got" "oversized-file: my big file.txt: 401 lines > 400
-oversized-file: plans/data.json: 401 lines > 400
 oversized-file: tests/over-cap.sh: 401 lines > 400" \
-    "fixture report: the three non-governed oversized files, in git's order, no others"
+    "fixture report: the two non-governed oversized files, in git's order, no others"
 passed+=("report format and each exclusion pinned on a fixture")
 
 echo "=== no tracked file in this repo exceeds the cap ==="
