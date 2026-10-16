@@ -133,7 +133,7 @@ run_session_start
 assert_session_warns "$label" "$root"
 # shellcheck disable=SC2016  # $c and $r are jq variables bound by --arg
 jq_holds "$label: systemMessage is the direnv allow line" \
-    '.systemMessage == "\u001b[0mdogfood: this session does not load " + $c + "; run direnv allow in " + $r + ", then relaunch claude"' \
+    '.systemMessage == "\u001b[0mdogfood: this session does not load " + $c + "; run direnv allow in " + $r + ", then relaunch claude from a shell there"' \
     --arg c "$root/dist/plugin" --arg r "$root"
 # shellcheck disable=SC2016  # $c is a jq variable bound by --arg
 jq_holds "$label: additionalContext is the not-the-promoted-copy fact" \
@@ -159,7 +159,7 @@ for shape in absent file; do
     assert_session_warns "$label" "$root"
     # shellcheck disable=SC2016  # $c and $r are jq variables bound by --arg
     jq_holds "$label: systemMessage is the just dogfood, direnv allow line" \
-        '.systemMessage == "\u001b[0mdogfood: no copy at " + $c + ", so this session does not load it; run just dogfood to create it, then direnv allow in " + $r + " and relaunch claude"' \
+        '.systemMessage == "\u001b[0mdogfood: no copy at " + $c + ", so this session does not load it; run just dogfood to create it, then direnv allow in " + $r + " and relaunch claude from a shell there"' \
         --arg c "$root/dist/plugin" --arg r "$root"
     jq_holds "$label: systemMessage does not name the shim" \
         '.systemMessage | contains("bin/claude") | not'

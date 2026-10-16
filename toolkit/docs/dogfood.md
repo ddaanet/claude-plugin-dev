@@ -136,8 +136,8 @@ version-guard:
 
   ```text
   dogfood: no copy at <root>/dist/plugin yet; run just dogfood to create it, then /reload-plugins, no relaunch needed
-  dogfood: no copy at <root>/dist/plugin, so this session does not load it; run just dogfood to create it, then direnv allow in <root> and relaunch claude
-  dogfood: this session does not load <root>/dist/plugin; run direnv allow in <root>, then relaunch claude
+  dogfood: no copy at <root>/dist/plugin, so this session does not load it; run just dogfood to create it, then direnv allow in <root> and relaunch claude from a shell there
+  dogfood: this session does not load <root>/dist/plugin; run direnv allow in <root>, then relaunch claude from a shell there
   dogfood: jq is not on PATH, so the copy guard and this check are off until it is installed
   ```
 
