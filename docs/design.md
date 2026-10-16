@@ -61,6 +61,9 @@ versioned with each consumer.
 - Provide an opt-in `dist` branch holding only the paths a plugin lists, so a
   plugin whose repo root holds a gitlink can still be submitted to the plugin
   directory, and a dogfood copy of the same set.
+- Provide opt-in gate sentinels and a quiet bats runner, so a plugin's
+  `precommit` can skip itself over an unchanged tree and print a bats run as
+  failures and a count, without a plugin that wants neither seeing a change.
 - **Reproducibility:** old consumer-plugin tags must build identically to when
   they were tagged — the toolkit content vendored at the time must be
   retrievable, not subject to drift.
@@ -209,6 +212,35 @@ the dated record of the reversal goes in the changelog.
   the release and in the dogfood sync alike, never a release or copy without the
   list.
 
+### Gate sentinels — [references/gates.md](references/gates.md)
+
+- **Opt-in, in `gates.just` and `run-bats.sh`** — `release.just` imports and
+  calls neither, and the `precommit`/`prerelease` contract is unchanged; a
+  consumer that adds the import line is the only one affected. `gates.just`
+  defines one name, so it imports beside `release.just`.
+- **The functions travel as an interpolated prolog** — the guard must leave the
+  recipe and the record must read what the guard set, so both run in the
+  recipe's own shell; the import line is the only wiring. The bash sits in a
+  justfile string, so a test lints it.
+- **The consumer declares the inputs, and the cache is true only while every
+  check reads inside them** — the toolkit cannot see the checks. A gitlink
+  hashes by name only, so a check over one runs uncached ahead of the guard. No
+  drift check ships; the manual carries the rule and a procedure to prove a
+  list.
+- **Tool versions are an exported `PLUGIN_DEV_GATE_TOOLS`, empty by default** —
+  one shell command per line, since the set differs per consumer and a lockfile
+  pins some of it.
+- **A pass is recorded only against the hash taken before the checks, and never
+  from a hash that failed** — moved inputs fail the recipe, an uncomputable hash
+  passes it and says the pass was not recorded.
+- **One guard per recipe body, enforced** — a second gate, a record with no
+  guard, no pathspec and a gate name holding a `/` are each refused.
+- **Names are toolkit-neutral, with no aliases** — `PLUGIN_DEV_GATE_DIR`,
+  `PLUGIN_DEV_GATE_FORCE`, the `plugin-dev/gates` gitdir path and the
+  `plugin-dev-bats.` log prefix.
+- **gitlore's per-suite bats cache stays out** — bats-specific and larger; a
+  later opt-in.
+
 ### This repo's own release — [references/self-release.md](references/self-release.md)
 
 - **The toolkit releases itself with a separate script** —
@@ -335,6 +367,9 @@ the dated record of the reversal goes in the changelog.
 - **Solo-author workflow assumed.** The toolkit is built around one maintainer's
   plugins. Multi-contributor scenarios (e.g. forks proposing changes back to the
   toolkit) work mechanically but haven't been ergonomics-tested.
+- **A gate's input list is unchecked.** A pathspec matching nothing, or a check
+  reading outside the list, narrows the cache silently; only the manual's rule
+  and its procedure for proving a list stand against it.
 - **No standardised hook library yet.** The toolkit doesn't prescribe
   shellcheck, trailing-whitespace, end-of-file-fixer, etc. for consumer plugins
   — each consumer defines its own `precommit` recipe. May change if patterns

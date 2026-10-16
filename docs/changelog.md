@@ -9,6 +9,11 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-16 — Gate sentinels and the quiet bats runner ship as an opt-in](changelog/2026-10-16-gate-sentinels.md)
+  — `toolkit/gates.just` carries gitlore's sentinel functions as an interpolated
+  prolog and `toolkit/run-bats.sh` its quiet runner; neither is imported by
+  `release.just`, names are toolkit-neutral, and the manual and a 0.11.0
+  migration note say how to choose the inputs and convert a `precommit`.
 - [2026-10-16 — The clean-tree check stops exempting `.claude/`](changelog/2026-10-16-clean-tree-drops-dot-claude.md)
   — supersedes 2026-09-01: only the memory gitlink is exempt; a dirty tracked
   file under `.claude/` refuses a release and the refusal names it.

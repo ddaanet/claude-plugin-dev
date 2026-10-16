@@ -72,6 +72,16 @@ or removing a shipped file means updating the list in
   consumer's `justfile`, and adds the version-guard hook and, beside it,
   the two dogfood hooks (`dogfood.sh pre-tool` and `session-start`) to
   its `.claude/settings.json`.
+- `toolkit/gates.just` — opt-in, never imported by `release.just`: a private
+  `plugin_dev_gate_prolog` variable a consumer interpolates as the shebang of a
+  gate recipe. It defines `sentinel-guard`, `check-sentinel`, `record-sentinel`
+  and `gate-inputs-hash`, which skip a gate while the hash of its declared
+  inputs is unchanged. Its tool-version list is the consumer's exported
+  `PLUGIN_DEV_GATE_TOOLS`; it defines no other variable, so it imports beside
+  `release.just` without a name clash.
+- `toolkit/run-bats.sh` — the quiet bats runner, opt-in and independent of the
+  sentinels: failures and a pass count in place of the TAP stream. Executable in
+  the index, which `tests/dist-tree-test.sh` pins.
 - `toolkit/README.md` — the consumer-facing manual, shipped in the dist
   tree. The place a plugin maintainer reads; keep it in step with the
   scripts above.
@@ -79,6 +89,10 @@ or removing a shipped file means updating the list in
   plugin opts in with `dist.include`, and what each check refuses or warns
   about. Split out of `toolkit/README.md`, which keeps a stub section
   pointing here, so the manual stays under the 400-line cap.
+- `toolkit/docs/gates.md` — the manual's gate-sentinel chapter: the prolog, how
+  to choose the input pathspecs so a cached pass stays true, the tool-version
+  list and the quiet runner. `toolkit/README.md` keeps a stub section pointing
+  here.
 - `toolkit/migrations/vX.Y.Z.md` — optional per-release note for a step a
   consumer must take by hand. Printed by `update.sh` for the crossed range;
   `tests/dist-tree-test.sh` allows this path and no other under
@@ -106,8 +120,8 @@ or removing a shipped file means updating the list in
   limitations, and a one-line conclusion per decision. States what the
   toolkit *is*. Read it first and open only the node you need.
 - `docs/references/*.md` — one node per group of decisions (a large group may take more than one)
-  (`distribution`, `dist-branch`, `dogfood`, `dogfood-sync`, `release-flow`,
-  `recovery`, `self-release`, `version-guard`), each holding the argument behind
+  (`distribution`, `dist-branch`, `dogfood`, `dogfood-sync`, `gates`,
+  `release-flow`, `recovery`, `self-release`, `version-guard`), each holding the argument behind
   the hub's conclusions: alternatives weighed, the bug that motivated
   it, what it costs. A decision that changes is rewritten in both places.
 - `docs/changelog.md` — index of write-time records, newest first, one
@@ -131,7 +145,8 @@ just precommit
 
 Runs `bash -n` and `shellcheck` on the shell scripts, a private
 `_import-check` that imports `release.just` into a stub consumer to
-catch justfile syntax errors, and then **every test under `tests/`** —
+catch justfile syntax errors (it imports `gates.just` beside it too), and then
+**every test under `tests/`** —
 `version-guard-{decision,wording,git}-test.sh`, `check-version-test.sh`,
 the eleven `release-*-test.sh` suites that split `release.sh`'s consumer flow by
 scenario group (`release-core`, `-resume-push`, `-resume-hint`, `-tree`,
@@ -139,6 +154,9 @@ scenario group (`release-core`, `-resume-push`, `-resume-hint`, `-tree`,
 `-hint-size`), `release-dist-{publish,resume,refusal,optin}-test.sh`
 (`release.sh` publishing the `dist` branch),
 `self-release-{publish,refusal}-test.sh`, `update-plugin-dev-test.sh`,
+`run-bats-test.sh` (the quiet runner, against a stub `bats`),
+`gates-{sentinel,guards}-test.sh` (`gates.just`'s cache and its guards, driven
+through real `just` recipes in a fixture consumer),
 `install-{vendor,settings,legacy}-test.sh` (`install.sh`'s vendoring, settings
 wiring and legacy-entry migration),
 `dist-tree-test.sh` (the shipped-file list),
@@ -211,6 +229,15 @@ split dist ref" for the reasoning.
   indirection away — see docs/references/release-flow.md "Release
   gate". Any change to the binding must keep `_import-check`'s three
   stub shapes passing (plain, widened, and missing-`prerelease`).
+- **`gates.just` and `run-bats.sh` stay opt-in.** `release.just` never imports
+  the first or calls the second, and `gates.just` defines no name `release.just`
+  does (`_import-check` imports both into one stub). A consumer that imports
+  neither must see no difference. Every refusal inside the prolog is an explicit
+  `exit`: its guard runs as the condition of an `if`, where bash suspends
+  errexit, so a bare failing command would be skipped. The sentinel functions'
+  variable names (`sentinel_dir`, `sentinel`, `gate_inputs`, `guard_hash`) are
+  read by gitlore's `run-suites`, which is not shipped: renaming one is a
+  breaking change, and wants a migration note.
 - **Hook output is dual-channel.** When `version-guard.sh` denies an
   edit, `permissionDecisionReason` carries the verbose agent-facing
   message (no escape hatches the agent can self-authorise);

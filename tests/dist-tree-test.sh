@@ -36,9 +36,12 @@ bin/claude
 check-version.sh
 dist.sh
 docs/dist-branch.md
+docs/gates.md
 dogfood.sh
+gates.just
 install.sh
 release.just
+run-bats.sh
 update.sh
 release.sh
 release-marketplace.sh
@@ -82,6 +85,14 @@ if [ "$shim_mode" != "100755" ]; then
     fail "toolkit/bin/claude index mode is '$shim_mode', not 100755"
 fi
 
+# Consumers call the runner as `plugin-dev/run-bats.sh`, with no `bash` before
+# it, and a script without its execute bit fails there with "Permission denied".
+echo "=== toolkit/run-bats.sh is executable in the index ==="
+runner_mode="$(git ls-files -s toolkit/run-bats.sh | cut -d' ' -f1)"
+if [ "$runner_mode" != "100755" ]; then
+    fail "toolkit/run-bats.sh index mode is '$runner_mode', not 100755"
+fi
+
 # Named separately from the exact-set check above: this is the specific
 # breakage consumers reported, and a bare `git submodule status` in a
 # consumer fatals repo-wide on an unregistered gitlink.
@@ -98,4 +109,4 @@ if [ "$failures" -ne 0 ]; then
     exit 1
 fi
 echo
-echo "dist tree ok ($(printf '%s\n' "$expected" | wc -l | tr -d ' ') files, bin/claude executable, no gitlink)"
+echo "dist tree ok ($(printf '%s\n' "$expected" | wc -l | tr -d ' ') files, bin/claude and run-bats.sh executable, no gitlink)"

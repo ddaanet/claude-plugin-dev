@@ -50,6 +50,11 @@ dotfiles).
   `CLAUDE_CODE_PLUGIN_DIRS` at `dist/plugin/` and execs the next `claude` on
   PATH. It never syncs; while the copy is missing it warns and launches without
   it.
+- **`gates.just`** — opt-in, imported beside `release.just`. Defines the prolog
+  that turns a gate recipe into one that skips itself while the files it reads
+  are unchanged. See [Gate sentinels](#gate-sentinels).
+- **`run-bats.sh`** — opt-in quiet runner for `bats`: failures and a pass count
+  instead of the TAP stream.
 - **`install.sh`** — one-shot install script: vendors the toolkit (resolving the
   newest `dist-` tag when no ref is given), inserts the justfile import line,
   and wires the version-guard hook and the two dogfood hooks into
@@ -202,6 +207,16 @@ release publish a `dist` branch holding only those paths, plus a `dist-vX.Y.Z`
 tag, and its marketplace entry follows that branch. Nothing changes for a
 plugin without one. How to opt in, and what each check refuses or warns about,
 is in [docs/dist-branch.md](docs/dist-branch.md).
+
+## Gate sentinels
+
+Optional. A gate recipe that opens with the prolog from `gates.just` skips
+itself when the files it reads are unchanged, and `run-bats.sh` prints a bats
+run as failures and a count. A plugin that imports neither is unaffected, and
+the `precommit` and `prerelease` contract does not change. How to choose the
+inputs so a cached pass stays true, and how to convert an existing `precommit`,
+is in [docs/gates.md](docs/gates.md) and
+`plugin-dev/migrations/v0.11.0.md`.
 
 ## Dogfooding
 
