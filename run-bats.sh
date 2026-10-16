@@ -8,7 +8,9 @@ set -euo pipefail
 # fails so a failure that needs more context than the lines shown has it, and
 # removed when the run passes.
 #
-# Usage: run-bats.sh <bats-args...>   (same args you'd pass to `bats` directly)
+# Usage: run-bats.sh <bats-args...>   (the args you'd pass to `bats` directly,
+# bar those that change the output format: this reads TAP, and a run printing
+# none counts as a run of no test)
 #
 # Exits with bats' own status, or 1 when bats exited 0 but ran no test. Not tied
 # to the gate sentinels in `gates.just`: a consumer can use either without the
