@@ -1,9 +1,7 @@
 ## Open decisions
 
-- Approve the memory commit of memory/ddaanet/shared-claude.md: the 400-line cap becomes hard (context management; a file reaching it holds content to spin off). Summary proposed: "shared-claude: the 400-line cap is hard, not soft".
-- Whether to drop a brief in /Users/david/code/craft/inbox/ asking craft:plan-contracts (references/contracts-and-size.md:5, still says soft) to state the hard cap.
-- push_dist tree comparison: recommended closing it without code, adding one sentence to docs/references/dist-branch.md on why the `dist v$V from <src-sha>` subject match suffices.
-- gitlore evals under the dogfood shim fire each hook twice when dist/plugin exists; decide how the evals avoid loading the plugin's copy.
+- Approve the memory commit of memory/ddaanet/shared-claude.md: the 400-line cap is hard for design docs and implementation, soft for plans. Summary proposed: "shared-claude: the 400-line cap is soft for plans".
+- tests/docs-test.sh and tests/line-cap-test.sh enforce the 400-line cap as a hard gate over plans/, but my human partner ruled the cap soft for plans: decide whether plans/ leaves the hard gate (warn instead) or stays gated in this repo.
 - inbox/brief-remove-claude-exemption.md is on hold: gitlore, cwd-safety, onekeys, candidature and this repo track .claude/handoff-*.md, shell-gotchas tracks .claude/handoff-session, and every consumer tracks .claude/gitlore-hook-setup.
 
 ## Remaining

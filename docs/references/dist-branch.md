@@ -110,7 +110,10 @@ what an interrupted run pushed.
 
 "Already landed" is detected from the tip's subject: a tip reading
 `dist v$V from <the tag's commit>` is this release's, taken as it stands. A tip
-that is anything else is built on, as the parent. The branch is pushed as
+that is anything else is built on, as the parent. The subject suffices without
+comparing trees: it names the tag's full commit sha, and the tree is built from
+that commit's own `dist.include` and files, so only a commit forging the subject
+by hand could carry a different tree. The branch is pushed as
 `<sha>:refs/heads/dist` without force, so a rejected push is a divergence to
 look at and is never retried by overwriting. The release commit is never rebuilt
 to match: the dist commit follows the source, not the reverse.
