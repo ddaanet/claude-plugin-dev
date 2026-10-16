@@ -62,8 +62,9 @@ or removing a shipped file means updating the list in
   consumer's `.envrc` puts first on PATH as `PATH_add plugin-dev/bin`.
   Never syncs: it execs the next `claude` on PATH with its arguments
   unchanged and `CLAUDE_CODE_PLUGIN_DIRS` set to `dist/plugin/`, the
-  copy only `just dogfood` writes. While that copy is missing it warns,
-  leaves the variable as it came and launches anyway.
+  copy only `just dogfood` writes, and the copy's `bin/`, whenever
+  there is a copy, appended to PATH after the user's entries. While that copy is missing it
+  warns, leaves the variable as it came and launches anyway.
 - `toolkit/version-guard.sh` — `PreToolUse(Write|Edit)` hook that fires
   inside consumer plugins to refuse agent edits to
   `.claude-plugin/plugin.json`'s `.version`.
@@ -89,6 +90,9 @@ or removing a shipped file means updating the list in
   plugin opts in with `dist.include`, and what each check refuses or warns
   about. Split out of `toolkit/README.md`, which keeps a stub section
   pointing here, so the manual stays under the 400-line cap.
+- `toolkit/docs/dogfood.md` — the manual's dogfooding chapter: setup of the
+  shim and the copy, launching, promoting changes, and the two dogfood hooks.
+  `toolkit/README.md` keeps a stub section pointing here.
 - `toolkit/docs/gates.md` — the manual's gate-sentinel chapter: the prolog, how
   to choose the input pathspecs so a cached pass stays true, the tool-version
   list and the quiet runner. `toolkit/README.md` keeps a stub section pointing
@@ -172,7 +176,7 @@ contents), `citation-test.sh` (refuses a `<script>.sh:<line>`
 citation into a tracked file outside `plans/` and `docs/changelog/`),
 the `dogfood.sh` suites (`dogfood-sync-{copy,nested,allowlist,refusal}-test.sh`,
 `dogfood-pre-tool-{paths,jq}-test.sh` and
-`dogfood-session-start-test.sh`) and `dogfood-launcher-{exec,path}-test.sh` (the
+`dogfood-session-start-test.sh`) and `dogfood-launcher-{exec,path,bin}-test.sh` (the
 `bin/claude` shim). A green `precommit` — including the one a
 pre-commit hook runs — is therefore evidence the whole release suite
 passed, not just the linters. **One script under test per suite

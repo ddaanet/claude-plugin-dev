@@ -47,9 +47,9 @@ dotfiles).
   `SessionStart` hook that warns when a session does not load it. See
   [Dogfooding](#dogfooding).
 - **`bin/claude`** — the dogfood shim. First on PATH, it points
-  `CLAUDE_CODE_PLUGIN_DIRS` at `dist/plugin/` and execs the next `claude` on
-  PATH. It never syncs; while the copy is missing it warns and launches without
-  it.
+  `CLAUDE_CODE_PLUGIN_DIRS` at `dist/plugin/`, appends the copy's `bin/` to
+  PATH, and execs the next `claude` on PATH. It never syncs;
+  while the copy is missing it warns and launches without it.
 - **`gates.just`** — opt-in, imported beside `release.just`. Defines the prolog
   that turns a gate recipe into one that skips itself while the files it reads
   are unchanged. See [Gate sentinels](#gate-sentinels).
@@ -154,11 +154,11 @@ git add plugin-dev justfile .claude/settings.json
 git commit -m "add claude-plugin-dev toolkit"
 ```
 
-Then follow [Dogfooding](#dogfooding) → [Setup](#setup), which ends with a
-first `just dogfood`. The `SessionStart` hook the install wired warns on every
-session until the shim is on PATH, the sync refuses to run until git ignores the
-copy, and a launch before `just dogfood` has created it starts without the
-plugin and says so.
+Then follow [Dogfooding](#dogfooding) → [Setup](docs/dogfood.md#setup), which
+ends with a first `just dogfood`. The `SessionStart` hook the install wired
+warns on every session until the shim is on PATH, the sync refuses to run until
+git ignores the copy, and a launch before `just dogfood` has created it starts
+without the plugin and says so.
 
 ## Updating in a plugin
 
@@ -220,139 +220,14 @@ is in [docs/gates.md](docs/gates.md) and
 
 ## Dogfooding
 
-Claude Code treats every file under a loaded plugin root as sensitive, so a
-session that loads the plugin from its own working tree asks before each agent
-edit to it, and runs a half-edited hook script in the session editing it. The
-dogfood launcher loads the plugin from a copy at `dist/plugin/` instead. Agents
-edit the source; the copy changes only when you promote it.
-
-A plugin that vendored the toolkit before the launcher shipped takes the steps
-in `plugin-dev/migrations/v0.9.0.md`. They include re-running `install.sh`,
-which `update-plugin-dev` does not do. From 0.9.1 a launch no longer syncs, so a
-plugin coming from before 0.9.1 runs `just dogfood` before its next launch.
-
-### Setup
-
-Put the shim on PATH as the last `PATH_add` in `.envrc`, after gitlore's
-`PATH_add .gitlore/bin`, so it is the `claude` found first:
-
-```sh
-PATH_add plugin-dev/bin
-```
-
-Then run `direnv allow`. Ignore the copy in `.gitignore`; the sync refuses to
-run until git ignores it:
-
-```gitignore
-/dist/plugin/
-```
-
-If a `clean` recipe deletes `dist/`, make it spare `dist/plugin/`: a live
-session loads its skills and hooks from there.
-
-Create the copy before the first launch:
-
-```sh
-just dogfood
-```
-
-### Launching
-
-Launch `claude` from the repo root. The shim execs the next `claude` on PATH
-with its arguments unchanged and `CLAUDE_CODE_PLUGIN_DIRS` set to
-`<root>/dist/plugin`, replacing any inherited value. It never syncs: a launch, a
-`claude -c` relaunch or any other `claude` you run in the repo loads the copy as
-it stands. With no other `claude` on PATH the shim exits 127.
-
-With no copy, the shim says so on one line, leaves `CLAUDE_CODE_PLUGIN_DIRS` as
-it found it, and launches anyway:
-
-```text
-dogfood: no copy at <root>/dist/plugin, so claude starts without it; run just dogfood to create it
-```
-
-That session does not load the copy, and the `SessionStart` check says so. Run
-`just dogfood`, then relaunch.
-
-From a subdirectory the session still loads the copy, but no project hook fires:
-Claude Code reads `.claude/settings.json` from the launch directory only. That
-session runs without the copy guard, the `SessionStart` check and the
-version-guard, and nothing reports their absence.
-
-### Promoting changes
-
-The copy lags the source by design. A session runs what was last promoted, not
-the working tree, and a Read of a path under `dist/plugin/` returns the promoted
-content. Only `just dogfood` promotes; a launch or relaunch does not:
-
-```sh
-just dogfood
-```
-
-It syncs and nothing else: it starts no `claude` and runs no gate. What goes
-live then depends on what changed:
-
-- **Hook scripts and `bin/` files** — at once, in every live session in the
-  repo, since Claude Code reads them on each call.
-- **Skill bodies** — after `/reload-plugins` in the session.
-- **Agent definitions and hook events** — only in a new session. After
-  `just dogfood`, exit and relaunch through the shim; `claude -c` keeps the
-  conversation.
-- **Commands, `.mcp.json` and output styles** — after `/reload-plugins` in the
-  session, like skill bodies: a changed or new command, the plugin's MCP
-  servers and a style's body (from the next turn) all go live. A relaunch after
-  `just dogfood` does too, since it re-reads everything Claude Code reads at
-  start.
-
-The sync copies everything git does not ignore, tracked or not, minus every
-`.git` and `dist/plugin/` itself, and deletes from the copy what left the
-source. What an initialised submodule ignores through its own rules stays out
-too. It refuses to run without `.claude-plugin/plugin.json` at the root, when
-git does not ignore `dist/plugin/`, and when an ignored path's name holds `*`,
-`?`, `[`, `]` or a backslash, naming that path, and without `rsync` on PATH;
-each refusal leaves `dist/` untouched. A git error listing the root or an
-initialised submodule stops the sync with git's own message, `dist/` untouched.
-rsync's own errors are shown as they come, and a failure exits non-zero. A file
-vanishing mid-sync, or two syncs colliding, fails the same way; a re-run
-repairs it.
-
-Run `just dogfood` from your own shell, not through an agent's Bash tool,
-whether or not your plugin ships a `.mcp.json`. The command sandbox masks a set
-of dotfiles in the project root, `.mcp.json` among them, and a sandboxed sync
-does not skip the masks. A character-device mask makes rsync warn
-`skipping non-regular file` and keep the copy's old `.mcp.json`, so a changed
-MCP config goes stale. A zero-byte mask is copied as an empty file, which puts
-an empty `.mcp.json` into the copy of a plugin that ships none; it stays until
-the next sync from your shell deletes it. Claude Code loads the plugin
-regardless, ignores the file and reports nothing in the session, though
-`claude plugin validate` on the copy fails on it. The shim never syncs, so a
-launch is unaffected.
-
-### Hooks
-
-`install.sh` wires two dogfood hooks into `.claude/settings.json`, beside the
-version-guard:
-
-- **Copy guard** — `PreToolUse` on `Write|Edit|NotebookEdit`. Refuses an edit
-  into `dist/plugin/`, a spelling through a symlink included, and gives the
-  agent the source path to edit instead. A Bash write into the copy passes it,
-  and the next sync overwrites or deletes that write.
-- **Session check** — `SessionStart`. Silent when all is well; otherwise it
-  prints one of three warnings:
-
-  ```text
-  dogfood: no copy at <root>/dist/plugin, so this session does not load it; run just dogfood to create it, then relaunch
-  dogfood: this session does not load <root>/dist/plugin — launch claude through plugin-dev/bin/claude from the repo root
-  dogfood: jq is not on PATH, so the copy guard and this check are off until it is installed
-  ```
-
-  The first means there is no copy yet, as after a shim launch before the first
-  `just dogfood`. The second means the copy exists but the session started past
-  the shim (no direnv, an IDE or the desktop app, an absolute path to
-  `claude`), or inherited another repo's `CLAUDE_CODE_PLUGIN_DIRS`, as a
-  `claude` started from another plugin's dogfood session does. The agent is
-  told either as a fact, with no command to run. After the third, Claude Code's
-  own sensitive-file prompt still stops a copy edit.
+A session that loads the plugin from its own working tree asks before each agent
+edit to it, so the dogfood launcher loads the plugin from a copy at
+`dist/plugin/` instead: agents edit the source, and the copy changes only when
+you run `just dogfood`. Setting up the shim and the copy, launching, what each
+kind of change needs to go live, and the two dogfood hooks are in
+[docs/dogfood.md](docs/dogfood.md), whose [Setup](docs/dogfood.md#setup) is the
+first step after an install. A plugin that vendored the toolkit before the
+launcher shipped takes the steps in `plugin-dev/migrations/v0.9.0.md`.
 
 ## Conventions
 

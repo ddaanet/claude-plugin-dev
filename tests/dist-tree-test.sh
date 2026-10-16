@@ -36,6 +36,7 @@ bin/claude
 check-version.sh
 dist.sh
 docs/dist-branch.md
+docs/dogfood.md
 docs/gates.md
 dogfood.sh
 gates.just

@@ -14,6 +14,9 @@ Newest first.
   prolog and `toolkit/run-bats.sh` its quiet runner; neither is imported by
   `release.just`, names are toolkit-neutral, and the manual and a 0.11.0
   migration note say how to choose the inputs and convert a `precommit`.
+- [2026-10-16 — The dogfood shim puts the copy's `bin/` on PATH](changelog/2026-10-16-dogfood-shim-plugin-bin.md)
+  — appended after the user's entries, when the directory exists, to stand in
+  for a marketplace install; `sync` is pinned to keep the executable bit.
 - [2026-10-16 — The clean-tree check stops exempting `.claude/`](changelog/2026-10-16-clean-tree-drops-dot-claude.md)
   — supersedes 2026-09-01: only the memory gitlink is exempt; a dirty tracked
   file under `.claude/` refuses a release and the refusal names it.

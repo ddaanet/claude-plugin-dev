@@ -117,9 +117,9 @@ git commit -m "add claude-plugin-dev toolkit"
 ```
 
 Then follow the manual's [Dogfooding](toolkit/README.md#dogfooding) →
-[Setup](toolkit/README.md#setup), which ends with a first `just dogfood`. The
-`SessionStart` hook the install wired warns on every session until the shim is
-on PATH, the sync refuses to run until git ignores the copy, and a launch
+[Setup](toolkit/docs/dogfood.md#setup), which ends with a first `just dogfood`.
+The `SessionStart` hook the install wired warns on every session until the shim
+is on PATH, the sync refuses to run until git ignores the copy, and a launch
 before `just dogfood` has created it starts without the plugin and says so.
 
 ## Updating in a plugin

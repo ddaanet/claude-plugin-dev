@@ -5,8 +5,9 @@
 # launches `claude` by PATH lookup as a developer would.
 #
 # Scope: the exported variable and PATH handling -- the copy the shim exports,
-# CDPATH, the shim's own entry in any spelling, the launch directory. Its sibling
-# dogfood-launcher-exec-test.sh covers the exec, argv and missing-copy paths.
+# CDPATH, the shim's own entry in any spelling, the launch directory. Its
+# siblings dogfood-launcher-bin-test.sh and dogfood-launcher-exec-test.sh cover
+# the copy's bin/ on PATH, and the exec, argv and missing-copy paths.
 #
 # Usage: bash tests/dogfood-launcher-path-test.sh   (run from repo root)
 set -euo pipefail
@@ -253,7 +254,7 @@ make_consumer
 path_head=":$shim_dir:$stubdir"
 run_claude
 # shellcheck disable=SC2031  # the suite's own PATH, which the launch appended
-assert_eq "$(recorded path)" ":$stubdir:$PATH" \
+assert_eq "$(recorded path)" ":$stubdir:$PATH:$consumer/dist/plugin/bin" \
     "the shim keeps the rest of PATH as spelled"
 
 echo "=== a subdirectory launch resolves the root ==="
@@ -283,7 +284,7 @@ done
 PATH="$runner_path" run_claude
 assert_file "$sandbox/rec/path" \
     "a launch from plugin-dev/bin drops the empty entry: the stub ran"
-assert_eq "$(recorded path)" "$stubdir:$runner_path" \
+assert_eq "$(recorded path)" "$stubdir:$runner_path:$consumer/dist/plugin/bin" \
     "a launch from plugin-dev/bin drops the empty entry"
 
 # The whole PATH is the shim's directory and a directory of symlinks to the

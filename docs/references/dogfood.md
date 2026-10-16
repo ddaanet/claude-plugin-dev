@@ -126,6 +126,52 @@ it" in [dogfood-sync.md](dogfood-sync.md)), unsets `CDPATH`, and execs the next
 `claude` on PATH with its arguments unchanged — typically gitlore's launcher. It
 never syncs.
 
+**The copy's `bin/` on PATH.** Measured on CC 2.1.299: a marketplace-installed
+plugin's `bin/` is on the PATH of the main thread's Bash and of a
+general-purpose subagent's Bash, after the user's entries (the handoff plugin's
+cache `bin/` was the last entry, and a subagent resolved `command -v` to it). A
+plugin loaded through `CLAUDE_CODE_PLUGIN_DIRS` gets none: a `ghmem` stub in
+such a plugin's `bin/` was absent from the main thread's PATH and a plugin agent
+got `command not found`. The docs say only that `bin/` files are on the Bash
+tool's PATH "while the plugin is enabled"
+(`code.claude.com/docs/en/plugins/components.md#executables`). Whether a hook
+command's PATH or a plugin-shipped agent's Bash carries a marketplace `bin/` is
+unmeasured. So a dogfood session could not exercise a plugin's `bin/`, and a
+command shipped for agents' Bash was untestable until released and installed.
+
+The shim therefore appends `<root>/dist/plugin/bin` to the PATH it execs with
+whenever there is a copy. **Appended**, because Claude Code appends too and its
+docs say a plugin's `bin/` cannot shadow system commands such as `ls`;
+prepending would let a dogfood command shadow a system one the release never
+shadows. It is appended after the strip above, since the strip would drop a shim
+of its own, and after the check for another `claude`, so a `claude` shipped in
+`bin/` is never the one it execs when there is none.
+
+**For the copy, not the directory.** The check is for `dist/plugin`, not for
+`dist/plugin/bin`. A `just dogfood` run later in the session can create `bin/`,
+and PATH is fixed at launch, so a directory test would leave that session
+without it until a relaunch. A missing PATH directory is harmless. A copy with
+no `bin/` therefore still gets the entry; no copy gets none.
+
+**What counts as already listed.** An absolute entry spelled as the directory or
+naming the same one (`-ef`: a trailing slash, a symlinked directory) is left
+where the user put it and not repeated. An empty or relative entry never counts:
+it names whatever directory the launch happens to be in, so `.` from inside
+`bin/`, or a relative `dist/plugin/bin` from the root, would suppress the append
+for a launch from anywhere else. The path is quoted whole, so a root with a
+space stays one entry; a root holding a colon would split on PATH's delimiter
+and is not handled. Both questions are answered by the one walk of PATH that
+also does the strip.
+
+**A known divergence.** The shim sets PATH on the `claude` process, so hooks,
+MCP servers and plugin agents inherit `bin/` too, while a marketplace install is
+only known to give it to the Bash tool. The shim cannot narrow that: a hook that
+calls a bare `bin/` command works in dogfood and may fail after release.
+`dogfood.sh sync` copies with `rsync -a`, which keeps the executable bit, and
+`dogfood-sync-copy-test.sh` pins it. The consequence for plugin authors: hooks
+find their own scripts by `${CLAUDE_PLUGIN_ROOT}` or `$0`, never through `bin/`;
+`bin/` serves agents' and users' Bash.
+
 The next `claude` is found by dropping every PATH entry whose `claude` is the
 shim itself (`-ef`), not every entry holding a file of that name, so a trailing
 slash, a symlinked directory or `/./` in the entry cannot make the shim exec

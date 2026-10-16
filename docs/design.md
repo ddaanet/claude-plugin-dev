@@ -315,6 +315,10 @@ the dated record of the reversal goes in the changelog.
 - **The shim exports `CLAUDE_CODE_PLUGIN_DIRS` rather than passing
   `--plugin-dir`, and execs the next `claude` on PATH** — the variable reaches
   hooks, which is what `session-start` checks. The shim never syncs.
+- **The shim appends `<root>/dist/plugin/bin` to PATH whenever there is a copy**
+  — after the user's entries, standing in for a marketplace install, which
+  `CLAUDE_CODE_PLUGIN_DIRS` does not do; the argument is in
+  [dogfood.md](references/dogfood.md).
 - **`just dogfood` syncs and does nothing else** — the one promotion; it starts
   no `claude` and depends on no gate.
 - **`install.sh` wires the hooks; `.envrc`, `.gitignore` and `clean` are

@@ -321,6 +321,26 @@ assert_absent "$consumer/dist/plugin/ lead.log" \
 assert_absent "$consumer/dist/plugin/nl"$'\n'"x.log" \
     "names with spaces survive: an ignored name holding a newline is absent"
 
+# A plugin's bin/ commands run from the copy, so rsync must keep the mode the
+# source holds: executable stays executable, and a plain file is not made so.
+echo "=== a bin file keeps its executable bit ==="
+make_consumer
+mkdir -p "$consumer/bin"
+printf '#!/bin/sh\n' > "$consumer/bin/demo-tool"
+chmod +x "$consumer/bin/demo-tool"
+printf 'notes\n' > "$consumer/bin/notes.txt"
+commit_all
+run_dogfood sync
+assert_eq "$rc" "0" "a bin file keeps its executable bit exit code"
+assert_file "$consumer/dist/plugin/bin/demo-tool" \
+    "a bin file keeps its executable bit: the file is copied"
+if [[ ! -x "$consumer/dist/plugin/bin/demo-tool" ]]; then
+    fail "a bin file keeps its executable bit: the copy is not executable"
+fi
+if [[ -x "$consumer/dist/plugin/bin/notes.txt" ]]; then
+    fail "a bin file keeps its executable bit: a plain file became executable"
+fi
+
 echo "=== unknown subcommand is usage ==="
 make_consumer
 run_dogfood bogus
