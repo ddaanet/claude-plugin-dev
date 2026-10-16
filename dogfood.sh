@@ -280,12 +280,12 @@ session_start() {
     if [[ -d "$copy" && "$named" == 1 ]]; then
         exit 0
     elif [[ -d "$copy" ]]; then
-        warn_session "this session does not load $copy; run direnv allow in $root, then relaunch claude" \
+        warn_session "this session does not load $copy; run direnv allow in $root, then relaunch claude from a shell there" \
             "This session does not load $copy, so plugin behaviour observed in it is not that of the promoted copy."
     elif [[ "$named" == 1 ]]; then
         warn_session "no copy at $copy yet; run just dogfood to create it, then /reload-plugins, no relaunch needed" "$no_copy"
     else
-        warn_session "no copy at $copy, so this session does not load it; run just dogfood to create it, then direnv allow in $root and relaunch claude" "$no_copy"
+        warn_session "no copy at $copy, so this session does not load it; run just dogfood to create it, then direnv allow in $root and relaunch claude from a shell there" "$no_copy"
     fi
 }
 
