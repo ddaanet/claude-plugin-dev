@@ -197,6 +197,36 @@ assert_eq "$(runs)" "2" "swapping a file for a symlink to the same content rerun
 run_gate gate
 assert_eq "$(runs)" "2" "the symlink tree caches in turn"
 
+echo "=== a symlink keeps its target's execute bit and its own target path ==="
+# The targets sit outside the guarded src/, so only the link itself is listed.
+mk_consumer
+cp "$repo/other.txt" "$repo/other2.txt"
+ln -s ../other.txt "$repo/src/lnk"
+ln -s ../docs "$repo/src/dlnk"
+run_gate gate
+run_gate gate
+assert_eq "$(runs)" "1" "setup: a tree with links caches"
+chmod +x "$repo/other.txt"
+run_gate gate
+assert_eq "$(runs)" "2" "the execute bit of a link's target reruns"
+run_gate gate
+assert_eq "$(runs)" "2" "the new bit caches in turn"
+rm "$repo/src/lnk"
+ln -s ../other2.txt "$repo/src/lnk"
+chmod +x "$repo/other2.txt"
+run_gate gate
+assert_eq "$(runs)" "3" "repointing a file link to an identical file reruns"
+rm "$repo/src/lnk"
+ln -s ../other.txt "$repo/src/lnk"
+run_gate gate
+assert_eq "$(runs)" "4" "repointing it back reruns"
+rm "$repo/src/dlnk"
+ln -s ../sub "$repo/src/dlnk"
+run_gate gate
+assert_eq "$(runs)" "5" "repointing a directory link reruns"
+run_gate gate
+assert_eq "$(runs)" "5" "the repointed tree caches in turn"
+
 echo "=== a caller that sets only gate_inputs can hash ==="
 mk_consumer
 prolog="$(cd "$repo" && just --evaluate plugin_dev_gate_prolog)"
@@ -218,4 +248,4 @@ if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\ngates inputs ok (exclude-only, excludes vs built-ins, Justfile, working-directory, module, symlink, gate_inputs alone)\n'
+printf '\ngates inputs ok (exclude-only, excludes vs built-ins, Justfile, working-directory, module, symlink, link targets, gate_inputs alone)\n'

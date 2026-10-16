@@ -164,7 +164,10 @@ check-sentinel () {
 }
 
 # Names as well as contents, so a rename or deletion counts; each regular
-# file's execute bit, since a hook that loses it stops running; the tool
+# file's execute bit, since a hook that loses it stops running, followed
+# through a symlink to its target; a symlink's own target path, since pointing
+# it elsewhere changes what a check reads even when the contents match, and a
+# directory or dangling link has no contents to show it; the tool
 # versions `PLUGIN_DEV_GATE_TOOLS` lists, for a consumer that does not pin them;
 # `--others --exclude-standard` so a brand-new file is hashed before it is
 # added -- when a stale pass hurts most -- while ignored files stay out. A
@@ -199,19 +202,18 @@ gate-inputs-hash () {
         {
             git ls-files -z --cached --others --exclude-standard -- "${gate_inputs[@]}" || exit 1
             git ls-files -z --cached --others --exclude-standard -- "${gate_builtins[@]/#/:(literal)}" || exit 1
-        } | sort -zu \
+        } | LC_ALL=C sort -zu \
             | {
                   regular=()
                   while IFS= read -r -d '' file; do
                       mode='?'
+                      link=''
+                      if [ -L "$file" ]; then link=$(readlink -- "$file") || exit 1; fi
                       if [ -f "$file" ]; then
                           regular+=("$file")
-                          if [ -L "$file" ]; then mode=l
-                          elif [ -x "$file" ]; then mode=x
-                          else mode=-
-                          fi
+                          if [ -x "$file" ]; then mode=x; else mode=-; fi
                       fi
-                      printf '%s %s\0' "$mode" "$file"
+                      printf '%s %s\0%s\0' "$mode" "$file" "$link"
                   done
                   [ "${#regular[@]}" -eq 0 ] \
                       || printf '%s\0' "${regular[@]}" | xargs -0 cksum --

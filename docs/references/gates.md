@@ -61,34 +61,35 @@ matching the pathspecs the guard is given, tracked or not. The toolkit cannot
 infer the list: it does not know what the consumer's checks read, and a hash of
 the whole tree would be invalidated by every scratch file and, under the command
 sandbox, by the phantom dotfiles it masks into the root. So the consumer names
-paths, and the cache is correct exactly while every check reads inside them. The
-guard hashes two more itself, the justfile and the vendored toolkit tree: both
-exist in every consumer (`install.sh` writes the import into the root justfile,
-and the toolkit is vendored at `plugin-dev/`), so listing them was a step to
-forget that named no choice. The hash does not cover `$0`, the recipe's own
-script, because the justfile already holds it.
+paths, and the cache is correct exactly while every check reads inside them.
+That rule is the memory `gate-cache-must-cover-every-check` carried from ghmem:
+a check whose scope exceeds the hash goes red on an unrelated commit, days after
+the file that broke it. The guard hashes two more itself, the justfile and the
+vendored toolkit tree: both exist in every consumer (`install.sh` writes the
+import into the root justfile, and the toolkit is vendored at `plugin-dev/`), so
+listing them was a step to forget that named no choice. The hash does not cover
+`$0`, the recipe's own script, because the justfile already holds it.
 
 They are a second input set, listed apart from the consumer's pathspecs and
 joined to it after listing. Appended to the consumer's list they would share its
 excludes, and `sentinel-guard lint ':!docs'` would hash the justfile alone:
 excludes subtract from the positive pathspecs of their own list, and a list of
-excludes alone subtracts from the whole repository. They are also absolute. A
-literal `justfile` resolves against the directory the recipe runs in and matches
-nothing under `[working-directory]`, in a module, or for a file named
-`Justfile`. The prolog interpolates `justfile()` and, evaluated in `gates.just`
-itself, `source_directory()` (the vendored directory), each shell-quoted, as
-`gate_builtins`, and the listing passes them as `:(literal)` pathspecs so a glob
-character in the path is not one. Both functions were probed through an import:
-`source_directory()` is `gates.just`'s own directory whoever imports it, and
-`justfile()` is the root file even from a module. A module's own file is
-therefore not covered, and the manual says to list it. A `gates.just` outside
-the repository fails the listing, which the hash reports as uncomputable. The
-array lives in the prolog and not in `check-sentinel`, so a caller that sets
-only `gate_inputs` and calls `gate-inputs-hash`, as gitlore's `run-suites` does,
-still gets both inputs; `gate_cwd` defaults to the current directory for the
-same reason. That rule is the memory `gate-cache-must-cover-every-check` carried
-from ghmem: a check whose scope exceeds the hash goes red on an unrelated
-commit, days after the file that broke it.
+excludes alone subtracts from every file below the directory the recipe runs in,
+as git resolves any pathspec; the whole repository is spelled `:/`. They are
+also absolute. A literal `justfile` resolves against the directory the recipe
+runs in and matches nothing under `[working-directory]`, in a module, or for a
+file named `Justfile`. The prolog interpolates `justfile()` and, evaluated in
+`gates.just` itself, `source_directory()` (the vendored directory), each
+shell-quoted, as `gate_builtins`, and the listing passes them as `:(literal)`
+pathspecs so a glob character in the path is not one. Both functions were probed
+through an import: `source_directory()` is `gates.just`'s own directory whoever
+imports it, and `justfile()` is the root file even from a module. A module's own
+file is therefore not covered, and the manual says to list it. A `gates.just`
+outside the repository fails the listing, which the hash reports as
+uncomputable. The array lives in the prolog and not in `check-sentinel`, so a
+caller that sets only `gate_inputs` and calls `gate-inputs-hash`, as gitlore's
+`run-suites` does, still gets both inputs; `gate_cwd` defaults to the current
+directory for the same reason.
 
 A gitlink is the case no list can fix. `git ls-files` yields the one path, which
 is not a regular file, so only its name reaches the hash; neither an edit inside
@@ -153,11 +154,14 @@ stderr, and a failing line fails the hash.
   its execute bit: a hook that loses it stops running and nothing else changed.
   `cksum` runs once over the whole list through `xargs -0`, in place of one
   `cat` per file, twice per uncached run; it is POSIX and takes `--` on GNU and
-  BSD alike. A symlink is told
-from a regular file (`l` for `x` or `-`), so a file replaced by a link to the
-same content moves the hash. No other mode bit is hashed. The same reason makes
-every refusal inside `check-sentinel` an explicit `exit`: it runs as the
-condition of an `if`.
+  BSD alike. A symlink's target path is in its manifest line, and the execute
+  bit and contents are those of the file it points at: repointing a link moves
+  the hash though the contents match or, for a directory or dangling link, there
+  are none, and a link to an executable keeps the bit. Sorting runs under
+  `LC_ALL=C`, so neither the order nor the equality `-u` removes duplicates by
+  depends on the locale. No other mode bit is hashed. The same reason makes
+  every refusal inside `check-sentinel` an explicit `exit`: it runs as the
+  condition of an `if`.
 - **One guard per recipe body, enforced.** `check-sentinel` leaves shell
   variables for `record-sentinel`, so a second gate in one body would clobber
   the first's state and record the wrong pass. gitlore documented this in a
@@ -189,17 +193,19 @@ repairs.
 hundreds of lines, and piping it through `tail` risks cropping the one `not ok`.
 The runner logs the whole stream, prints only the `not ok` blocks (or the whole
 log when no TAP line appeared, as when bats died before a plan), then one
-summary line, and exits with bats' own status. The whole log is shown whenever
-bats failed with no `not ok` block to show (a `teardown_file` crash, a test
-count that does not add up, an abort mid-run), since it is then the only account
-of the failure. A run that exits 0 having run no test (a `--filter` that matches
-nothing, an empty `.bats` file) is a failure, since a gate that records it has
-vouched for nothing: it prints `bats: no tests ran`, the log, and exits 1. A
-green run removes the log, because `$TMPDIR` can be a small tmpfs and a passing
-log is never read; a failed run keeps it, and only then does the summary line
-name it. The log template ends in its `X`s because BSD `mktemp` randomises only
-a trailing run of them. It does not depend on the sentinels, and a consumer may
-take either alone.
+summary line, and exits with bats' own status. It reads TAP, so the options that
+change the output format (`--formatter`, `-F`, `--count`, `--version`) are not
+supported: they print no `ok` line and the run counts as a run of no test. The
+whole log is shown whenever bats failed with no `not ok` block to show (a
+`teardown_file` crash, a test count that does not add up, an abort mid-run),
+since it is then the only account of the failure. A run that exits 0 having run
+no test (a `--filter` that matches nothing, an empty `.bats` file) is a failure,
+since a gate that records it has vouched for nothing: it prints
+`bats: no tests ran`, the log, and exits 1. A green run removes the log, because
+`$TMPDIR` can be a small tmpfs and a passing log is never read; a failed run
+keeps it, and only then does the summary line name it. The log template ends in
+its `X`s because BSD `mktemp` randomises only a trailing run of them. It does
+not depend on the sentinels, and a consumer may take either alone.
 
 ## Out of scope
 

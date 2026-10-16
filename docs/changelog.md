@@ -9,6 +9,10 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-16 — Gate sentinels: a third review, before release](changelog/2026-10-16-gate-sentinel-third-review.md)
+  — symlinks hash their target path and keep the target's execute bit, the sort
+  runs under `LC_ALL=C`, and the pathspec and runner-option docs say what git
+  and `run-bats.sh` actually do.
 - [2026-10-16 — Gate sentinels: two review rounds, before release](changelog/2026-10-16-gate-sentinel-review-fixes.md)
   — the first round's fixes, and the second round's: exclude-only gates, the
   built-in inputs as absolute paths hashed apart from the caller's list, the

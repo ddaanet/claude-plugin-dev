@@ -228,7 +228,7 @@ the dated record of the reversal goes in the changelog.
   guard hashes the justfile and the vendored `plugin-dev` tree itself, apart
   from the list and by the absolute paths just reports, and refuses a pathspec
   that matches no file; no drift check ships, and the manual carries the rule
-  and a procedure to prove a list. Execute bits and symlinks are told apart,
+  and a procedure to prove a list. Execute bits and symlink targets are hashed,
   other modes are not.
 - **Tool versions are an exported `PLUGIN_DEV_GATE_TOOLS`, empty by default** —
   one shell command per line, since the set differs per consumer and a lockfile
