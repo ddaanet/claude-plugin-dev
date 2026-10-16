@@ -353,7 +353,7 @@ version-guard:
   already listed there can still take its first release. The version published
   is usually whatever `/plugin-dev:create-plugin` seeded into the manifest; to
   ship a different one, set `.version` and **commit** that edit before releasing
-  — `.claude-plugin/` is not exempt from the clean-tree check. That edit is the
+  — the clean-tree check refuses a dirty manifest. That edit is the
   maintainer's to make, and the one the version-guard hook refuses from an
   agent. Passing a bump on a first release is refused. Afterwards the
   last-released rule above applies as normal.

@@ -2,9 +2,9 @@
 # End-to-end test of release.sh against real git repos in a temp dir.
 # No network: origins are local bare repos and `gh` is a stub on PATH.
 #
-# Scope: what counts as a clean tree -- a resting memory submodule, a staged
-# handoff frame under .claude, a genuinely dirty path -- in the plugin root and
-# the marketplace repo.
+# Scope: what counts as a clean tree -- a resting memory submodule is exempt; a
+# staged handoff frame under .claude, like any other dirty path, refuses -- in
+# the plugin root and the marketplace repo.
 # Siblings: the other tests/release-*-test.sh suites, one per scenario group
 # (release-core, -resume-push, -resume-hint, -tree, -first, -lost-tag,
 # -push-route, -tags, -rollback, -pipefail, -hint-size).
@@ -226,11 +226,12 @@ assert_eq "$rc" "1" "dirty-plugin-root release exit code"
 assert_contains "$out" "uncommitted changes" "dirty-plugin-root release message"
 # A bare "uncommitted changes" is what made the operator suspect the checker
 # rather than the tree. The message names the path it refused on, and the
-# exemptions it did apply — here both of them, since a memory store is mounted.
+# exemption it did apply — here the memory store's, since one is mounted. There
+# is no .claude/ exemption to name, nor a note ruling out a near-miss reading.
 assert_contains "$out" ".claude-plugin/plugin.json" "dirty-plugin-root names the offending path"
 assert_contains "$out" "memory/ — the gitlore memory submodule" "dirty-plugin-root names the memory exemption"
-assert_contains "$out" ".claude/ — agent working state" "dirty-plugin-root names the .claude exemption"
-assert_contains "$out" ".claude-plugin/ is NOT exempt" "dirty-plugin-root rules out the near-miss reading"
+assert_not_contains "$out" ".claude/ — agent working state" "dirty-plugin-root names no .claude exemption"
+assert_not_contains "$out" ".claude-plugin/ is NOT exempt" "dirty-plugin-root carries no near-miss note"
 assert_eq "$(cat "$GH_LOG")" "" "dirty-plugin-root release must not call gh"
 
 # A word-split read of `git diff --name-only` reports one spaced path as two,
@@ -245,6 +246,9 @@ run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "1" "spaced-path exit code"
 # The leading indent is the assertion: the whole path sits on one reported line.
 assert_contains "$out" "        a tracked file.txt$" "spaced path reported whole"
+# No memory store is mounted here, so no exemption exists to list: the header
+# that introduces the list is not printed over an empty one.
+assert_not_contains "$out" "exempt from this check" "spaced path: no exemption header without an exemption"
 
 echo "=== release: proceeds with a resting memory submodule in the marketplace repo ==="
 new_sandbox "1.2.3"
@@ -294,43 +298,34 @@ assert_eq "$rc" "1" "non-memory-submodule exit code"
 assert_contains "$out" "uncommitted changes" "non-memory-submodule message"
 assert_eq "$(cat "$GH_LOG")" "" "non-memory-submodule release must not call gh"
 
-echo "=== release: proceeds with a staged handoff frame under .claude in the plugin root ==="
+echo "=== release: refuses a staged handoff frame under .claude in the plugin root ==="
 new_sandbox "1.2.3"
 stage_handoff_frame "$plugin"
+frame_head="$(git -C "$plugin" rev-parse HEAD)"
 run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "0" "staged-frame release exit code"
-assert_contains "$out" "Release v1.2.4 complete" "staged-frame release summary"
-assert_eq "$(market_version)" "1.2.4" "staged-frame release bumped the marketplace"
-# Both assertions, or neither says anything: a refused release leaves HEAD at
-# the frame's own commit, which trivially names the frame.
-head_commit="$(git -C "$plugin" show --format=%s --name-only HEAD)"
-assert_contains "$head_commit" "release: 1.2.4" "staged frame: HEAD is the release commit"
-assert_contains "$head_commit" ".claude/handoff-task.md" "staged frame rode the release commit"
+assert_eq "$rc" "1" "staged-frame release exit code"
+assert_contains "$out" "uncommitted changes" "staged-frame release message"
+assert_contains "$out" ".claude/handoff-task.md" "staged-frame release names the offending path"
+# No memory store is mounted, so the list of exemptions applied is empty and its
+# header is not printed; the message claims no exemption it did not apply.
+assert_not_contains "$out" "exempt from this check" "staged-frame prints no exemption header"
+assert_not_contains "$out" "gitlore memory submodule" "staged-frame claims no memory exemption"
+assert_not_contains "$out" ".claude/ — agent working state" "staged-frame names no .claude exemption"
+assert_eq "$(git -C "$plugin" rev-parse HEAD)" "$frame_head" "staged-frame refusal commits nothing"
+assert_eq "$(git -C "$plugin" tag --list 'v1.2.4')" "" "staged-frame refusal creates no tag"
+assert_eq "$(market_version)" "1.2.3" "staged-frame refusal leaves the marketplace alone"
+assert_eq "$(cat "$GH_LOG")" "" "staged-frame release must not call gh"
 
-echo "=== release: proceeds with a staged handoff frame under .claude in the marketplace repo ==="
+echo "=== release: refuses a staged handoff frame under .claude in the marketplace repo ==="
 new_sandbox "1.2.3"
 stage_handoff_frame "$marketplace"
 run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "0" "staged-frame marketplace exit code"
-assert_contains "$out" "Release v1.2.4 complete" "staged-frame marketplace summary"
-assert_eq "$(market_version)" "1.2.4" "staged-frame marketplace bumped the marketplace"
-
-# `.claude-plugin` shares the excluded prefix. A pathspec that matched on string
-# prefix rather than at the path separator would exempt the manifest directory
-# itself — the one place a dirty file must still stop a release.
-echo "=== release: the .claude exclusion does not spill into .claude-plugin ==="
-new_sandbox "1.2.3"
-stage_handoff_frame "$plugin"
-jq '.description = "dirty"' "$plugin/.claude-plugin/plugin.json" > "$plugin/.claude-plugin/plugin.json.tmp"
-mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
-run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "1" "claude-plugin-decoy exit code"
-assert_contains "$out" "uncommitted changes" "claude-plugin-decoy message"
-# No memory store is mounted here, so the exemption list must not claim one:
-# the message reports the exclusions this copy of the script actually applied,
-# not a list written from memory.
-assert_not_contains "$out" "gitlore memory submodule" "claude-plugin-decoy claims no exemption it did not apply"
-assert_eq "$(cat "$GH_LOG")" "" "claude-plugin-decoy release must not call gh"
+assert_eq "$rc" "1" "staged-frame marketplace exit code"
+assert_contains "$out" "$MARKETPLACE_DIR has uncommitted changes" "staged-frame marketplace message"
+assert_contains "$out" ".claude/handoff-task.md" "staged-frame marketplace names the offending path"
+assert_not_contains "$out" "exempt from this check" "staged-frame marketplace prints no exemption header"
+assert_eq "$(market_version)" "1.2.3" "staged-frame marketplace refusal leaves the marketplace alone"
+assert_eq "$(cat "$GH_LOG")" "" "staged-frame marketplace release must not call gh"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2

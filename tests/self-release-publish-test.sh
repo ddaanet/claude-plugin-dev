@@ -166,23 +166,6 @@ block_push() {
 }
 unblock_push() { rm -f "$repo/.git/hooks/pre-push"; }
 
-stage_claude_frame() {
-    # $1=repo path. Reproduces what the handoff skills leave behind: a task
-    # frame under .claude/, committed once and then rewritten and staged for
-    # whatever commit lands next. Staged, not merely written -- an untracked
-    # frame never reaches common_preflight's tracked-only
-    # `git diff --quiet HEAD` in the first place, so a fixture that only
-    # writes it untracked would exercise nothing. Same shape as
-    # stage_handoff_frame in tests/release-tree-test.sh.
-    local dir="$1"
-    mkdir -p "$dir/.claude"
-    printf 'frame v1\n' > "$dir/.claude/handoff-task.md"
-    git -C "$dir" add .claude/handoff-task.md
-    git -C "$dir" commit -qm "handoff frame"
-    printf 'frame v2\n' > "$dir/.claude/handoff-task.md"
-    git -C "$dir" add .claude/handoff-task.md
-}
-
 stage_memory_gitlink() {
     # $1=repo path $2=sandbox path -- builds a real submodule inside
     # $sandbox, not shared across scenarios: new_sandbox rebuilds $repo on
@@ -220,7 +203,7 @@ git -C "$repo" diff --quiet HEAD || fail "happy: tree left dirty"
 # release steps write (a stray file, a build byproduct) would pass it
 # silently -- ls-files --others --exclude-standard is the tracked check's
 # blind spot, the way stage_handoff_frame in tests/release-tree-test.sh documents
-# for the opposite direction (an untracked frame never reaching a tracked-only
+# for the opposite direction (an untracked file never reaching a tracked-only
 # check).
 untracked=$(git -C "$repo" ls-files --others --exclude-standard)
 [ -z "$untracked" ] || fail "happy: untracked leftovers left ($untracked)"

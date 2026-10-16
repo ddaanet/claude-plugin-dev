@@ -46,14 +46,12 @@ ls_remote_sha() {
 }
 
 common_preflight() {
-    # Same two exclusions toolkit/release.sh's tree_is_clean applies, for the
-    # same reason: `.claude/` holds the agent working environment and the task
-    # frames the handoff skills stage for the next commit, and the `memory`
-    # gitlink rests ahead of HEAD until gitlore's pre-commit hook folds it in.
+    # The `memory` gitlink is excluded, as toolkit/release-preflight.sh's
+    # tree_is_clean excludes the gitlore memory submodule: it rests ahead of
+    # HEAD until gitlore's pre-commit hook folds it in on the next commit.
     # Written literally -- this repo is one known repo, not a consumer the
-    # script has to discover. The pathspec matches at the path separator, so
-    # `.claude-plugin` is not in scope (nor does one exist here).
-    git diff --quiet HEAD -- . ':(exclude).claude' ':(exclude)memory' \
+    # script has to discover.
+    git diff --quiet HEAD -- . ':(exclude)memory' \
         || die "uncommitted changes"
     branch=$(git symbolic-ref -q --short HEAD) || die "not on a branch"
     if main_branch=$(git symbolic-ref -q --short refs/remotes/origin/HEAD); then

@@ -175,10 +175,13 @@ the dated record of the reversal goes in the changelog.
   the marketplace bump alike are restored from HEAD, because the leftover is
   what `common_preflight` then reads as an unrelated dirty tree, blocking both
   `release` and the `resume-release` that would finish a partly-public one.
-- **The clean-tree check exempts `.claude/` and the gitlore memory gitlink** —
-  an agent session moves both between commits by design, so their being ahead of
-  HEAD is the resting state. The memory path is read from `.gitmodules` by
-  submodule name; everything else still refuses.
+- **The clean-tree check exempts only the gitlore memory gitlink** — an agent
+  session moves it between commits by design, so its being ahead of HEAD is the
+  resting state. The memory path is read from `.gitmodules` by submodule name;
+  everything else still refuses, a tracked file under `.claude/` included. The
+  one reason to exempt `.claude/` was staged handoff frames, which now live in
+  tracked root files; the cost is that a dirty `.claude/settings.json` stops a
+  release. The refusal lists exemptions only when one applies.
 
 ### The dist branch — [references/dist-branch.md](references/dist-branch.md)
 
@@ -222,7 +225,7 @@ the dated record of the reversal goes in the changelog.
 - **`resume-release` re-cuts `dist-vX.Y.Z` from the `vX.Y.Z` tag, never `HEAD`**
   — and leaves a dist tag origin already holds alone rather than pushing a
   recomputed ref over a published one.
-- **The clean-tree exclusions are literal pathspecs here** — one repo, one known
+- **The clean-tree exclusion is a literal pathspec here** — one repo, one known
   mount path, so `release.sh`'s `.gitmodules` lookup would answer a question
   with no second answer.
 

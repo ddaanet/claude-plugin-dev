@@ -248,15 +248,23 @@ assert_contains "$out" "uncommitted changes" "dirty tree"
 refute_tag v0.2.0 "dirty tree"
 assert_gh_untouched "dirty tree"
 git -C "$repo" checkout -q -- ROOT-ONLY.md
-# common_preflight's `git diff --quiet HEAD -- . ':(exclude).claude'
-# ':(exclude)memory'` sees tracked content only, so an untracked .claude/ file
-# or an absent memory/ directory would never reach the check either way --
-# proving the exclusions requires constructing real diffs under both paths
-# for them to suppress, not merely creating the paths.
+# common_preflight's `git diff --quiet HEAD -- . ':(exclude)memory'` sees
+# tracked content only, so an absent memory/ directory would never reach the
+# check either way -- proving the exclusion requires constructing a real diff
+# under it for the exclusion to suppress, not merely creating the path.
 stage_memory_gitlink "$repo" "$sandbox"
+run minor
+assert_eq "$rc" 0 "memory/ is exempted from the clean check"
+
+# .claude/ is not exempt: a staged frame is a tracked difference from HEAD like
+# any other, and the refusal names it.
+new_sandbox
 stage_claude_frame "$repo"
 run minor
-assert_eq "$rc" 0 ".claude/ and memory/ are exempted from the clean check"
+assert_eq "$rc" 1 "staged .claude/ frame: exit status"
+assert_contains "$out" "uncommitted changes" "staged .claude/ frame"
+refute_tag v0.2.0 "staged .claude/ frame"
+assert_gh_untouched "staged .claude/ frame"
 
 new_sandbox
 git -C "$repo" checkout -q -b side

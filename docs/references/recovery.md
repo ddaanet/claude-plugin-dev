@@ -303,46 +303,48 @@ words names two files that do not exist. A path containing a newline still
 prints across two lines, which no git quoting mode survives `-z` to fix, and the
 comment states that bound rather than implying full coverage.
 
-## The clean-tree check excludes the agent's own working state
+## The clean-tree check exempts only the memory gitlink
 
 `common_preflight` refuses to release from a dirty tree, in the plugin repo and
-in `MARKETPLACE_DIR` alike. Two paths are exempt, and they are exempt for the
-same underlying reason: an agent session moves them between commits by design,
-so their being ahead of HEAD is the resting state rather than unfinished work.
-Both apply to this repo's own release too, where they are literal pathspecs
-rather than a `.gitmodules` lookup — see [self-release.md](self-release.md).
+in `MARKETPLACE_DIR` alike. One path is exempt: the gitlore memory submodule. An
+agent session moves it between commits by design, so its being ahead of HEAD is
+the resting state rather than unfinished work. It applies to this repo's own
+release too, where it is a literal pathspec rather than a `.gitmodules` lookup —
+see [self-release.md](self-release.md).
 
-### `.claude/`
+### `.claude/` is not exempt
 
-`.claude/` is the repo's own agent working environment — settings, hooks, and
-the task frames the `handoff` and `precompact` skills write. Those skills stage
-their frame (`.claude/handoff-task.md`, `.claude/handoff-todo.md`) for whatever
-commit lands next, and a release is a commit that lands next; before the
-exclusion it was instead a release refused on `error: uncommitted changes`, a
-message naming neither the frame nor the skill that left it. The remedy was to
-land the frame in a commit of its own first, which is discipline standing in for
-a gate.
+A tracked file under `.claude/` that differs from HEAD refuses a release, and
+the refusal names it. The one reason to exempt the directory was the task frames
+the `handoff` and `precompact` skills staged there for whatever commit lands
+next: a release is a commit that lands next, and a staged frame read as
+uncommitted work, refusing on `error: uncommitted changes` and naming neither
+the frame nor the skill. That reason no longer holds. The frames are `TASK.md`
+and `TODO.md` at the repo root, ordinary tracked files that no hook
+force-stages.
 
-Nothing under `.claude/` is plugin content. A Claude Code plugin ships
-`.claude-plugin/plugin.json` and the component directories beside it; `.claude/`
-is what the *maintainer's* sessions read. So a release that does not stop for it
-is not skipping over anything the release publishes. What is staged there rides
-the release commit, which is what the frame was staged for.
+Why the exemption is removed rather than narrowed. The case for exempting the
+directory whole was that the set of files written under `.claude/` is a function
+of which skills the maintainer runs, so an enumeration in the toolkit would
+track a list it does not own. That argument still holds; it is overridden, not
+answered. With the staged frames gone, the exemption's remaining effect is that
+an edit to a tracked file under `.claude/` rides the release commit without the
+refusal naming it, and the maintainer has decided to accept the refusal its
+removal brings back.
 
-Excluded whole rather than by filename. The set of files written under
-`.claude/` is a function of which skills the maintainer runs — the two handoff
-frames today, `gitlore-memory-message` and `settings.local.json` alongside them
-— and an enumeration in the toolkit would have to track a list it does not own.
-The cost of the wider exclusion is that a genuine edit to
-`.claude/settings.json` (the version-guard wiring) no longer stops a release. It
-stays in the tree either way and reaches no consumer, so the next commit picks
-it up.
+What it costs, accepted. An uncommitted edit to a tracked
+`.claude/settings.json` (the version-guard wiring) or to
+`.claude/gitlore-hook-setup` (gitlore's tracked install state) stops a release
+until it is committed. A dirty `TASK.md` or `TODO.md` refuses too, with no
+replacement exemption: the routine flow is handoff, commit, release. Untracked
+and gitignored files under `.claude/` (`settings.local.json`,
+`gitlore-memory-message`) never appeared in `git diff HEAD` and are unaffected.
 
-`.claude-plugin/` shares the excluded prefix and must *not* be exempt — it holds
-the manifest whose version the whole release turns on. Git pathspecs match at
-the path separator, so `:(exclude).claude` leaves it alone; that is asserted by
-a test that dirties the manifest with a frame staged at the same time, rather
-than inferred from how the matcher is documented to work.
+The refusal prints its "exempt from this check" list only when an exemption
+applies, so a repo with no memory submodule is told nothing about exemptions it
+does not have. No note says `.claude-plugin/` is not exempt: that note
+disambiguated it from the `.claude` pathspec, and with no such pathspec a dirty
+manifest refuses as any other tracked file does.
 
 ### The gitlore memory submodule
 
@@ -366,8 +368,7 @@ the way into `.git/config`, so a url comparison is only reliable against
 the name is the simpler key. It is also the stable one: gitlore fixes the name,
 the user picks the path. `git config --get` returns a single key's value whole,
 so a mount path containing spaces needs no `-z` splitting. A repo with no
-`.gitmodules`, or one carrying no such submodule, gets the `.claude` exclusion
-and nothing more.
+`.gitmodules`, or one carrying no such submodule, gets no exclusion at all.
 
 The narrowness is the point. `git diff --ignore-submodules=all` would drop the
 `.gitmodules` read entirely for a two-line diff, but it exempts *every*

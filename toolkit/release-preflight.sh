@@ -41,21 +41,9 @@ clean_pathspecs() {
     # memory — a consumer whose vendored plugin-dev/ predates one of them would
     # otherwise be told about an exclusion its own copy does not make.
     #
-    # Two paths are exempt, both because an agent session moves them by design
-    # between commits.
-    #
-    # `.claude/` is the repo's own agent working environment — settings, hooks,
-    # and the task frames the handoff and precompact skills stage for "whatever
-    # commit lands next". None of it is plugin content: a plugin ships
-    # .claude-plugin/ and the component directories beside it. Excluded whole
-    # rather than by filename, because the set of files written there is a
-    # function of which skills the maintainer runs, not of this script. The
-    # pathspec matches at the path separator, so .claude-plugin/ — where a dirty
-    # file must still stop a release — is untouched by it.
-    #
-    # The second is a gitlore-mounted memory submodule: its gitlink sits ahead
-    # of what HEAD records between commits by design — gitlore's own pre-commit
-    # hook folds that in on the next commit, not this one.
+    # One path is exempt, a gitlore-mounted memory submodule: its gitlink sits
+    # ahead of what HEAD records between commits by design — gitlore's own
+    # pre-commit hook folds that in on the next commit, not this one.
     #
     # The mount path is read from .gitmodules rather than assumed to be
     # `memory`: that is only gitlore's default, the path being $1 to gitlore's
@@ -68,8 +56,8 @@ clean_pathspecs() {
     # and forgets to commit its moved gitlink should be refused, so
     # `--ignore-submodules=all` is not the shortcut it looks like.
     local dir="$1" mem=""
-    clean_specs=(. ':(exclude).claude')
-    clean_exempt=(".claude/ — agent working state (settings, hooks, staged handoff frames), none of it plugin content")
+    clean_specs=(.)
+    clean_exempt=()
     if [ -f "$dir/.gitmodules" ]; then
         mem=$(git config -f "$dir/.gitmodules" --get submodule.gitlore-memory.path) || mem=""
     fi
@@ -81,7 +69,7 @@ clean_pathspecs() {
 
 report_dirty() {
     # $1=repo root, $2=what to call it in the message. Prints what made it
-    # dirty, then the exemptions that did not save it. Callers add the
+    # dirty, then any exemptions that did not save it. Callers add the
     # site-specific consequence and next command, then die.
     #
     # -z / read -d '': a path containing a space is one path, and a word-split
@@ -94,12 +82,12 @@ report_dirty() {
     while IFS= read -r -d '' p; do
         printf '        %s\n' "$p" >&2
     done < <(git -C "$dir" diff -z --name-only HEAD -- "${clean_specs[@]}")
-    printf '      exempt from this check, and so not among the paths above:\n' >&2
-    for p in "${clean_exempt[@]}"; do
-        printf '        %s\n' "$p" >&2
-    done
-    printf '      .claude-plugin/ is NOT exempt — git pathspecs match at the path\n' >&2
-    printf '      separator, so a dirty manifest still refuses.\n' >&2
+    if [ "${#clean_exempt[@]}" -gt 0 ]; then
+        printf '      exempt from this check, and so not among the paths above:\n' >&2
+        for p in "${clean_exempt[@]}"; do
+            printf '        %s\n' "$p" >&2
+        done
+    fi
 }
 
 common_preflight() {
