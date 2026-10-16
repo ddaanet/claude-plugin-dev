@@ -281,6 +281,37 @@ assert_contains "$out" "no commits" "unborn-HEAD refusal names the missing commi
 if grep -q "uncommitted changes" <<<"$out"; then fail "unborn-HEAD refusal is reported as dirty"; fi
 if [ -d "$unborn/plugin-dev" ]; then fail "install.sh vendored despite refusing the unborn HEAD"; fi
 
+# The repository-state refusals are local facts, so they come before the
+# network read that resolves a missing ref: with an unreachable toolkit URL and
+# no ref, the answer is still the true one.
+echo "=== install.sh: repository-state refusals come before tag resolution ==="
+gone="$sandbox/no-such-toolkit.git"
+run_in "$unborn" allow_file env TOOLKIT_URL="$gone" bash "$repo_root/toolkit/install.sh"
+assert_contains "$out" "no commits" "no-ref install in an unborn repo is refused for that reason"
+if grep -q "could not resolve" <<<"$out"; then fail "no-ref install in an unborn repo went to the network first"; fi
+dirty="$sandbox/dirty"
+git init -q -b main "$dirty"
+git_id "$dirty"
+mkdir -p "$dirty/.claude-plugin"
+printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$dirty/.claude-plugin/plugin.json"
+git -C "$dirty" add .claude-plugin/plugin.json
+git -C "$dirty" commit -qm "dirty fixture: manifest"
+printf '{"name": "stub-plugin", "version": "0.2.0"}\n' > "$dirty/.claude-plugin/plugin.json"
+run_in "$dirty" allow_file env TOOLKIT_URL="$gone" bash "$repo_root/toolkit/install.sh"
+assert_contains "$out" "uncommitted changes" "no-ref install in a dirty repo is refused for that reason"
+if grep -q "could not resolve" <<<"$out"; then fail "no-ref install in a dirty repo went to the network first"; fi
+
+# Outside any repository the HEAD probe fails too, which used to read as
+# "no commits yet".
+echo "=== install.sh: a directory that is not a git repository says so ==="
+norepo="$sandbox/norepo"
+mkdir -p "$norepo/.claude-plugin"
+printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$norepo/.claude-plugin/plugin.json"
+run_in "$norepo" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh" dist-v1
+if [ "$rc" -eq 0 ]; then fail "install.sh vendored outside a git repository"; fi
+assert_contains "$out" "error: not a git repository" "non-repo refusal names the real problem in the installer's own words"
+if grep -q "no commits" <<<"$out"; then fail "non-repo refusal is reported as an unborn HEAD"; fi
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1

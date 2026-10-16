@@ -10,18 +10,27 @@ deleted on landing, and `825e118` marked a landed one rather than removing it.
 ## Fixed
 
 - **`update.sh` and a missing incoming `VERSION`.** With `migrations/` present
-  and no `VERSION` in the pulled tree, the notes were skipped without a word,
-  while the missing-old-version case printed a "review by hand" note. Both now
-  do.
+  and no `VERSION` in the pulled tree, the notes were skipped without a word.
+  The incoming version is always known, since only a `dist-vX.Y.Z` ref reaches
+  that point, so a missing `VERSION` now falls back to the version in the ref
+  and the crossed notes print. Only a missing outgoing version still gets the
+  "review by hand" note.
 - **A manifest with no `.name`.** `jq -r .name` printed `null`, and a release
   went public before `bump_marketplace` created an entry called `null`. The
   preflight both modes share (`--resume` runs no `check-version.sh`) and
   `check-version.sh` itself now refuse it.
-- **`check-version.sh` and a marketplace file with no plugins list.** jq exited
-  5 and errexit passed that on as the script's status; it now says the file has
-  no plugins list and exits 1.
-- **`install.sh` in a repo with no commits.** `git diff HEAD` failed and the
-  refusal read "uncommitted changes". It now says there are no commits yet.
+- **`check-version.sh` and a malformed marketplace file.** jq exited 5 and
+  errexit passed that on as the script's status. It now names three shapes and
+  exits 1 on each: not valid JSON (jq's own parse error precedes the line), no
+  plugins list, and a plugins list holding a non-object. Through `release` the
+  no-plugins-list case was already refused earlier, by the preflight's "could
+  not read" check, so only the direct `just check-version` run changed.
+- **`install.sh` outside a usable repository.** `git diff HEAD` failed in a repo
+  with no commits and the refusal read "uncommitted changes"; the HEAD probe
+  also fails outside any repository. Three refusals now carry their own message,
+  not a git repository, no commits yet and uncommitted changes, and all three
+  come before the network read that resolves a missing ref, so an unreachable
+  remote cannot hide them.
 - **`ls_remote_sha`'s failure.** It already died with its own message, but every
   caller runs after the local commit and tag exist, so the message now carries
   the `just resume-release` hint the push steps give.
@@ -45,8 +54,16 @@ deleted on landing, and `825e118` marked a landed one rather than removing it.
 
 - The three `chmod 555` scenarios in `tests/release-core-test.sh` print a
   `SKIP:` line naming the scenario when `id -u` is 0, instead of failing on a
-  permission bit root ignores. Checked by putting a stub `id` that prints 0
-  first on `PATH`.
+  permission bit root ignores. The helper that guards each prints the scenario
+  header too, so the title is written once.
+  `tests/release-core-root-skip-test.sh` runs that suite twice, once with a stub
+  `id` printing 0 first on `PATH` and once without, and a logging `chmod`
+  wrapper tells a skipped scenario from one that ran: root-run prints three SKIP
+  lines and no `chmod 555`, a non-root run prints none and makes three.
+- The nameless-manifest sandbox setup is a helper shared by the release and
+  resume scenarios. No `release-core` scenario covers a marketplace file with no
+  plugins list: it never reached `check-version.sh`'s guard, so it could not
+  catch its removal. `check-version-test.sh` holds that coverage.
 - Audit-tests defect 2 (`|| true` missing on `dist-tree-test.sh`'s second
   `grep -v`) was already fixed; the line carries the guard. Defect 1
   (`unset CDPATH`) is likewise in place in every suite.

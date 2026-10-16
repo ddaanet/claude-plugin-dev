@@ -282,31 +282,32 @@ assert_not_contains "$out" "NOTE-1.0.0" "below-range note not printed"
 assert_eq "$(printf '%s\n' "$out" | grep -o 'NOTE-1\.0\.[0-9]*' | tr '\n' ' ')" \
     "NOTE-1.0.1 NOTE-1.0.2 " "in-range notes print in version order"
 
-# The counterpart of the unknown-previous-version note: a pull that brings
-# migration notes but no VERSION file leaves the crossed range undecidable, and
-# that has to be said, not skipped in silence.
-echo "=== update-plugin-dev: an incoming tree with notes but no VERSION says so ==="
+# A pull that brings migration notes but no VERSION file still knows what it
+# pulled: the dist-v* ref names the version, so the crossed range is decided by
+# that and the notes print. Skipping them, or only pointing at the directory,
+# would leave the human to work out a range the script can state.
+echo "=== update-plugin-dev: an incoming tree with notes but no VERSION still prints the crossed notes ==="
 new_sandbox
 
 run_in "$consumer" allow_file git subtree add --prefix=plugin-dev "$toolkit" dist-v1 --squash
 assert_eq "$rc" "0" "vendor for the no-incoming-VERSION scenario"
 
-make_toolkit_release "$toolkit" v2 1.0.1
 mkdir -p "$toolkit/toolkit/migrations"
 printf 'NOTE-1.0.1\n' > "$toolkit/toolkit/migrations/v1.0.1.md"
 rm "$toolkit/toolkit/VERSION"
 git -C "$toolkit" add -A
 git -C "$toolkit" commit -qm "toolkit: notes, no VERSION"
-git -C "$toolkit" tag v3
-git -C "$toolkit" tag dist-v3 "$(git -C "$toolkit" subtree split -q --prefix=toolkit | tail -1)"
+git -C "$toolkit" tag v1.0.1
+git -C "$toolkit" tag dist-v1.0.1 "$(git -C "$toolkit" subtree split -q --prefix=toolkit | tail -1)"
 
 printf "import '%s/toolkit/release.just'\n\nprecommit:\n    @echo stub-precommit\n\nprerelease: precommit\n" \
     "$repo_root" > "$consumer/justfile"
 
-run_in "$consumer" allow_file just --set toolkit_url "$toolkit" update-plugin-dev dist-v3
+run_in "$consumer" allow_file just --set toolkit_url "$toolkit" update-plugin-dev dist-v1.0.1
 assert_eq "$rc" "0" "no-incoming-VERSION update exit code"
 if [ -f "$consumer/plugin-dev/VERSION" ]; then fail "anchor: the pulled tree still carries a VERSION"; fi
-assert_contains "$out" "incoming toolkit version unknown" "no-incoming-VERSION update says the range is undecidable"
+assert_contains "$out" "NOTE-1.0.1" "no-incoming-VERSION update prints the crossed note"
+assert_not_contains "$out" "version unknown" "no-incoming-VERSION update does not give up on the range"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2

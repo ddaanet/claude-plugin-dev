@@ -60,18 +60,29 @@ assert_not_contains() {
     fi
 }
 
-skip_as_root() {
-    # $1=scenario title. Succeeds, printing a SKIP line that names the scenario,
-    # when the suite runs as root; fails silently otherwise. Root ignores a
-    # directory's permission bits, so `chmod 555` blocks nothing and the
-    # unwritable-marketplace scenarios would exercise the writable path and
-    # report a toolkit regression that is only the environment. Always called as
-    # `if ! skip_as_root …; then`, never as a bare `&&` list, so a false return
-    # is not an errexit-visible failure.
+chmod_scenario() {
+    # $1=scenario title, printed as the scenario's header. Succeeds, printing a
+    # SKIP line that names the scenario, when the suite runs as root; fails
+    # silently otherwise. Root ignores a directory's permission bits, so
+    # `chmod 555` blocks nothing and the unwritable-marketplace scenarios would
+    # exercise the writable path and report a toolkit regression that is only
+    # the environment. Always called as `if ! chmod_scenario …; then`, never as
+    # a bare `&&` list, so a false return is not an errexit-visible failure.
+    # tests/release-core-root-skip-test.sh pins the SKIP lines.
+    printf '=== %s ===\n' "$1"
     if [ "$(id -u)" -ne 0 ]; then
         return 1
     fi
     printf 'SKIP: %s -- running as root, which ignores chmod 555 on a directory\n' "$1"
+}
+
+nameless_manifest_sandbox() {
+    # A sandbox whose committed, pushed manifest has lost its .name.
+    new_sandbox "1.2.3"
+    jq 'del(.name)' "$plugin/.claude-plugin/plugin.json" > "$plugin/.claude-plugin/plugin.json.tmp"
+    mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
+    git -C "$plugin" commit -qam "drop the manifest name"
+    git -C "$plugin" push -q origin main
 }
 
 sandboxes=()
@@ -228,11 +239,7 @@ assert_eq "$(git -C "$plugin" rev-parse --verify -q refs/tags/v1.2.4 >/dev/null 
 assert_eq "$(cat "$GH_LOG")" "" "unknown bump word must not call gh"
 
 echo "=== release: a manifest with no name is refused before anything is published ==="
-new_sandbox "1.2.3"
-jq 'del(.name)' "$plugin/.claude-plugin/plugin.json" > "$plugin/.claude-plugin/plugin.json.tmp"
-mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
-git -C "$plugin" commit -qam "drop the manifest name"
-git -C "$plugin" push -q origin main
+nameless_manifest_sandbox
 run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "1" "nameless manifest exit code"
 assert_contains "$out" "has no .name" "nameless manifest message"
@@ -245,11 +252,7 @@ assert_eq "$(jq -r '.plugins | map(.name) | join(",")' "$marketplace/.claude-plu
 # --resume runs no check-version, so the refusal above is not enough there: the
 # manifest name is read in the preflight both modes share.
 echo "=== resume: a manifest with no name is refused before anything is published ==="
-new_sandbox "1.2.3"
-jq 'del(.name)' "$plugin/.claude-plugin/plugin.json" > "$plugin/.claude-plugin/plugin.json.tmp"
-mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
-git -C "$plugin" commit -qam "drop the manifest name"
-git -C "$plugin" push -q origin main
+nameless_manifest_sandbox
 run_in "$plugin" bash plugin-dev/release.sh --resume
 assert_eq "$rc" "1" "nameless manifest resume exit code"
 assert_contains "$out" "has no .name" "nameless manifest resume message"
@@ -257,19 +260,7 @@ assert_eq "$(cat "$GH_LOG")" "" "nameless manifest resume must not call gh"
 assert_eq "$(jq -r '.plugins | map(.name) | join(",")' "$marketplace/.claude-plugin/marketplace.json")" \
     "fixture" "nameless manifest resume left the marketplace entries as they were"
 
-echo "=== release: a marketplace file with no plugins list is refused, and not as drift ==="
-new_sandbox "1.2.3"
-printf '{}\n' > "$marketplace/.claude-plugin/marketplace.json"
-git -C "$marketplace" commit -qam "empty the marketplace"
-git -C "$marketplace" push -q origin main
-run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "1" "plugins-less marketplace exit code"
-assert_contains "$out" "could not read" "plugins-less marketplace message"
-assert_not_contains "$out" "version drift" "plugins-less marketplace is not reported as drift"
-assert_eq "$(cat "$GH_LOG")" "" "plugins-less marketplace must not call gh"
-
-echo "=== release: refuses when the marketplace directory isn't writable ==="
-if ! skip_as_root "release: refuses when the marketplace directory isn't writable"; then
+if ! chmod_scenario "release: refuses when the marketplace directory isn't writable"; then
     new_sandbox "1.2.3"
     chmod 555 "$marketplace/.claude-plugin"
     run_in "$plugin" bash plugin-dev/release.sh patch
@@ -287,8 +278,7 @@ if ! skip_as_root "release: refuses when the marketplace directory isn't writabl
     assert_eq "$(cat "$GH_LOG")" "" "read-only marketplace dir must not call gh"
 fi
 
-echo "=== resume: succeeds on a no-op marketplace bump even when its directory isn't writable ==="
-if ! skip_as_root "resume: succeeds on a no-op marketplace bump even when its directory isn't writable"; then
+if ! chmod_scenario "resume: succeeds on a no-op marketplace bump even when its directory isn't writable"; then
     new_sandbox "1.2.3"
     run_in "$plugin" bash plugin-dev/release.sh patch
     assert_eq "$rc" "0" "setup release exit code"
@@ -299,8 +289,7 @@ if ! skip_as_root "resume: succeeds on a no-op marketplace bump even when its di
     assert_contains "$out" "already complete (nothing to do)" "no-op resume summary despite read-only marketplace dir"
 fi
 
-echo "=== resume: still refuses when a real marketplace write is needed and the directory isn't writable ==="
-if ! skip_as_root "resume: still refuses when a real marketplace write is needed and the directory isn't writable"; then
+if ! chmod_scenario "resume: still refuses when a real marketplace write is needed and the directory isn't writable"; then
     new_sandbox "1.2.3"
     # Plugin push rejected: manifest+tag land locally, but the marketplace is
     # never touched (still 1.2.3) — a real write is needed to catch it up.
