@@ -265,6 +265,22 @@ run_in "$consumer2" allow_file env TOOLKIT_URL="$sandbox/tagless.git" bash "$rep
 if [ "$rc" -eq 0 ]; then fail "no-ref install succeeded against a tagless remote"; fi
 assert_contains "$out" "dist-vX.Y.Z" "install tagless-remote refusal names the explicit-ref fallback"
 
+# A freshly `git init`-ed plugin has no HEAD, which makes `git diff HEAD` fail
+# and used to read as "uncommitted changes". The refusal is right; the reason
+# has to be the true one.
+echo "=== install.sh: a repo with no commits is refused for that reason ==="
+new_sandbox
+unborn="$sandbox/unborn"
+git init -q -b main "$unborn"
+git_id "$unborn"
+mkdir -p "$unborn/.claude-plugin"
+printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$unborn/.claude-plugin/plugin.json"
+run_in "$unborn" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh" dist-v1
+if [ "$rc" -eq 0 ]; then fail "install.sh vendored into a repo with no commits"; fi
+assert_contains "$out" "no commits" "unborn-HEAD refusal names the missing commit"
+if grep -q "uncommitted changes" <<<"$out"; then fail "unborn-HEAD refusal is reported as dirty"; fi
+if [ -d "$unborn/plugin-dev" ]; then fail "install.sh vendored despite refusing the unborn HEAD"; fi
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1

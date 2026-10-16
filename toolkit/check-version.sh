@@ -39,8 +39,21 @@ if [ ! -f "$marketplace_json" ]; then
   exit 0
 fi
 
-plugin_name="$(jq -r '.name' "$plugin_json")"
+# `.name // empty`, not `.name`: a manifest without one would print the literal
+# `null`, and the lookup below would go looking for a plugin called "null".
+plugin_name="$(jq -r '.name // empty' "$plugin_json")"
+if [ -z "$plugin_name" ]; then
+  echo "check-version: $plugin_json has no .name" >&2
+  exit 1
+fi
 plugin_ver="$(jq -r '.version' "$plugin_json")"
+# A marketplace file with no plugins list makes `.plugins[]` abort jq (exit 5).
+# That is a malformed file, not a missing entry and not drift, so say so
+# instead of letting errexit hand the caller a bare status.
+if ! jq -e '.plugins | type == "array"' "$marketplace_json" >/dev/null; then
+  echo "check-version: $marketplace_json has no plugins list" >&2
+  exit 1
+fi
 market_ver="$(jq -r --arg n "$plugin_name" '.plugins[] | select(.name==$n) | .version' "$marketplace_json")"
 
 if [ -z "$market_ver" ] || [ "$market_ver" = "null" ]; then

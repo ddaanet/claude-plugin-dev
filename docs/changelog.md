@@ -9,6 +9,9 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-16 — The two shell audits are closed out](changelog/2026-10-16-shell-audit-closeout.md)
+  — the open latent items re-checked: six fixed, three left with the reason; the
+  `chmod 555` scenarios skip loudly when run as root.
 - [2026-10-16 — The clean-tree check stops exempting `.claude/`](changelog/2026-10-16-clean-tree-drops-dot-claude.md)
   — supersedes 2026-09-01: only the memory gitlink is exempt; a dirty tracked
   file under `.claude/` refuses a release and the refusal names it.

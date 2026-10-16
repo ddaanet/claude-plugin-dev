@@ -98,9 +98,18 @@ ls_remote_sha() {
     # straight past the refusal that keeps a published tag from being moved.
     # pipefail does cover this today. Not depending on that is the point; a
     # `set -o` line is easy to lose and nothing here would say so.
+    #
+    # Every caller is a publishing step, which runs after the local commit and
+    # tag exist, so a failed read is a release stopped midway and the hint can
+    # always point at resume.
     local line
-    line=$(git -C "$1" ls-remote origin "$2") \
-        || die "git ls-remote origin $2 failed in $1"
+    line=$(git -C "$1" ls-remote origin "$2") || {
+        printf 'hint: reading origin failed, so nothing was pushed by this step. clear what\n' >&2
+        # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
+        printf '      ls-remote reported above, then run `just resume-release`, which probes\n' >&2
+        printf '      each step again and does only what is missing.\n' >&2
+        die "git ls-remote origin $2 failed in $1"
+    }
     printf '%s' "${line%%$'\t'*}"
 }
 

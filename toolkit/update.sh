@@ -79,8 +79,10 @@ version_gt() {
     [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]
 }
 
-if [ -d "$TOOLKIT_PREFIX/migrations" ] && [ -n "$new_version" ]; then
-    if [ -z "$old_version" ]; then
+if [ -d "$TOOLKIT_PREFIX/migrations" ]; then
+    if [ -z "$new_version" ]; then
+        echo "note: incoming toolkit version unknown — review $TOOLKIT_PREFIX/migrations/ by hand." >&2
+    elif [ -z "$old_version" ]; then
         echo "note: previous toolkit version unknown — review $TOOLKIT_PREFIX/migrations/ by hand." >&2
     else
         # Shipped paths only (dist-tree-test pins their shape), so

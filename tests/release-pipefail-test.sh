@@ -198,6 +198,8 @@ run_in "$plugin" bash plugin-dev/release-nopipefail.sh --resume
 assert_eq "$rc" "1" "no-pipefail probe exit code"
 assert_contains "$out" "git ls-remote origin refs/heads/main failed" \
     "no-pipefail probe reports the probe's own failure"
+assert_contains "$out" "just resume-release" \
+    "no-pipefail probe names the command that finishes the release"
 assert_not_contains "$out" "push of main failed" \
     "no-pipefail probe refused before attempting the push"
 assert_eq "$(cat "$GH_LOG")" "" "no-pipefail probe must not call gh"

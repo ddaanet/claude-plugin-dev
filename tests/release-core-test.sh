@@ -60,6 +60,20 @@ assert_not_contains() {
     fi
 }
 
+skip_as_root() {
+    # $1=scenario title. Succeeds, printing a SKIP line that names the scenario,
+    # when the suite runs as root; fails silently otherwise. Root ignores a
+    # directory's permission bits, so `chmod 555` blocks nothing and the
+    # unwritable-marketplace scenarios would exercise the writable path and
+    # report a toolkit regression that is only the environment. Always called as
+    # `if ! skip_as_root …; then`, never as a bare `&&` list, so a false return
+    # is not an errexit-visible failure.
+    if [ "$(id -u)" -ne 0 ]; then
+        return 1
+    fi
+    printf 'SKIP: %s -- running as root, which ignores chmod 555 on a directory\n' "$1"
+}
+
 sandboxes=()
 cleanup() {
     local s
@@ -213,55 +227,121 @@ assert_eq "$(git -C "$plugin" rev-parse --verify -q refs/tags/v1.2.4 >/dev/null 
     "no" "unknown bump word created no tag"
 assert_eq "$(cat "$GH_LOG")" "" "unknown bump word must not call gh"
 
-echo "=== release: refuses when the marketplace directory isn't writable ==="
+echo "=== release: a manifest with no name is refused before anything is published ==="
 new_sandbox "1.2.3"
-chmod 555 "$marketplace/.claude-plugin"
+jq 'del(.name)' "$plugin/.claude-plugin/plugin.json" > "$plugin/.claude-plugin/plugin.json.tmp"
+mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
+git -C "$plugin" commit -qam "drop the manifest name"
+git -C "$plugin" push -q origin main
 run_in "$plugin" bash plugin-dev/release.sh patch
-chmod 755 "$marketplace/.claude-plugin"
-assert_eq "$rc" "1" "read-only marketplace dir exit code"
-assert_contains "$out" "$marketplace/.claude-plugin is not writable" "read-only marketplace dir message names the path"
-assert_contains "$out" "Permission denied" "read-only marketplace dir message keeps mktemp's own diagnosis"
-assert_contains "$out" "excludedCommands" "read-only marketplace dir message names the exclusion route"
-assert_contains "$out" "just resume-release" "read-only marketplace dir message names the resume-release entry"
-assert_not_contains "$out" "dangerouslyDisableSandbox" "read-only marketplace dir message does not name the denied bypass flag"
-assert_contains "$out" "/add-dir $marketplace" "read-only marketplace dir message names the add-dir escape"
-assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "1.2.3" "read-only marketplace dir left manifest untouched"
+assert_eq "$rc" "1" "nameless manifest exit code"
+assert_contains "$out" "has no .name" "nameless manifest message"
 assert_eq "$(git -C "$plugin" rev-parse --verify -q refs/tags/v1.2.4 >/dev/null && echo yes || echo no)" \
-    "no" "read-only marketplace dir created no tag"
-assert_eq "$(cat "$GH_LOG")" "" "read-only marketplace dir must not call gh"
+    "no" "nameless manifest created no tag"
+assert_eq "$(cat "$GH_LOG")" "" "nameless manifest must not call gh"
+assert_eq "$(jq -r '.plugins | map(.name) | join(",")' "$marketplace/.claude-plugin/marketplace.json")" \
+    "fixture" "nameless manifest left the marketplace entries as they were"
+
+# --resume runs no check-version, so the refusal above is not enough there: the
+# manifest name is read in the preflight both modes share.
+echo "=== resume: a manifest with no name is refused before anything is published ==="
+new_sandbox "1.2.3"
+jq 'del(.name)' "$plugin/.claude-plugin/plugin.json" > "$plugin/.claude-plugin/plugin.json.tmp"
+mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
+git -C "$plugin" commit -qam "drop the manifest name"
+git -C "$plugin" push -q origin main
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "1" "nameless manifest resume exit code"
+assert_contains "$out" "has no .name" "nameless manifest resume message"
+assert_eq "$(cat "$GH_LOG")" "" "nameless manifest resume must not call gh"
+assert_eq "$(jq -r '.plugins | map(.name) | join(",")' "$marketplace/.claude-plugin/marketplace.json")" \
+    "fixture" "nameless manifest resume left the marketplace entries as they were"
+
+echo "=== release: a marketplace file with no plugins list is refused, and not as drift ==="
+new_sandbox "1.2.3"
+printf '{}\n' > "$marketplace/.claude-plugin/marketplace.json"
+git -C "$marketplace" commit -qam "empty the marketplace"
+git -C "$marketplace" push -q origin main
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "plugins-less marketplace exit code"
+assert_contains "$out" "could not read" "plugins-less marketplace message"
+assert_not_contains "$out" "version drift" "plugins-less marketplace is not reported as drift"
+assert_eq "$(cat "$GH_LOG")" "" "plugins-less marketplace must not call gh"
+
+echo "=== release: refuses when the marketplace directory isn't writable ==="
+if ! skip_as_root "release: refuses when the marketplace directory isn't writable"; then
+    new_sandbox "1.2.3"
+    chmod 555 "$marketplace/.claude-plugin"
+    run_in "$plugin" bash plugin-dev/release.sh patch
+    chmod 755 "$marketplace/.claude-plugin"
+    assert_eq "$rc" "1" "read-only marketplace dir exit code"
+    assert_contains "$out" "$marketplace/.claude-plugin is not writable" "read-only marketplace dir message names the path"
+    assert_contains "$out" "Permission denied" "read-only marketplace dir message keeps mktemp's own diagnosis"
+    assert_contains "$out" "excludedCommands" "read-only marketplace dir message names the exclusion route"
+    assert_contains "$out" "just resume-release" "read-only marketplace dir message names the resume-release entry"
+    assert_not_contains "$out" "dangerouslyDisableSandbox" "read-only marketplace dir message does not name the denied bypass flag"
+    assert_contains "$out" "/add-dir $marketplace" "read-only marketplace dir message names the add-dir escape"
+    assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "1.2.3" "read-only marketplace dir left manifest untouched"
+    assert_eq "$(git -C "$plugin" rev-parse --verify -q refs/tags/v1.2.4 >/dev/null && echo yes || echo no)" \
+        "no" "read-only marketplace dir created no tag"
+    assert_eq "$(cat "$GH_LOG")" "" "read-only marketplace dir must not call gh"
+fi
 
 echo "=== resume: succeeds on a no-op marketplace bump even when its directory isn't writable ==="
-new_sandbox "1.2.3"
-run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "0" "setup release exit code"
-chmod 555 "$marketplace/.claude-plugin"
-run_in "$plugin" bash plugin-dev/release.sh --resume
-chmod 755 "$marketplace/.claude-plugin"
-assert_eq "$rc" "0" "no-op resume exit code despite read-only marketplace dir"
-assert_contains "$out" "already complete (nothing to do)" "no-op resume summary despite read-only marketplace dir"
+if ! skip_as_root "resume: succeeds on a no-op marketplace bump even when its directory isn't writable"; then
+    new_sandbox "1.2.3"
+    run_in "$plugin" bash plugin-dev/release.sh patch
+    assert_eq "$rc" "0" "setup release exit code"
+    chmod 555 "$marketplace/.claude-plugin"
+    run_in "$plugin" bash plugin-dev/release.sh --resume
+    chmod 755 "$marketplace/.claude-plugin"
+    assert_eq "$rc" "0" "no-op resume exit code despite read-only marketplace dir"
+    assert_contains "$out" "already complete (nothing to do)" "no-op resume summary despite read-only marketplace dir"
+fi
 
 echo "=== resume: still refuses when a real marketplace write is needed and the directory isn't writable ==="
-new_sandbox "1.2.3"
-# Plugin push rejected: manifest+tag land locally, but the marketplace is
-# never touched (still 1.2.3) — a real write is needed to catch it up.
-cat > "$plugin/.git/hooks/pre-push" <<'HOOK'
+if ! skip_as_root "resume: still refuses when a real marketplace write is needed and the directory isn't writable"; then
+    new_sandbox "1.2.3"
+    # Plugin push rejected: manifest+tag land locally, but the marketplace is
+    # never touched (still 1.2.3) — a real write is needed to catch it up.
+    cat > "$plugin/.git/hooks/pre-push" <<'HOOK'
 #!/bin/sh
 echo "pre-push: refusing" >&2
 exit 1
 HOOK
-chmod +x "$plugin/.git/hooks/pre-push"
+    chmod +x "$plugin/.git/hooks/pre-push"
+    run_in "$plugin" bash plugin-dev/release.sh patch
+    assert_eq "$rc" "1" "setup interrupted-release exit code"
+    assert_eq "$(market_version)" "1.2.3" "setup marketplace still stale"
+    rm -f "$plugin/.git/hooks/pre-push"
+    chmod 555 "$marketplace/.claude-plugin"
+    run_in "$plugin" bash plugin-dev/release.sh --resume
+    chmod 755 "$marketplace/.claude-plugin"
+    assert_eq "$rc" "1" "real-write resume exit code"
+    assert_contains "$out" "$marketplace/.claude-plugin is not writable" "real-write resume message names the path"
+    assert_eq "$(git -C "$plugin" ls-remote origin refs/tags/v1.2.4 | wc -l | tr -d ' ')" \
+        "1" "real-write resume still pushed the plugin tag before failing at the marketplace"
+    assert_eq "$(market_version)" "1.2.3" "real-write resume left the marketplace untouched"
+fi
+
+# jq always writes 2-space JSON, so a byte comparison of its output against a
+# marketplace.json kept in any other style reads "changed" for a file that is
+# already at the version, and the rewrite commits a whole-file diff.
+echo "=== resume: a marketplace already at the version in another JSON style is left alone ==="
+new_sandbox "1.2.3"
 run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "1" "setup interrupted-release exit code"
-assert_eq "$(market_version)" "1.2.3" "setup marketplace still stale"
-rm -f "$plugin/.git/hooks/pre-push"
-chmod 555 "$marketplace/.claude-plugin"
+assert_eq "$rc" "0" "setup release exit code"
+jq -c . "$marketplace/.claude-plugin/marketplace.json" > "$sandbox/compact.json"
+cp "$sandbox/compact.json" "$marketplace/.claude-plugin/marketplace.json"
+git -C "$marketplace" commit -qam "compact style"
+git -C "$marketplace" push -q origin main
+mp_head="$(git -C "$marketplace" rev-parse HEAD)"
 run_in "$plugin" bash plugin-dev/release.sh --resume
-chmod 755 "$marketplace/.claude-plugin"
-assert_eq "$rc" "1" "real-write resume exit code"
-assert_contains "$out" "$marketplace/.claude-plugin is not writable" "real-write resume message names the path"
-assert_eq "$(git -C "$plugin" ls-remote origin refs/tags/v1.2.4 | wc -l | tr -d ' ')" \
-    "1" "real-write resume still pushed the plugin tag before failing at the marketplace"
-assert_eq "$(market_version)" "1.2.3" "real-write resume left the marketplace untouched"
+assert_eq "$rc" "0" "other-style no-op resume exit code"
+assert_contains "$out" "already complete (nothing to do)" "other-style no-op resume summary"
+assert_eq "$(git -C "$marketplace" rev-parse HEAD)" "$mp_head" "other-style no-op resume committed nothing"
+assert_eq "$(cmp "$marketplace/.claude-plugin/marketplace.json" "$sandbox/compact.json" && echo same)" \
+    "same" "other-style no-op resume left the file byte for byte"
 
 echo "=== release: major bump end-to-end ==="
 new_sandbox "1.2.3"

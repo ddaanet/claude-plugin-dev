@@ -196,7 +196,11 @@ common_preflight() {
     # from errexit mid-function, but as the final command its status becomes the
     # function's, and `common_preflight` would exit 1 with no message on resume.
     [ "$mode" = "release" ] && check_marketplace_writable
-    plugin_name=$(jq -r .name "$manifest")
+    # `.name // empty`, not `.name`: a manifest without one would print the
+    # literal `null`, and the marketplace lookup below would then create an
+    # entry called "null" after the release was already public.
+    plugin_name=$(jq -r '.name // empty' "$manifest")
+    [ -n "$plugin_name" ] || die "$manifest has no .name — nothing was done"
     # A missing entry is not an error: on first publication we create one from
     # plugin.json. Synthesising its `source` needs an `origin` remote to derive
     # owner/repo from, so validate that here, before any destructive op.
