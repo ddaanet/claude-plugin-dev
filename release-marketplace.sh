@@ -44,7 +44,13 @@ bump_marketplace() {
     # mktemp+mv replace needs to unlink and recreate marketplace.json in its
     # directory, which a sandboxed resume-release can't do even when nothing
     # actually needs to change.
-    if cmp -s "$mp_tmp" "$marketplace_json"; then
+    #
+    # Compared as JSON values, not bytes: jq always writes 2-space JSON, so a
+    # byte comparison reads a marketplace.json kept in any other style as
+    # changed and rewrites it wholesale, committing a whole-file diff for a
+    # file already at $V. A jq failure (a file the earlier jq already read, so
+    # not expected) reads as "differs", which falls through to the rewrite.
+    if jq -en --slurpfile a "$mp_tmp" --slurpfile b "$marketplace_json" '$a == $b' >/dev/null; then
         rm -f "$mp_tmp"
     else
         check_marketplace_writable
