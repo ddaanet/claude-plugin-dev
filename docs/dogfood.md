@@ -62,10 +62,11 @@ Hooks should find their scripts by `${CLAUDE_PLUGIN_ROOT}` or `$0`, never
 through `bin/`.
 
 With no copy the shim sets the same variable and launches silently: Claude Code
-starts with a plugin directory that does not exist yet. Run `just dogfood` in
-that session, then `/reload-plugins`; no relaunch is needed. Until then `/plugin`
-lists the missing directory under Errors, and `/reload-plugins` reports one load
-error.
+starts with a plugin directory that does not exist yet, and the `SessionStart`
+check says so. Run `just dogfood` in that session, then `/reload-plugins`; no
+relaunch is needed. That was verified headless; the interactive command was not
+run. Until then `/plugin` lists the missing directory under Errors, and
+`/reload-plugins` reports one load error.
 
 From a subdirectory the session still loads the copy, but no project hook fires:
 Claude Code reads `.claude/settings.json` from the launch directory only. That
@@ -89,7 +90,7 @@ live then depends on what changed:
   repo, since Claude Code reads them on each call.
 - **Skill bodies** — after `/reload-plugins` in the session.
 - **Agent definitions and hook events** — only in a new session. After
-  `just dogfood`, exit and relaunch through the shim; `claude -c` keeps the
+  `just dogfood`, exit and relaunch `claude`; `claude -c` keeps the
   conversation.
 - **Commands, `.mcp.json` and output styles** — after `/reload-plugins` in the
   session, like skill bodies: a changed or new command, the plugin's MCP
@@ -130,19 +131,23 @@ version-guard:
   into `dist/plugin/`, a spelling through a symlink included, and gives the
   agent the source path to edit instead. A Bash write into the copy passes it,
   and the next sync overwrites or deletes that write.
-- **Session check** — `SessionStart`. Silent when all is well; otherwise it
-  prints one of three warnings:
+- **Session check** — `SessionStart`. Silent when the session loads the copy and
+  the copy is a directory; otherwise it prints one of four warnings:
 
   ```text
-  dogfood: no copy at <root>/dist/plugin, so this session does not load it; run just dogfood to create it, then relaunch
-  dogfood: this session does not load <root>/dist/plugin — launch claude through plugin-dev/bin/claude from the repo root
+  dogfood: no copy at <root>/dist/plugin yet; run just dogfood to create it, then /reload-plugins, no relaunch needed
+  dogfood: no copy at <root>/dist/plugin, so this session does not load it; run just dogfood to create it, then direnv allow in <root> and relaunch claude
+  dogfood: this session does not load <root>/dist/plugin; run direnv allow in <root>, then relaunch claude
   dogfood: jq is not on PATH, so the copy guard and this check are off until it is installed
   ```
 
-  The first means there is no copy yet and the session started past the shim,
-  which names the copy before any `just dogfood`. The second means the copy exists but the session started past
-  the shim (no direnv, an IDE or the desktop app, an absolute path to
-  `claude`), or inherited another repo's `CLAUDE_CODE_PLUGIN_DIRS`, as a
-  `claude` started from another plugin's dogfood session does. The agent is
-  told either as a fact, with no command to run. After the third, Claude Code's
-  own sensitive-file prompt still stops a copy edit.
+  The first means the session was launched through the shim before any
+  `just dogfood`, or a regular file sits where the copy belongs. It names the
+  copy, so `/reload-plugins` loads it once made. The second means there is no
+  copy and the session started past the shim. The third means the copy exists
+  but the session started past the shim (no direnv, an IDE or the desktop app,
+  an absolute path to `claude`), or inherited another repo's
+  `CLAUDE_CODE_PLUGIN_DIRS`, as a `claude` started from another plugin's
+  dogfood session does. `direnv allow` loads the `.envrc` that puts the shim
+  first on PATH. The agent is told each as a fact, with no command to run. After
+  the fourth, Claude Code's own sensitive-file prompt still stops a copy edit.

@@ -50,6 +50,7 @@ dotfiles).
   `CLAUDE_CODE_PLUGIN_DIRS` at `dist/plugin/`, appends the copy's `bin/` to
   PATH, and execs the next `claude` on PATH. It never syncs, and sets both
   whether or not the copy exists yet: `/reload-plugins` loads one made later.
+  It is silent; the `SessionStart` check reports a missing copy.
 - **`gates.just`** — opt-in, imported beside `release.just`. Defines the prolog
   that turns a gate recipe into one that skips itself while the files it reads
   are unchanged. See [Gate sentinels](#gate-sentinels).
