@@ -77,6 +77,24 @@ release bump='patch': prerelease
 resume-release:
     bash scripts/self-release.sh --resume
 
+# List sibling repos whose vendored plugin-dev is older than toolkit/VERSION.
+outdated-consumers:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    current=$(cat toolkit/VERSION)
+    found=0
+    for version_file in ../*/plugin-dev/VERSION; do
+        [ -f "$version_file" ] || continue
+        repo=${version_file%/plugin-dev/VERSION}
+        vendored=$(cat "$version_file")
+        [ "$vendored" = "$current" ] && continue
+        newest=$(printf '%s\n%s\n' "$vendored" "$current" | sort -V | tail -n 1)
+        [ "$newest" = "$current" ] || continue
+        printf '%-20s %s\n' "${repo#../}" "$vendored"
+        found=1
+    done
+    [ "$found" = 1 ] || echo "every sibling consumer is on $current"
+
 # Apply git stripspace to cached text files. Never blocks the recipe.
 whitespace:
     #!/usr/bin/env bash
