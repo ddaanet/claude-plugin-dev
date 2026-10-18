@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# The 400-line cap over every tracked file. The cap bounds what a reader takes
+# The 400-line cap over every file on disk that git does not ignore, tracked or
+# not: what the next `git add` can stage, and what the precommit sentinel
+# hashes, so a cached pass covers it. The cap bounds what a reader takes
 # in at one go, so it binds a test suite and a script as it binds a document;
 # an oversized suite is split along its scenario groups, not exempted.
 #
 # Scope, and why this is not part of docs-test.sh: that suite owns the cap over
 # the markdown under `docs/`, where it also counts untracked drafts. This one
-# owns every other tracked file. It skips what docs-test.sh already governs (a
+# owns every other file. It skips what docs-test.sh already governs (a
 # `.md` under `docs/`) and `docs/changelog/` wholesale, which holds dated
 # records that are never revised. It also skips `plans/` wholesale, any file
 # type: the cap is soft for plans, judged at review and gated by neither suite,
@@ -80,22 +82,23 @@ lines 401 > "$fixture/docs/changelog/2026-01-01-record.md"
 lines 401 > "$fixture/docs/node.md"
 lines 401 > "$fixture/plans/plan.md"
 lines 401 > "$fixture/untracked.sh"
+lines 401 > "$fixture/ignored.sh"
+printf 'ignored.sh\n' > "$fixture/.gitignore"
 { lines 401; printf '\0'; } > "$fixture/blob.bin"
 # A symlink to a file within the cap; the link itself has no lines to count.
 ln -s tests/at-cap.sh "$fixture/link.txt"
-git -C "$fixture" add -A -f -- . ':!untracked.sh'
+git -C "$fixture" add -A -f -- . ':!untracked.sh' ':!ignored.sh'
 git -C "$fixture" update-index --add --cacheinfo \
     "160000,1111111111111111111111111111111111111111,memory"
 # scan <root>: one `oversized-file: <path>: <n> lines > <cap>` line per
-# tracked file over the cap. NUL-delimited end to end, so a path holding a
+# non-ignored file over the cap, in path order. NUL-delimited end to end, so a path holding a
 # space or a newline is one path.
 scan() {
-    local root="$1" record meta mode path n
-    while IFS= read -r -d '' record; do
-        meta="${record%%$'\t'*}"
-        path="${record#*$'\t'}"
-        mode="${meta%% *}"
-        case "$mode" in 160000 | 120000) continue ;; esac
+    local root="$1" path n
+    while IFS= read -r -d '' path; do
+        # A gitlink is a directory on disk and fails `-f`; a symlink is skipped
+        # before `-f` would follow it.
+        [ -L "$root/$path" ] && continue
         case "$path" in
             docs/changelog/*) continue ;;
             plans/*) continue ;;
@@ -108,12 +111,12 @@ scan() {
         if [ "$n" -gt "$max_lines" ]; then
             printf 'oversized-file: %s: %s lines > %s\n' "$path" "$n" "$max_lines"
         fi
-    done < <(git -C "$root" ls-files -z -s)
+    done < <(git -C "$root" ls-files -z --cached --others --exclude-standard | LC_ALL=C sort -z)
 }
 
-# exempt: tracked files left over the cap on purpose, one per line as
+# exempt: files left over the cap on purpose, one per line as
 # "path|reason". A reason is mandatory; an entry without one is a defect.
-# Empty today: every tracked file outside the governed docs is under the cap.
+# Empty today: every file outside the governed docs is under the cap.
 exempt=()
 
 is_exempt() {
@@ -126,18 +129,19 @@ is_exempt() {
 
 got="$(scan "$fixture")"
 assert_eq "$got" "oversized-file: my big file.txt: 401 lines > 400
-oversized-file: tests/over-cap.sh: 401 lines > 400" \
-    "fixture report: the two non-governed oversized files, in git's order, no others"
+oversized-file: tests/over-cap.sh: 401 lines > 400
+oversized-file: untracked.sh: 401 lines > 400" \
+    "fixture report: the non-governed oversized files on disk, untracked included and ignored left out, in path order, no others"
 passed+=("report format and each exclusion pinned on a fixture")
 
-echo "=== no tracked file in this repo exceeds the cap ==="
+echo "=== no file in this repo exceeds the cap ==="
 real="$(scan "$repo_root")"
 if [ -n "$real" ]; then
     printf '%s\n' "$real" >&2
     echo "  split the file along its scenario groups or seams, not by cramming lines" >&2
-    fail "tracked files over the $max_lines-line cap"
+    fail "files over the $max_lines-line cap"
 fi
-passed+=("every tracked file outside the governed docs is within $max_lines lines")
+passed+=("every non-ignored file outside the governed docs is within $max_lines lines")
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2

@@ -55,8 +55,8 @@ or removing a shipped file means updating the list in
   others), and, given a `dist.include` or `--shipped`, one from a shipped file
   to an unshipped one. Reads every Markdown file on disk git does not ignore,
   skipping `plugin-dev/` and submodules. This repo's `precommit` runs it with
-  `--shipped toolkit`; consumers wire `precommit: check-refs`. Executable in
-  the index, which `tests/dist-tree-test.sh` pins. Its two awk programs, the
+  `--shipped toolkit`; consumers wire `precommit: check-refs`. Executable on
+  disk, which `tests/dist-tree-test.sh` pins. Its two awk programs, the
   Markdown reader and the existence test over the git listing, live in
   `toolkit/check-refs-parse.sh`, which it sources from its own directory.
 - `toolkit/dogfood.sh` — the dogfood launcher's one script, with three
@@ -91,8 +91,8 @@ or removing a shipped file means updating the list in
   `PLUGIN_DEV_GATE_TOOLS`; it defines no other variable, so it imports beside
   `release.just` without a name clash.
 - `toolkit/run-bats.sh` — the quiet bats runner, opt-in and independent of the
-  sentinels: failures and a pass count in place of the TAP stream. Executable in
-  the index, which `tests/dist-tree-test.sh` pins.
+  sentinels: failures and a pass count in place of the TAP stream. Executable on
+  disk, which `tests/dist-tree-test.sh` pins.
 - `toolkit/README.md` — the consumer-facing manual, shipped in the dist
   tree. The place a plugin maintainer reads; keep it in step with the
   scripts above.
@@ -116,7 +116,8 @@ or removing a shipped file means updating the list in
   consumers (which vendor via subtree, where tags don't propagate) can
   identify the version they're on with `cat plugin-dev/VERSION`.
 - `justfile` — *this repo's own* dev recipes (distinct from
-  `release.just`). Defines `precommit`, and wraps the self-release script
+  `release.just`). Defines `precommit`, behind a sentinel from its own
+  `toolkit/gates.just`, and wraps the self-release script
   as `release` and `resume-release`. Root-level, so it is not shipped.
 - `scripts/self-release.sh` — this repo's own release flow, the
   counterpart of `toolkit/release.sh` and deliberately not shared with
@@ -185,12 +186,13 @@ tree build, refusals, warnings and other subcommands),
 is, which files are read and exempt, and the shipped check), `docs-test.sh` (the
 400-line cap over `docs/`, plus pointer resolution over `docs/` and
 `plans/`; the cap is soft for plans and gated nowhere),
-`line-cap-test.sh` (the same 400-line cap over every other tracked file; a
+`line-cap-test.sh` (the same 400-line cap over every other file; a
 suite that outgrows it is split along its scenario groups, never exempted),
 `doc-sync-test.sh` (the install/update command blocks shared by the two
 READMEs, and the Layout list above against `toolkit/`'s actual
 contents), `citation-test.sh` (refuses a `<script>.sh:<line>`
-citation into a tracked file outside `plans/` and `docs/changelog/`),
+citation into a file outside `plans/` and `docs/changelog/`),
+`whitespace-test.sh` (the `whitespace` recipe, against a fixture repo),
 the `dogfood.sh` suites (`dogfood-sync-{copy,nested,allowlist,refusal}-test.sh`,
 `dogfood-pre-tool-{paths,jq}-test.sh` and
 `dogfood-session-{start,warn}-test.sh`) and
@@ -207,6 +209,18 @@ its own fixture setup, and `line-cap-test.sh` fails the gate otherwise. It also 
 `format-docs`, which needs rumdl: `uv sync` once, and the recipe finds
 `.venv/bin/rumdl` whether or not direnv has exported it. Must be green
 before committing.
+
+The recipe is gated by `toolkit/gates.just`: `sentinel-guard` over every
+non-ignored file but the `memory` gitlink, then the two formatters, then
+`hash-sentinel`, the checks and `record-sentinel`, so a run over an unchanged
+tree prints `precommit: cached (inputs unchanged)` and formats nothing.
+`PLUGIN_DEV_GATE_FORCE=1 just precommit` runs it anyway. **Every check picks
+its files from disk** — `git ls-files -co --exclude-standard`, the set the
+sentinel hashes, and execute bits by `[ -x ]` — never from the index: a check
+that read the index would see a file the next `git add` stages while the hash,
+which reads disk, did not move, and a cached pass would let it commit
+unchecked. `whitespace` stages a tracked file it fixes and fixes an untracked
+one in place without adding it.
 
 ## Releasing the toolkit
 

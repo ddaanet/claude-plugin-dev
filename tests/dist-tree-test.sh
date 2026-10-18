@@ -27,7 +27,7 @@ fail() {
 }
 
 # Everything a consumer is meant to receive, and nothing else. Sorted, since
-# it is compared against `git ls-tree` output.
+# it is compared against a sorted listing.
 expected="$(sort <<'EOF'
 LICENSE
 README.md
@@ -55,12 +55,14 @@ version-guard.sh
 EOF
 )"
 
-# Asserted against the index, not against `git subtree split` output. split
-# reads committed history, so a split-based assertion answers for the previous
-# commit -- it would pass on a run where the file being added right now is the
-# one that leaks. The index is what the next dist tag will be cut from.
+# Asserted against the files on disk, not against `git subtree split` output.
+# split reads committed history, so a split-based assertion answers for the
+# previous commit -- it would pass on a run where the file being added right now
+# is the one that leaks. Every non-ignored file, tracked or not, is what the next
+# `git add` can stage and what the precommit sentinel hashes: read from the
+# index instead, a file added after a cached pass would never be checked.
 echo "=== toolkit/ holds exactly the consumer-facing set ==="
-actual="$(git ls-files toolkit/ | sed 's|^toolkit/||' | sort)"
+actual="$(git ls-files --cached --others --exclude-standard toolkit/ | sed 's|^toolkit/||' | sort)"
 
 # Migration notes are shipped guidance, one optional note per release. Any
 # file of exactly that shape is allowed without editing the list above;
@@ -82,36 +84,33 @@ if [ "$actual" != "$expected" ]; then
 fi
 
 # A shim without its execute bit is skipped by PATH lookup without a word.
-echo "=== toolkit/bin/claude is executable in the index ==="
-shim_mode="$(git ls-files -s toolkit/bin/claude | cut -d' ' -f1)"
-if [ "$shim_mode" != "100755" ]; then
-    fail "toolkit/bin/claude index mode is '$shim_mode', not 100755"
-fi
+echo "=== toolkit/bin/claude is executable on disk ==="
+[ -f toolkit/bin/claude ] && [ -x toolkit/bin/claude ] \
+    || fail "toolkit/bin/claude is not an executable file on disk"
 
 # Consumers call the runner as `plugin-dev/run-bats.sh`, with no `bash` before
 # it, and a script without its execute bit fails there with "Permission denied".
-echo "=== toolkit/run-bats.sh is executable in the index ==="
-runner_mode="$(git ls-files -s toolkit/run-bats.sh | cut -d' ' -f1)"
-if [ "$runner_mode" != "100755" ]; then
-    fail "toolkit/run-bats.sh index mode is '$runner_mode', not 100755"
-fi
+echo "=== toolkit/run-bats.sh is executable on disk ==="
+[ -f toolkit/run-bats.sh ] && [ -x toolkit/run-bats.sh ] \
+    || fail "toolkit/run-bats.sh is not an executable file on disk"
 
 # Consumers may call it as `plugin-dev/check-refs.sh` from a gate body, with no
 # `bash` before it, as they do the runner.
-echo "=== toolkit/check-refs.sh is executable in the index ==="
-refs_mode="$(git ls-files -s toolkit/check-refs.sh | cut -d' ' -f1)"
-if [ "$refs_mode" != "100755" ]; then
-    fail "toolkit/check-refs.sh index mode is '$refs_mode', not 100755"
-fi
+echo "=== toolkit/check-refs.sh is executable on disk ==="
+[ -f toolkit/check-refs.sh ] && [ -x toolkit/check-refs.sh ] \
+    || fail "toolkit/check-refs.sh is not an executable file on disk"
 
 # Named separately from the exact-set check above: this is the specific
 # breakage consumers reported, and a bare `git submodule status` in a
 # consumer fatals repo-wide on an unregistered gitlink.
 echo "=== toolkit/ carries no submodule gitlink ==="
-# Captured, then searched: piped into grep -q under pipefail, git can take
-# SIGPIPE on an early match and a present gitlink would read as absent.
-toolkit_index="$(git ls-files -s toolkit/)"
-if grep -q '^160000' <<<"$toolkit_index"; then
+# On disk a gitlink, or a nested repository not yet added, is a directory where
+# the listing otherwise holds files only.
+nested=""
+while IFS= read -r -d '' p; do
+    [ -d "$p" ] && nested+="$p"$'\n'
+done < <(git ls-files -z --cached --others --exclude-standard toolkit/)
+if [ -n "$nested" ]; then
     fail "toolkit/ contains a gitlink (breaks consumers' git submodule status)"
 fi
 

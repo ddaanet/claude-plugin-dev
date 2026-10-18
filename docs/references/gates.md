@@ -98,6 +98,24 @@ gitlink therefore runs uncached, in the recipe body ahead of the guard. This
 fails in the opposite direction from the under-covered tree: a gate that is
 green on precisely the commit the check exists for.
 
+**The hash reads disk, so the checks must too.** The hash lists tracked and
+untracked files alike and reads their bytes and execute bits from the working
+tree; staging a file moves nothing in it. A check that picks its files from the
+index instead (`git ls-files` with no `--others`, `ls-files -s` modes) sees a
+file appear the moment it is added, though the hash did not move: a pass
+recorded while an oversized file was still untracked stays cached through the
+`git add`, and the pre-commit hook lets the file commit unchecked. This repo's
+own `precommit` had five such checks (`whitespace`, the line cap, the citation
+check, the shipped-file list and its Layout mirror) when it was put behind the
+sentinel. The fix is in the checks, not the key: a suite's result is a function
+of the files on disk, so each enumerates with
+`git ls-files -co --exclude-standard`, the set the hash lists, and reads execute
+bits with `[ -x ]`. Hashing the index as well was rejected: it would move the
+key on every `git add` for no change in what any disk-reading check sees, and it
+still would not make an index-reading check true of the commit, which can differ
+from both under partial staging. What remains unchecked is that partial staging,
+with or without the cache: the checks vouch for the working tree.
+
 **No drift check ships.** gitlore guards its list with a suite that asserts
 every declared path exists and every top-level entry is declared or excluded. It
 reads gitlore's own justfile and its own exclusion list, so a shipped version

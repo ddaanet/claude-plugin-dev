@@ -82,8 +82,8 @@ echo "=== CLAUDE.md's Layout list matches toolkit/ ==="
 # LICENSE ships but carries no explanation worth a bullet. Migration notes are
 # one optional file per release, covered by the single `vX.Y.Z.md` pattern
 # bullet rather than named individually -- both mirror the exemptions in
-# tests/dist-tree-test.sh.
-shipped="$(git ls-files toolkit/ \
+# tests/dist-tree-test.sh. Read from disk, tracked or not, as that suite does.
+shipped="$(git ls-files --cached --others --exclude-standard toolkit/ \
     | grep -v '^toolkit/LICENSE$' \
     | grep -v '^toolkit/migrations/' \
     | sort)"

@@ -9,6 +9,9 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-18 — Precommit is cached, and its checks read disk](changelog/2026-10-18-disk-checks.md)
+  — `precommit` runs behind its own sentinel, and the checks that listed the
+  index list the files on disk, so a file staged after a cached pass is checked.
 - [2026-10-18 — A shipped reference check, `check-refs.sh`](changelog/2026-10-18-check-refs.md)
   — broken Markdown links refused from `precommit`, and a shipped file's link
   out of `dist.include` refused again by the dist build.

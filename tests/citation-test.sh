@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Refuses a `<name>.sh:<digits>`, `<name>.just:<digits>` or `justfile:<digits>`
-# citation into a tracked source file. Citing a script by line number rots the
+# citation into a source file on disk, tracked or not. Citing a script by line number rots the
 # moment either file is next edited: the number keeps parsing, and a reader who
 # follows it lands on different real code with no error raised. The
 # convention this check enforces -- cite the enclosing symbol plus a short
@@ -10,7 +10,9 @@
 # upstream ships its own version, while a check cannot become a stale
 # duplicate.
 #
-# Scope, and why: over `git ls-files -z`, excluding `plans/` and
+# Scope, and why: over `git ls-files -z -co --exclude-standard` -- the files on
+# disk the next `git add` can stage and the precommit sentinel hashes, so a
+# cached pass covers them -- excluding `plans/` and
 # `docs/changelog/` -- this repo's dated write-time records, which this
 # convention does not bind, per the design-and-changelog split in CLAUDE.md.
 #
@@ -74,9 +76,9 @@ assert_not_contains() {
 # never in this source.
 citation_pattern='([[:alnum:]_./-]+\.(sh|just)|justfile):[0-9]+'
 
-# Walks $1 (a git worktree root) over `git ls-files -z` -- NUL-delimited, so a
+# Walks $1 (a git worktree root) over its non-ignored files, tracked or not -- NUL-delimited, so a
 # path holding whitespace is still one path -- excluding plans/ and
-# docs/changelog/, and reports every line in a tracked file matching
+# docs/changelog/, and reports every line in such a file matching
 # $citation_pattern. Prints one block per hit, exits non-zero iff any hit was
 # found. Residual: a matched line itself containing an embedded NUL would
 # still mis-split; no tracked file in this repo does, and NUL-delimiting the
@@ -104,7 +106,7 @@ check_citations() {
             printf '    the forbidden forms, since an extension alone cannot tell a living\n'
             printf '    document from a frozen one.\n'
         done < <(grep -noE "$citation_pattern" -- "$f" 2>/dev/null || true)
-    done < <(git -C "$root" ls-files -z)
+    done < <(git -C "$root" ls-files -z --cached --others --exclude-standard)
     [ "$hits" -eq 0 ]
 }
 
@@ -125,6 +127,13 @@ printf '#!/usr/bin/env bash\n# see %s.%s:%s for the mechanism\n' \
     "$probe_name" "$probe_ext" "$probe_line" >"$fixture/plans/tracked.sh"
 git -C "$fixture" add tracked.sh plans/tracked.sh
 git -C "$fixture" commit -q -m fixture
+# On disk but not yet added: what a commit is about to stage, so it is checked.
+printf '#!/usr/bin/env bash\n# see %s.%s:%s for the mechanism\n' \
+    "$probe_name" "$probe_ext" "$probe_line" >"$fixture/untracked.sh"
+# Ignored: never committed, so never checked.
+printf '#!/usr/bin/env bash\n# see %s.%s:%s for the mechanism\n' \
+    "$probe_name" "$probe_ext" "$probe_line" >"$fixture/ignored.sh"
+printf 'ignored.sh\n' >"$fixture/.gitignore"
 
 fixture_out="$(check_citations "$fixture")" && fixture_rc=0 || fixture_rc=$?
 # Built at runtime, same reason as $citation_pattern above: "tracked.<ext>:2"
@@ -135,6 +144,10 @@ assert_contains "$fixture_out" "$expected_hit" \
     "self-fixture: reports the tracked planted citation"
 assert_not_contains "$fixture_out" "plans/tracked.sh" \
     "self-fixture: does not report the plans/-excluded planted citation"
+assert_contains "$fixture_out" "citation-not-allowed: untracked.${probe_ext}:2" \
+    "self-fixture: reports the planted citation in an untracked file"
+assert_not_contains "$fixture_out" "ignored.sh" \
+    "self-fixture: does not report the planted citation in an ignored file"
 [ "$fixture_rc" -ne 0 ] || fail "self-fixture: check_citations exited 0 with a planted citation present"
 
 echo "=== citation gate: this repo ==="
@@ -149,4 +162,4 @@ if [ "$failures" -ne 0 ]; then
     exit 1
 fi
 echo
-echo "citations ok (self-fixture discriminates tracked from plans/, no <script>.sh:<line> citation in tracked files outside plans/ and docs/changelog/)"
+echo "citations ok (self-fixture discriminates tracked from plans/, no <script>.sh:<line> citation in non-ignored files outside plans/ and docs/changelog/)"

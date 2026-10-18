@@ -1,13 +1,35 @@
 # claude-plugin-dev — toolkit dev recipes.
 
+# The toolkit's own gate sentinels, imported from the source tree rather than a
+# vendored copy, so `precommit` dogfoods the file it ships.
+import 'toolkit/gates.just'
+
+# The tools `precommit`'s verdict depends on that no input file pins: a new
+# shellcheck can find new problems, and every suite runs under bash, git, jq and
+# just. rumdl is pinned in pyproject.toml, an input, but the binary that runs is
+# whatever `format-docs` finds, so its version is hashed too, resolved the same
+# way.
+export PLUGIN_DEV_GATE_TOOLS := "bash --version\ngit --version\njust --version\njq --version\nshellcheck --version\n{ command -v rumdl >/dev/null 2>&1 && rumdl --version; } || .venv/bin/rumdl --version"
+
 _default:
     @just --list
 
-# Run all syntax + style checks on the toolkit's own scripts.
-precommit: whitespace format-docs
+# Run all syntax + style checks and every suite, skipped while no input changed.
+precommit:
+    #!{{ plugin_dev_gate_prolog }}
+    # The inputs are every non-ignored file, since the checks read essentially
+    # all of them (line-cap, citation, doc-sync, check-refs), all from disk.
+    # `memory` is excluded because it is a submodule gitlink, which hashes by
+    # name only: no edit inside it would move the hash. No check here reads it.
+    sentinel-guard precommit :/ ':(top,exclude)memory'
+    # The formatters run after the guard, so a cached run skips them, and
+    # before the re-hash, so the pass records the tree they leave.
+    just whitespace
+    just format-docs
+    hash-sentinel
     shellcheck -x toolkit/install.sh toolkit/version-guard.sh toolkit/check-version.sh toolkit/release.sh toolkit/release-preflight.sh toolkit/release-tags.sh toolkit/release-publish.sh toolkit/release-marketplace.sh toolkit/update.sh toolkit/dogfood.sh toolkit/dist.sh toolkit/check-refs.sh toolkit/check-refs-parse.sh toolkit/run-bats.sh toolkit/bin/claude scripts/self-release.sh
     bash toolkit/check-refs.sh --shipped toolkit
-    bash -n tests/version-guard-decision-test.sh tests/version-guard-wording-test.sh tests/version-guard-git-test.sh tests/check-version-test.sh tests/release-core-test.sh tests/release-core-root-skip-test.sh tests/release-resume-push-test.sh tests/release-resume-hint-test.sh tests/release-tree-test.sh tests/release-first-test.sh tests/release-lost-tag-test.sh tests/release-push-route-test.sh tests/release-tags-test.sh tests/release-rollback-test.sh tests/release-pipefail-test.sh tests/release-hint-size-test.sh tests/release-dist-publish-test.sh tests/release-dist-resume-test.sh tests/release-dist-refusal-test.sh tests/release-dist-optin-test.sh tests/self-release-publish-test.sh tests/self-release-refusal-test.sh tests/update-plugin-dev-test.sh tests/install-vendor-test.sh tests/install-settings-test.sh tests/install-legacy-test.sh tests/dist-tree-test.sh tests/dist-build-test.sh tests/dist-refusal-test.sh tests/dist-warning-test.sh tests/dist-subcommands-test.sh tests/docs-test.sh tests/doc-sync-test.sh tests/citation-test.sh tests/line-cap-test.sh tests/dogfood-sync-copy-test.sh tests/dogfood-sync-nested-test.sh tests/dogfood-sync-allowlist-test.sh tests/dogfood-sync-refusal-test.sh tests/dogfood-pre-tool-paths-test.sh tests/dogfood-pre-tool-jq-test.sh tests/dogfood-session-start-test.sh tests/dogfood-session-warn-test.sh tests/dogfood-launcher-exec-test.sh tests/dogfood-launcher-path-test.sh tests/run-bats-test.sh tests/gates-sentinel-test.sh tests/gates-guards-test.sh tests/gates-inputs-test.sh tests/gates-hash-test.sh tests/dogfood-launcher-bin-test.sh tests/check-refs-syntax-test.sh tests/check-refs-scan-test.sh tests/check-refs-shipped-test.sh
+    bash -n tests/version-guard-decision-test.sh tests/version-guard-wording-test.sh tests/version-guard-git-test.sh tests/check-version-test.sh tests/release-core-test.sh tests/release-core-root-skip-test.sh tests/release-resume-push-test.sh tests/release-resume-hint-test.sh tests/release-tree-test.sh tests/release-first-test.sh tests/release-lost-tag-test.sh tests/release-push-route-test.sh tests/release-tags-test.sh tests/release-rollback-test.sh tests/release-pipefail-test.sh tests/release-hint-size-test.sh tests/release-dist-publish-test.sh tests/release-dist-resume-test.sh tests/release-dist-refusal-test.sh tests/release-dist-optin-test.sh tests/self-release-publish-test.sh tests/self-release-refusal-test.sh tests/update-plugin-dev-test.sh tests/install-vendor-test.sh tests/install-settings-test.sh tests/install-legacy-test.sh tests/dist-tree-test.sh tests/dist-build-test.sh tests/dist-refusal-test.sh tests/dist-warning-test.sh tests/dist-subcommands-test.sh tests/docs-test.sh tests/doc-sync-test.sh tests/citation-test.sh tests/line-cap-test.sh tests/dogfood-sync-copy-test.sh tests/dogfood-sync-nested-test.sh tests/dogfood-sync-allowlist-test.sh tests/dogfood-sync-refusal-test.sh tests/dogfood-pre-tool-paths-test.sh tests/dogfood-pre-tool-jq-test.sh tests/dogfood-session-start-test.sh tests/dogfood-session-warn-test.sh tests/dogfood-launcher-exec-test.sh tests/dogfood-launcher-path-test.sh tests/run-bats-test.sh tests/gates-sentinel-test.sh tests/gates-guards-test.sh tests/gates-inputs-test.sh tests/gates-hash-test.sh tests/dogfood-launcher-bin-test.sh tests/check-refs-syntax-test.sh tests/check-refs-scan-test.sh tests/check-refs-shipped-test.sh tests/whitespace-test.sh
     just _import-check
     bash tests/version-guard-decision-test.sh
     bash tests/version-guard-wording-test.sh
@@ -63,7 +85,9 @@ precommit: whitespace format-docs
     bash tests/check-refs-syntax-test.sh
     bash tests/check-refs-scan-test.sh
     bash tests/check-refs-shipped-test.sh
-    @echo ok
+    bash tests/whitespace-test.sh
+    echo ok
+    record-sentinel
 
 # Checks that run before a release. Add slow or paid checks here.
 prerelease: precommit
@@ -100,14 +124,17 @@ outdated-consumers:
     done
     [ "$found" = 1 ] || echo "every sibling consumer is on $current"
 
-# Apply git stripspace to cached text files. Never blocks the recipe.
+# Apply git stripspace to text files on disk, tracked or not. Never blocks the recipe.
 whitespace:
     #!/usr/bin/env bash
     set -euo pipefail
-    while IFS= read -r f; do
+    # From disk, not the index: the files the gate hashes and the checks read,
+    # so a file added after a cached pass was fixed before it was hashed.
+    while IFS= read -r -d '' f; do
+        case "$f" in justfile | *.sh | *.md | *.just) ;; *) continue ;; esac
         # Listed but gone from the worktree: a deletion not yet staged, or one
         # staged but left out of a `git commit -- <paths>`, whose hook sees HEAD's index.
-        [ -e "$f" ] || continue
+        [ -f "$f" ] || continue
         tmp=$(mktemp)
         git stripspace < "$f" > "$tmp"
         if cmp -s "$f" "$tmp"; then
@@ -118,10 +145,16 @@ whitespace:
             # would also stage a mode change on any 755 script.
             cat "$tmp" > "$f"
             rm -f "$tmp"
-            git add "$f"
-            echo "whitespace: $f"
+            # A tracked file's fix is staged with it; an untracked file is
+            # fixed in place and left for the committer to add.
+            if [ -n "$(git ls-files -- ":(literal)$f")" ]; then
+                git add -- "$f"
+                echo "whitespace: $f"
+            else
+                echo "whitespace: $f (untracked, not staged)"
+            fi
         fi
-    done < <(git ls-files | grep -E '(^justfile$|\.(sh|md|just)$)')
+    done < <(git ls-files -z --cached --others --exclude-standard)
 
 # Hard-wrap prose in docs/ and plans/ at 80 columns, so a line count means something.
 format-docs:
