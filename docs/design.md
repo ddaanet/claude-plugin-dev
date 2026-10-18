@@ -234,10 +234,11 @@ the dated record of the reversal goes in the changelog.
   one shell command per line, since the set differs per consumer and a lockfile
   pins some of it.
 - **A pass is recorded only against the hash taken before the checks, and never
-  from a hash that failed** — moved inputs and an uncomputable hash alike leave
+  from a hash that failed** — the guard's, or the one an opt-in `hash-sentinel`
+  re-takes after a formatter; moved inputs and an uncomputable hash alike leave
   the checks' verdict standing and say the pass was not recorded.
-- **One guard per recipe body, enforced** — a second gate, a record with no
-  guard, no pathspec and a gate name holding a `/` are each refused.
+- **One guard per recipe body, enforced** — a second gate, a record or re-hash
+  with no guard, no pathspec and a gate name holding a `/` are each refused.
 - **Names are toolkit-neutral, with no aliases** — `PLUGIN_DEV_GATE_DIR`,
   `PLUGIN_DEV_GATE_FORCE`, the `plugin-dev/gates` gitdir path and the
   `plugin-dev-bats.` log prefix.

@@ -161,8 +161,9 @@ suite under a stub `id` printing 0, to pin its root guard),
 (`release.sh` publishing the `dist` branch),
 `self-release-{publish,refusal}-test.sh`, `update-plugin-dev-test.sh`,
 `run-bats-test.sh` (the quiet runner, against a stub `bats`),
-`gates-{sentinel,guards,inputs}-test.sh` (`gates.just`'s cache, its guards and
-the files it hashes, driven through real `just` recipes in a fixture consumer),
+`gates-{sentinel,guards,inputs,hash}-test.sh` (`gates.just`'s cache, its guards,
+the files it hashes and the re-hash after a formatter, driven through real
+`just` recipes in a fixture consumer),
 `install-{vendor,settings,legacy}-test.sh` (`install.sh`'s vendoring, settings
 wiring and legacy-entry migration),
 `dist-tree-test.sh` (the shipped-file list),

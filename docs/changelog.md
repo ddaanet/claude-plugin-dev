@@ -9,6 +9,9 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-18 — Gate sentinels: `hash-sentinel` re-hashes after a formatter](changelog/2026-10-18-hash-sentinel.md)
+  — a formatter after the guard records its pass in one run, and a cached run
+  skips it.
 - [2026-10-18 — Self-release: an unreadable origin refuses as itself](changelog/2026-10-18-self-release-probe-failure.md)
   — `require_prior_release_published` and the resume no-tag hint captured their
   `ls-remote` probes inside `[ -n "$(…)" ]`, so a failed probe read as an absent

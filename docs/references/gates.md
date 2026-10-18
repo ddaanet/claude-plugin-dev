@@ -138,6 +138,21 @@ stderr, and a failing line fails the hash.
   against the tree they read, so failing the recipe would report a failure that
   did not happen and make a concurrent edit break an unrelated commit; the cost
   of withholding the sentinel is one redundant run.
+- **A formatter's edits are re-hashed, not recorded blind.** A formatter that
+  rewrites inputs belongs after the guard, so a cached run skips it; but its
+  edits then move the inputs away from the guard's hash, and the rule above
+  withholds the pass until a second run finds nothing to format. The opt-in
+  `hash-sentinel`, called after the formatter and before the checks, re-takes
+  `guard_hash`. The rule still holds, because the checks start after the re-hash
+  and read the tree it describes; only the formatter, which vouches for nothing,
+  saw the tree before. Two alternatives were weighed. Recording the post-check
+  hash whenever it moved would drop the peer-edit protection for every gate.
+  Formatting as a dependency ahead of the guard keeps one run but formats on
+  every cached run too, which is the cost the cache exists to remove. A
+  `hash-sentinel` with no guard before it is refused, mirroring
+  `record-sentinel`, and a re-hash that fails empties `guard_hash`, so the
+  record refuses rather than falling back to the guard's pre-format hash. It
+  keeps the variable name `guard_hash`, which gitlore's `run-suites` reads.
 - **A hash that cannot be computed records nothing and says so.** A partial hash
   would match itself on the next run if the failure were deterministic. The
   recipe still passes, since the checks did; a cache that quietly stopped
@@ -167,9 +182,10 @@ stderr, and a failing line fails the hash.
   variables for `record-sentinel`, so a second gate in one body would clobber
   the first's state and record the wrong pass. gitlore documented this in a
   comment; the prolog refuses it, because a comment is read once and the
-  clobbering is silent. `record-sentinel` with no guard before it, a guard with
-  no pathspec (which would hash the whole repository) and a gate name holding a
-  `/` (which would write outside the gate directory) are refused likewise.
+  clobbering is silent. `record-sentinel` or `hash-sentinel` with no guard
+  before it, a guard with no pathspec (which would hash the whole repository)
+  and a gate name holding a `/` (which would write outside the gate directory)
+  are refused likewise.
 - **The sentinel lives under the gitdir.** Bookkeeping in the working tree would
   show in `git status` or in its own hash and invalidate the gate on every run.
   `git rev-parse --git-path` resolves per worktree, so a worktree has its own
