@@ -20,7 +20,7 @@ or removing a shipped file means updating the list in
 `tests/dist-tree-test.sh`, which fails otherwise.
 
 - `toolkit/release.just` — the recipes imported into consumer plugins'
-  justfiles: `release`, `resume-release`, `check-version`,
+  justfiles: `release`, `resume-release`, `check-version`, `check-refs`,
   `update-plugin-dev`, `dogfood`. Thin wrappers over the scripts beside
   it; not run from this repo directly.
 - `toolkit/release.sh` — the release flow itself. Validates state, bumps
@@ -48,7 +48,17 @@ or removing a shipped file means updating the list in
   allowlist at a consumer's root and builds, checks, validates and commits
   the tree holding only the listed paths; `release.sh` publishes it as the
   `dist` branch and `dogfood.sh sync` copies the same set. Not opted in, it
-  does nothing.
+  does nothing. Its build runs `check-refs.sh --tree` on the tree it built.
+- `toolkit/check-refs.sh` — refuses broken Markdown references: a link, image
+  or reference definition whose relative target is missing (outside the exempt
+  prefixes, `docs/changelog/` and `plans/` unless a root `refs.exempt` names
+  others), and, given a `dist.include` or `--shipped`, one from a shipped file
+  to an unshipped one. Reads every Markdown file on disk git does not ignore,
+  skipping `plugin-dev/` and submodules. This repo's `precommit` runs it with
+  `--shipped toolkit`; consumers wire `precommit: check-refs`. Executable in
+  the index, which `tests/dist-tree-test.sh` pins. Its two awk programs, the
+  Markdown reader and the existence test over the git listing, live in
+  `toolkit/check-refs-parse.sh`, which it sources from its own directory.
 - `toolkit/dogfood.sh` — the dogfood launcher's one script, with three
   subcommands. `sync` mirrors the plugin tree, minus git-ignored paths
   and every `.git`, into `dist/plugin/`, the copy the session loads;
@@ -120,12 +130,13 @@ or removing a shipped file means updating the list in
   manual is `toolkit/README.md`, and a change to the install or update
   flow has to land in both — `tests/doc-sync-test.sh` enforces that over
   the command blocks the two sections share.
-- `docs/design.md` — the design hub: motivation, requirements,
-  limitations, and a one-line conclusion per decision. States what the
+- `docs/design.md` — the design hub: motivation, requirements, and a
+  one-line conclusion per decision and per limitation. States what the
   toolkit *is*. Read it first and open only the node you need.
 - `docs/references/*.md` — one node per group of decisions (a large group may take more than one)
-  (`distribution`, `dist-branch`, `dogfood`, `dogfood-sync`, `gates`,
-  `release-flow`, `recovery`, `self-release`, `version-guard`), each holding the argument behind
+  (`distribution`, `dist-branch`, `check-refs`, `dogfood`, `dogfood-sync`,
+  `gates`, `release-flow`, `recovery`, `self-release`, `version-guard`, and
+  `limitations`, which argues the hub's one-line limitations), each holding the argument behind
   the hub's conclusions: alternatives weighed, the bug that motivated
   it, what it costs. A decision that changes is rewritten in both places.
 - `docs/changelog.md` — index of write-time records, newest first, one
@@ -147,7 +158,8 @@ or removing a shipped file means updating the list in
 just precommit
 ```
 
-Runs `bash -n` and `shellcheck` on the shell scripts, a private
+Runs `bash -n` and `shellcheck` on the shell scripts, `check-refs.sh
+--shipped toolkit` over this repo's own Markdown, a private
 `_import-check` that imports `release.just` into a stub consumer to
 catch justfile syntax errors (it imports `gates.just` beside it too), and then
 **every test under `tests/`** —
@@ -168,7 +180,9 @@ the files it hashes and the re-hash after a formatter, driven through real
 wiring and legacy-entry migration),
 `dist-tree-test.sh` (the shipped-file list),
 `dist-{build,refusal,warning,subcommands}-test.sh` (`dist.sh`'s allowlist,
-tree build, refusals, warnings and other subcommands), `docs-test.sh` (the
+tree build, refusals, warnings and other subcommands),
+`check-refs-{syntax,scan,shipped}-test.sh` (`check-refs.sh`: what a reference
+is, which files are read and exempt, and the shipped check), `docs-test.sh` (the
 400-line cap over `docs/`, plus pointer resolution over `docs/` and
 `plans/`; the cap is soft for plans and gated nowhere),
 `line-cap-test.sh` (the same 400-line cap over every other tracked file; a

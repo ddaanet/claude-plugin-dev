@@ -5,8 +5,9 @@ _default:
 
 # Run all syntax + style checks on the toolkit's own scripts.
 precommit: whitespace format-docs
-    shellcheck -x toolkit/install.sh toolkit/version-guard.sh toolkit/check-version.sh toolkit/release.sh toolkit/release-preflight.sh toolkit/release-tags.sh toolkit/release-publish.sh toolkit/release-marketplace.sh toolkit/update.sh toolkit/dogfood.sh toolkit/dist.sh toolkit/run-bats.sh toolkit/bin/claude scripts/self-release.sh
-    bash -n tests/version-guard-decision-test.sh tests/version-guard-wording-test.sh tests/version-guard-git-test.sh tests/check-version-test.sh tests/release-core-test.sh tests/release-core-root-skip-test.sh tests/release-resume-push-test.sh tests/release-resume-hint-test.sh tests/release-tree-test.sh tests/release-first-test.sh tests/release-lost-tag-test.sh tests/release-push-route-test.sh tests/release-tags-test.sh tests/release-rollback-test.sh tests/release-pipefail-test.sh tests/release-hint-size-test.sh tests/release-dist-publish-test.sh tests/release-dist-resume-test.sh tests/release-dist-refusal-test.sh tests/release-dist-optin-test.sh tests/self-release-publish-test.sh tests/self-release-refusal-test.sh tests/update-plugin-dev-test.sh tests/install-vendor-test.sh tests/install-settings-test.sh tests/install-legacy-test.sh tests/dist-tree-test.sh tests/dist-build-test.sh tests/dist-refusal-test.sh tests/dist-warning-test.sh tests/dist-subcommands-test.sh tests/docs-test.sh tests/doc-sync-test.sh tests/citation-test.sh tests/line-cap-test.sh tests/dogfood-sync-copy-test.sh tests/dogfood-sync-nested-test.sh tests/dogfood-sync-allowlist-test.sh tests/dogfood-sync-refusal-test.sh tests/dogfood-pre-tool-paths-test.sh tests/dogfood-pre-tool-jq-test.sh tests/dogfood-session-start-test.sh tests/dogfood-session-warn-test.sh tests/dogfood-launcher-exec-test.sh tests/dogfood-launcher-path-test.sh tests/run-bats-test.sh tests/gates-sentinel-test.sh tests/gates-guards-test.sh tests/gates-inputs-test.sh tests/gates-hash-test.sh tests/dogfood-launcher-bin-test.sh
+    shellcheck -x toolkit/install.sh toolkit/version-guard.sh toolkit/check-version.sh toolkit/release.sh toolkit/release-preflight.sh toolkit/release-tags.sh toolkit/release-publish.sh toolkit/release-marketplace.sh toolkit/update.sh toolkit/dogfood.sh toolkit/dist.sh toolkit/check-refs.sh toolkit/check-refs-parse.sh toolkit/run-bats.sh toolkit/bin/claude scripts/self-release.sh
+    bash toolkit/check-refs.sh --shipped toolkit
+    bash -n tests/version-guard-decision-test.sh tests/version-guard-wording-test.sh tests/version-guard-git-test.sh tests/check-version-test.sh tests/release-core-test.sh tests/release-core-root-skip-test.sh tests/release-resume-push-test.sh tests/release-resume-hint-test.sh tests/release-tree-test.sh tests/release-first-test.sh tests/release-lost-tag-test.sh tests/release-push-route-test.sh tests/release-tags-test.sh tests/release-rollback-test.sh tests/release-pipefail-test.sh tests/release-hint-size-test.sh tests/release-dist-publish-test.sh tests/release-dist-resume-test.sh tests/release-dist-refusal-test.sh tests/release-dist-optin-test.sh tests/self-release-publish-test.sh tests/self-release-refusal-test.sh tests/update-plugin-dev-test.sh tests/install-vendor-test.sh tests/install-settings-test.sh tests/install-legacy-test.sh tests/dist-tree-test.sh tests/dist-build-test.sh tests/dist-refusal-test.sh tests/dist-warning-test.sh tests/dist-subcommands-test.sh tests/docs-test.sh tests/doc-sync-test.sh tests/citation-test.sh tests/line-cap-test.sh tests/dogfood-sync-copy-test.sh tests/dogfood-sync-nested-test.sh tests/dogfood-sync-allowlist-test.sh tests/dogfood-sync-refusal-test.sh tests/dogfood-pre-tool-paths-test.sh tests/dogfood-pre-tool-jq-test.sh tests/dogfood-session-start-test.sh tests/dogfood-session-warn-test.sh tests/dogfood-launcher-exec-test.sh tests/dogfood-launcher-path-test.sh tests/run-bats-test.sh tests/gates-sentinel-test.sh tests/gates-guards-test.sh tests/gates-inputs-test.sh tests/gates-hash-test.sh tests/dogfood-launcher-bin-test.sh tests/check-refs-syntax-test.sh tests/check-refs-scan-test.sh tests/check-refs-shipped-test.sh
     just _import-check
     bash tests/version-guard-decision-test.sh
     bash tests/version-guard-wording-test.sh
@@ -59,6 +60,9 @@ precommit: whitespace format-docs
     bash tests/gates-inputs-test.sh
     bash tests/gates-hash-test.sh
     bash tests/dogfood-launcher-bin-test.sh
+    bash tests/check-refs-syntax-test.sh
+    bash tests/check-refs-scan-test.sh
+    bash tests/check-refs-shipped-test.sh
     @echo ok
 
 # Checks that run before a release. Add slow or paid checks here.
@@ -219,6 +223,14 @@ _import-check:
         exit 1
     fi
 
+    # `check-refs` runs the script alone, with no gate: the consumer's
+    # `precommit` depends on it, so a gate dependency here would be a cycle.
+    out=$(just --justfile "$tmp/plain/justfile" --dry-run check-refs 2>&1)
+    if [[ "$out" != 'bash "plugin-dev/check-refs.sh"' ]]; then
+        echo "error: check-refs ran more or less than check-refs.sh: $out" >&2
+        exit 1
+    fi
+
     # Missing `prerelease` must be a hard error naming the missing recipe --
     # this is the contract consumers are told about, so test it, don't assume.
     stub missing ""
@@ -238,4 +250,4 @@ _import-check:
     grep -q '^sentinel-guard () {' <<< "$out" \
         || { echo "error: gates.just did not expose the prolog beside release.just" >&2; exit 1; }
 
-    echo "release.just import: ok (plain + widened + missing gate, resume-release, dogfood, gates.just beside it)"
+    echo "release.just import: ok (plain + widened + missing gate, resume-release, dogfood, check-refs, gates.just beside it)"

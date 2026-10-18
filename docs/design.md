@@ -4,12 +4,11 @@ Living design document. Updated when meaningful design decisions land or get
 overturned. Not a changelog of features — a record of
 *why this project has the shape it has*.
 
-This file is the hub. It carries the motivation, the requirements, the
-limitations, and a one-line conclusion for every design decision. The argument
-behind each conclusion lives in a node under `references/`, linked from the
-group heading above it. Read the hub first and open only the node whose
-decisions you are about to touch — a whole-document read is neither needed nor
-intended.
+This file is the hub. It carries the motivation, the requirements, and one line
+for every design decision and every limitation. The argument behind each line
+lives in a node under `references/`, linked from the heading above it. Read the
+hub first and open only the node whose decisions you are about to touch — a
+whole-document read is neither needed nor intended.
 
 ## Motivation
 
@@ -64,6 +63,9 @@ versioned with each consumer.
 - Provide opt-in gate sentinels and a quiet bats runner, so a plugin's
   `precommit` can skip itself over an unchanged tree and print a bats run as
   failures and a count, without a plugin that wants neither seeing a change.
+- Provide a reference check a plugin's `precommit` runs: it refuses a Markdown
+  link whose target is missing, or one leading from a shipped file out of the
+  `dist.include` set, and the dist build refuses the second again.
 - **Reproducibility:** old consumer-plugin tags must build identically to when
   they were tagged — the toolkit content vendored at the time must be
   retrievable, not subject to drift.
@@ -248,6 +250,31 @@ the dated record of the reversal goes in the changelog.
 - **gitlore's per-suite bats cache stays out** — bats-specific and larger; a
   later opt-in.
 
+### The reference check — [references/check-refs.md](references/check-refs.md)
+
+- **`check-refs.sh` runs from the consumer's `precommit`, not only at release**
+  — a link breaks the day its target moves, and a release is days too late to
+  say which commit did it.
+- **A reference is a Markdown link, image or reference definition, never a
+  backticked path** — backticked paths name the reader's own files, examples and
+  removed files as often as live ones, and no shape tells them apart.
+- **Files are read from disk: every Markdown file git does not ignore, tracked
+  or not** — the gate cache fingerprints the disk, so a check reading the index
+  would cache a verdict on a tree it never read. `plugin-dev/` and submodules
+  are skipped. A target exists when the same listing holds it, so an ignored or
+  case-folded target is refused and an untracked one passes.
+- **Dated records and plans are exempt from resolving** — `docs/changelog/` and
+  `plans/` by default, a root `refs.exempt` in their place; a link to a file
+  deleted later is true history.
+- **Shipped stays shipped, with no exemption** — given a `dist.include`, a link
+  from a shipped file must reach a shipped file git lists. The set comes from
+  `dist.sh paths`, never a second parser. `dist.sh tree` checks the built tree
+  from the object store, so a link to an untracked file passes `precommit` and
+  refuses the release until committed.
+- **`release.just` gains a `check-refs` recipe that nothing depends on** — the
+  consumer adds `precommit: check-refs`, a dependency that runs ahead of any
+  gate guard on every call.
+
 ### This repo's own release — [references/self-release.md](references/self-release.md)
 
 - **The toolkit releases itself with a separate script** —
@@ -337,58 +364,26 @@ the dated record of the reversal goes in the changelog.
 - **Existing consumers migrate by a printed note** — `update.sh` does not re-run
   `install.sh`, and breaking the hand-copied shims is accepted.
 
-## Limitations
+## Limitations — [references/limitations.md](references/limitations.md)
 
-- **Hybrid Python+plugin repos (e.g. edify)** are out of scope. Their release
-  recipes need PyPI publish, dry-run, rollback, and version bumping via
-  `uv version` — different shape entirely. Wrapping edify-style flows into the
-  unified recipe would either require conditionals that obscure the main path,
-  or break edify outright. Edify keeps its bespoke recipe.
-- **`release` is not atomic, but it is recoverable.** The tag push,
-  `gh release create` and marketplace push are outward-facing and cannot be
-  rolled back, so any failure after the version commit leaves the plugin tagged
-  at the new version with a stale marketplace entry. That remains true. Its
-  consequence no longer is: `just resume-release` completes the release from
-  wherever it stopped. Recovery only ever moves forward to the version already
-  committed — rolling a release back is still out of scope.
-- **No automated propagation.** When the toolkit ships a new tag, each consumer
-  plugin must run `just update-plugin-dev dist-vX.Y.Z` individually. Adopting
-  changes is a deliberate per-consumer decision — by design, but worth being
-  explicit about.
-- **Subtree pull requires the toolkit URL be reachable.** Fully offline
-  development of consumers works, but updates need network.
-- **The version-guard hook fires only in consumers that ran `install.sh`.** A
-  consumer that vendored the toolkit but skipped installing the hook is
-  unprotected. Mitigation: `install.sh` does both in one step.
-- **Toolkit updates may require a consumer justfile edit.** Adopting a new
-  toolkit tag is not always a pure `git subtree pull` — the `prerelease` gate
-  landed as a required consumer-side recipe. Releases with such a step ship a
-  `migrations/vX.Y.Z.md` note that `update.sh` prints after the pull; the
-  upgrade itself never edits consumer files.
+What the toolkit does not do, or does only at a known cost. Each is argued in
+the node.
+
+- **Hybrid Python+plugin repos (e.g. edify) are out of scope.**
+- **`release` is not atomic, but it is recoverable.**
+- **No automated propagation.**
+- **Subtree pull requires the toolkit URL be reachable.**
+- **The version-guard hook fires only in consumers that ran `install.sh`.**
+- **Toolkit updates may require a consumer justfile edit.**
 - **The shipped scripts carry a high comment volume, accepted rather than
-  unnoticed.** Roughly half of `release.sh` and the sibling files it sources is
-  comment-only, much of it write-time record rather than contract. The `dist-`
-  tree ships no design doc or changelog, so a consumer reading the script has
-  none to reach for, and the record stays where the reader is. The cost is real:
-  a comment that retells an incident ages with the code around it and has to be
-  rewritten when the code moves.
+  unnoticed.**
 - **A dogfood session launched from a subdirectory runs without its project
-  hooks.** Claude Code reads project settings from the launch directory only, so
-  the copy loads but the copy guard, the `SessionStart` check and the
-  version-guard do not fire, and nothing reports it. The shim does not refuse;
-  the manual says to launch from the repo root.
-- **The dogfood sync is unprobed against macOS rsync.** Whether `openrsync` or
-  rsync 2.6.9 accepts the flags the sync combines is not established.
-- **Solo-author workflow assumed.** The toolkit is built around one maintainer's
-  plugins. Multi-contributor scenarios (e.g. forks proposing changes back to the
-  toolkit) work mechanically but haven't been ergonomics-tested.
-- **A gate's input list is partly unchecked.** A check reading outside the list
-  narrows the cache silently; only the manual's rule and its procedure for
-  proving a list stand against it. A pathspec matching nothing is refused.
-- **No standardised hook library yet.** The toolkit doesn't prescribe
-  shellcheck, trailing-whitespace, end-of-file-fixer, etc. for consumer plugins
-  — each consumer defines its own `precommit` recipe. May change if patterns
-  converge across enough consumers.
+  hooks.**
+- **The dogfood sync is unprobed against macOS rsync.**
+- **Solo-author workflow assumed.**
+- **A gate's input list is partly unchecked.**
+- **The reference check reads Markdown links and nothing else.**
+- **No standardised hook library yet.**
 
 ## History
 

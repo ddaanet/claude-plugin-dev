@@ -8,10 +8,10 @@ dotfiles).
 ## Contents
 
 - **`release.just`** — the recipes imported into the consumer's `justfile`:
-  `release`, `resume-release`, `check-version`, `update-plugin-dev` and
-  `dogfood`. All are one-line wrappers: `release` and `resume-release` around
-  `release.sh`, `update-plugin-dev` around `update.sh`, `dogfood` around
-  `dogfood.sh sync`.
+  `release`, `resume-release`, `check-version`, `check-refs`,
+  `update-plugin-dev` and `dogfood`. All are one-line wrappers: `release` and
+  `resume-release` around `release.sh`, `check-refs` around `check-refs.sh`,
+  `update-plugin-dev` around `update.sh`, `dogfood` around `dogfood.sh sync`.
 - **`update.sh`** — pulls a newer toolkit version into the consumer. With no ref
   it resolves the newest `dist-` tag from the remote. After the pull it prints
   the migration notes for every version crossed — guidance to apply by hand; an
@@ -29,6 +29,11 @@ dotfiles).
   `dogfood.sh`. It reads `dist.include` and builds, checks, validates and
   commits the tree holding only the listed paths. Not opted in, it does
   nothing. See [The dist branch](#the-dist-branch).
+- **`check-refs.sh`** — refuses a Markdown link whose target is missing, and,
+  with a `dist.include`, one from a shipped file to an unshipped one. Run from
+  `precommit`; the dist build runs it again on the tree it builds. Its parser
+  lives in `check-refs-parse.sh` beside it, which it sources. See
+  [Reference check](#reference-check).
 - **`check-version.sh`** — compares `plugin.json`'s version against the plugin's
   `marketplace.json` entry. Exposed as `just check-version` and run as a
   `release` pre-flight, so a release refuses to start on top of a previous one
@@ -208,6 +213,41 @@ release publish a `dist` branch holding only those paths, plus a `dist-vX.Y.Z`
 tag, and its marketplace entry follows that branch. Nothing changes for a
 plugin without one. How to opt in, and what each check refuses or warns about,
 is in [docs/dist-branch.md](docs/dist-branch.md).
+
+## Reference check
+
+`just check-refs` refuses a broken Markdown reference: a link, image or
+reference definition, `[text](target)`, `![alt](target)` or `[label]: target`,
+whose relative target, resolved beside the file that holds it, is not a file
+git lists (tracked, or untracked and not ignored) or a directory holding one.
+An ignored target is refused, a target above the repository root too, and the
+match is exact-case even on a case-insensitive disk. Links with a scheme, pure
+`#anchors`, root `/paths`, fenced code, inline code spans and HTML comments are
+not checked, and neither are backticked paths. It reads every Markdown file on
+disk that git does not ignore, tracked or not, apart from `plugin-dev/` and
+submodules. Wire it into the commit gate as a dependency, so it runs on every
+call, ahead of any gate guard:
+
+```just
+precommit: check-refs
+```
+
+Files under `docs/changelog/` and `plans/` are exempt, since a dated record's
+link to a file deleted later is still true. A `refs.exempt` at the root, one
+path per line with `#` comments, replaces that list; an empty one exempts
+nothing.
+
+With a `dist.include`, a link from a shipped file must also reach a shipped file
+that exists, exempt or not: the `dist` tree holds only the listed paths, and
+anything else dangles there. List the target in `dist.include`, or drop the
+link. `dist.sh` checks the tree it builds from the release commit as well, and
+the two differ in one case: a link to an untracked file passes `precommit`,
+which lets you link a file before adding it, and the release refuses it until
+it is committed. `plugin-dev/check-refs.sh --shipped
+<path>...` checks against the given paths instead of `dist.include`.
+
+Each broken reference is one line on stderr, `docs/a.md:12: target — reason`,
+and the exit is 1. A pass prints one line with the counts.
 
 ## Gate sentinels
 

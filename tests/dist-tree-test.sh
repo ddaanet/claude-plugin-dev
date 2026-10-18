@@ -33,6 +33,8 @@ LICENSE
 README.md
 VERSION
 bin/claude
+check-refs.sh
+check-refs-parse.sh
 check-version.sh
 dist.sh
 docs/dist-branch.md
@@ -94,6 +96,14 @@ if [ "$runner_mode" != "100755" ]; then
     fail "toolkit/run-bats.sh index mode is '$runner_mode', not 100755"
 fi
 
+# Consumers may call it as `plugin-dev/check-refs.sh` from a gate body, with no
+# `bash` before it, as they do the runner.
+echo "=== toolkit/check-refs.sh is executable in the index ==="
+refs_mode="$(git ls-files -s toolkit/check-refs.sh | cut -d' ' -f1)"
+if [ "$refs_mode" != "100755" ]; then
+    fail "toolkit/check-refs.sh index mode is '$refs_mode', not 100755"
+fi
+
 # Named separately from the exact-set check above: this is the specific
 # breakage consumers reported, and a bare `git submodule status` in a
 # consumer fatals repo-wide on an unregistered gitlink.
@@ -110,4 +120,4 @@ if [ "$failures" -ne 0 ]; then
     exit 1
 fi
 echo
-echo "dist tree ok ($(printf '%s\n' "$expected" | wc -l | tr -d ' ') files, bin/claude and run-bats.sh executable, no gitlink)"
+echo "dist tree ok ($(printf '%s\n' "$expected" | wc -l | tr -d ' ') files, bin/claude, run-bats.sh and check-refs.sh executable, no gitlink)"

@@ -43,6 +43,10 @@ alternatives that were rejected.
 - **`just check-version`** — `plugin.json` against its marketplace entry; also
   runs as a `release` pre-flight, so a release refuses to start on top of an
   unfinished one.
+- **`just check-refs`** — refuses a Markdown link whose target is missing, and
+  a shipped file's link out of `dist.include`; a plugin adds it to its own
+  `precommit` (nothing in `release.just` depends on it), see
+  [Reference check](toolkit/README.md#reference-check).
 - **`just update-plugin-dev [dist-vX.Y.Z]`** — pulls a newer toolkit version in
   and prints the migration notes for the range crossed.
 - **An opt-in `dist` branch** — a plugin that lists its shipped paths in

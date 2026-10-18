@@ -9,6 +9,9 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-18 — A shipped reference check, `check-refs.sh`](changelog/2026-10-18-check-refs.md)
+  — broken Markdown links refused from `precommit`, and a shipped file's link
+  out of `dist.include` refused again by the dist build.
 - [2026-10-18 — Gate sentinels: `hash-sentinel` re-hashes after a formatter](changelog/2026-10-18-hash-sentinel.md)
   — a formatter after the guard records its pass in one run, and a cached run
   skips it.

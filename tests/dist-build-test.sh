@@ -7,7 +7,8 @@
 #
 # Scope: dist.sh tree -- the allowlist builds exactly the listed paths: the commit
 # over the worktree, odd names, literal pathspecs, and the refusals for a gitlink,
-# a symlink, no manifest and a path matching nothing. Its siblings
+# a symlink, no manifest, a path matching nothing and a Markdown reference to a
+# path left out of the tree. Its siblings
 # dist-refusal-test.sh, dist-warning-test.sh and dist-subcommands-test.sh cover
 # the malformed-line refusals, the warnings and the other subcommands.
 #
@@ -325,6 +326,19 @@ set_include .claude-plugin skills README.md LICENSE nothere/file.md
 commit_fixture
 run_dist tree "$src"
 expect_refusal "listed path missing" "nothere/file.md"
+
+echo "=== tree: refuses a reference from the tree to a path left out of it ==="
+mk_repo
+mkdir -p "$repo/docs"
+printf '# design\n' > "$repo/docs/design.md"
+printf '\nSee [the design](docs/design.md).\n' >> "$repo/README.md"
+commit_fixture
+run_dist tree "$src"
+expect_refusal "reference out of the tree" "README.md:3: docs/design.md"
+set_include .claude-plugin skills README.md LICENSE docs
+commit_fixture
+run_dist tree "$src"
+expect_tree_ok "reference into a listed path"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2

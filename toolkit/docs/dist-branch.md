@@ -22,7 +22,10 @@ To opt in:
    ```
 
    Blank lines and lines starting with `#` are skipped, and a trailing `/` is
-   allowed. `dist.include` ships only if it lists itself.
+   allowed. `dist.include` ships only if it lists itself. A README that links
+   into `docs/` needs `docs` listed too, or the link dangles in the `dist`
+   tree. `just check-refs` finds such links at commit time; a link to a file
+   not yet committed passes it and still refuses the release.
 
 2. Commit it. A release reads the list from the release commit, not the
    worktree.
@@ -41,8 +44,11 @@ What each check does:
 - **Refuses the release** (no commit, no tag, nothing pushed): a listed path
   that matches nothing; a symlink or gitlink inside a listed path; no
   `.claude-plugin/plugin.json`, or one that is not JSON; `claude` missing from
-  PATH or a validation failure; `dist.include` present with `dist.sh` not
-  vendored beside `release.sh`, which `just update-plugin-dev` fixes.
+  PATH or a validation failure; a Markdown reference in the tree whose target
+  the tree does not hold, one `dist:` line each, as
+  [`check-refs`](../README.md#reference-check) reports it; `dist.include`
+  present with `dist.sh` not vendored beside `release.sh`, which
+  `just update-plugin-dev` fixes.
 - **Refuses a line** of `dist.include`, naming it: an absolute path; a `..`, `.`
   or `.git` component; an empty component; a leading or trailing blank; any of
   `*`, `?`, `[`, `]` or a backslash, since paths are literal; a CRLF file.
