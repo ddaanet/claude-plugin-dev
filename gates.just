@@ -11,6 +11,8 @@
 #     precommit:
 #         #!{{ plugin_dev_gate_prolog }}
 #         sentinel-guard precommit .claude-plugin hooks scripts tests
+#         just format
+#         hash-sentinel
 #         shellcheck scripts/*.sh
 #         plugin-dev/run-bats.sh tests/*.bats
 #         record-sentinel
@@ -20,10 +22,13 @@
 #   sentinel-guard <gate> <pathspec>...   first line of the body; exits the
 #                                         recipe 0, reporting "cached", when the
 #                                         inputs match the last recorded pass
+#   hash-sentinel                         after a formatter that may rewrite
+#                                         inputs, before the checks; re-takes
+#                                         the hash record-sentinel records
 #   record-sentinel                       last line of the body; records the pass
 #   check-sentinel <gate> <pathspec>...   the guard without the exit, for a body
 #                                         that wants to branch on it
-#   gate-inputs-hash                      the cksum the other three compare
+#   gate-inputs-hash                      the cksum the others compare
 #
 # Environment:
 #
@@ -68,7 +73,7 @@ sentinel-guard () {
 # quietly stopped caching is the failure nobody hears about.
 #
 # The pass is recorded only against the hash `check-sentinel` took before the
-# checks started. A peer session editing an input mid-run moves the hash, and
+# checks started, or `hash-sentinel` re-took after a formatter. A peer session editing an input mid-run moves the hash, and
 # recording the new one would seal in a pass for a tree nothing checked. The
 # checks themselves passed -- the body is a script under errexit and got here --
 # so the recipe keeps their verdict and only the sentinel is withheld.
@@ -89,6 +94,21 @@ record-sentinel () {
         return
     fi
     printf '%s\n' "$hash" > "$sentinel"
+}
+
+# Optional, between a formatter and the checks. A formatter placed after the
+# guard is skipped on a cached run, but its edits move the inputs away from the
+# hash the guard took, so `record-sentinel` would refuse the pass. Re-taking the
+# hash here records the formatted tree instead, in the same run. The checks
+# start after this line, so the hash still describes the tree they read; only
+# the formatter, which is not a check, saw the tree before it. A hash that
+# cannot be computed empties `guard_hash`, and `record-sentinel` then refuses.
+hash-sentinel () {
+    if [ -z "${sentinel:-}" ]; then
+        echo "hash-sentinel: no sentinel-guard ran earlier in this recipe body" >&2
+        exit 1
+    fi
+    guard_hash=$(gate-inputs-hash) || guard_hash=""
 }
 
 # Gate name, then input pathspecs. Sets `sentinel_dir`, `sentinel`, `gate_cwd`,

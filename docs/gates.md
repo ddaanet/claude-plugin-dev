@@ -38,7 +38,8 @@ prerelease: precommit
 
 A shebang recipe is one bash script run with `set -euo pipefail`, not a line per
 command, and just still interpolates `{{ }}` in it. Dependencies
-(`precommit: format-docs`) run first, as for any recipe, and every time.
+(`precommit: format-docs`) run first, as for any recipe, and every time; a
+formatter moves into the body instead, as below.
 
 The sentinel is a file under the gitdir (`git rev-parse --git-path
 plugin-dev/gates/<gate>`), so it never shows in `git status` or in its own hash,
@@ -64,10 +65,39 @@ files below it, and so does `':(top,exclude)docs'`, which anchors the exclude
 and not the listing. A gate over the whole repository minus `docs` lists
 `:/` beside the exclude: `:/ ':(top,exclude)docs'`, or `:/ ':/!docs'`.
 
+### A formatter in the gate
+
+A formatter that rewrites inputs, run as a dependency, runs on every call,
+cached or not. Moved after the guard, it is skipped on a cached run, but its
+edits move the inputs away from the hash the guard took, and the pass is not
+recorded until a second run finds nothing to format. `hash-sentinel` closes
+that: placed after the formatter and before the checks, it re-takes the hash, so
+`record-sentinel` records the formatted tree in the same run.
+
+```just
+precommit:
+    #!{{ plugin_dev_gate_prolog }}
+    sentinel-guard precommit .claude-plugin hooks scripts tests
+    just format
+    hash-sentinel
+    shellcheck scripts/*.sh
+    plugin-dev/run-bats.sh tests/*.bats
+    record-sentinel
+```
+
+The checks still read the tree that is recorded: they start after the re-hash,
+and only the formatter saw the tree before it. Nothing but a formatter belongs
+between the guard and `hash-sentinel`, since whatever runs there is not vouched
+for by the hash recorded. It is refused with no guard before it, and a re-hash
+that fails leaves `record-sentinel` refusing the pass as for any hash that
+cannot be computed. A cached run skips the formatter too, so list its version
+in `PLUGIN_DEV_GATE_TOOLS`: a new release that wraps differently then reruns
+the gate instead of leaving the tree as the old one formatted it.
+
 ### What is never recorded
 
-`record-sentinel` records the hash taken before the checks ran, and records
-nothing when it cannot vouch for it:
+`record-sentinel` records the hash taken before the checks ran, by the guard or
+by `hash-sentinel`, and records nothing when it cannot vouch for it:
 
 - **The inputs moved during the run** (another session edited one): the recipe
   prints `inputs changed while the checks ran; the pass was NOT recorded` and
@@ -84,8 +114,8 @@ nothing when it cannot vouch for it:
 
 `sentinel-guard` leaves shell variables behind for `record-sentinel`, so a
 second guard in the same body would overwrite the first's. The prolog refuses
-it (`each gate needs its own recipe`), and `record-sentinel` with no guard
-before it. Split gates into recipes, each with its own guard and its own
+it (`each gate needs its own recipe`), and `record-sentinel` or `hash-sentinel`
+with no guard before it. Split gates into recipes, each with its own guard and its own
 pathspecs, and have `precommit` depend on them:
 
 ```just
