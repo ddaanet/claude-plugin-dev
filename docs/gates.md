@@ -166,6 +166,13 @@ your checks name, a plugin almost always needs:
 - `.claude-plugin`, and `.claude/settings.json` if a check reads it.
 - Test helpers and fixtures, which sit beside the suites that load them.
 
+The hash reads the files on disk, tracked or not, so a check must pick its files
+the same way: `git ls-files -co --exclude-standard`, and execute bits from disk
+with `[ -x ]`. A check that lists the index (`git ls-files` alone, or `-s`
+modes) starts reading a file when it is added, which does not move the hash: a
+pass recorded while the file was untracked stays cached, and the file commits
+unchecked.
+
 Name the paths; do not hash the whole tree. Naming keeps the sandbox's phantom
 home dotfiles, scratch directories and build output out of the hash. The
 pathspecs are shell words in the recipe, so a path with whitespace in it needs
