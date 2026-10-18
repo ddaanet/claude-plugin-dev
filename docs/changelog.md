@@ -9,6 +9,10 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-18 — Self-release: an unreadable origin refuses as itself](changelog/2026-10-18-self-release-probe-failure.md)
+  — `require_prior_release_published` and the resume no-tag hint captured their
+  `ls-remote` probes inside `[ -n "$(…)" ]`, so a failed probe read as an absent
+  tag and the hint listed published tags as missing.
 - [2026-10-16 — Gate sentinels: a fourth review, before release](changelog/2026-10-16-gate-sentinel-fourth-review.md)
   — the guard exempts the short top-anchored excludes, the pathspec and
   runner-option docs are corrected, and the link tests gain `chmod -x` and

@@ -80,12 +80,16 @@ require_prior_release_published() {
     # No local tag at this version means no release was ever cut here: a fresh
     # clone, or a repo predating the tagging scheme. Nothing to strand.
     git rev-parse -q --verify "refs/tags/$prior" >/dev/null || return 0
-    # A failed ls-remote dies inside the substitution, which only ends the
-    # subshell -- git's own message reaches stderr and the empty result reads
-    # as "missing". That direction is the safe one: it refuses a release it
-    # could not prove was needed, rather than bumping past an unfinished one.
-    [ -n "$(ls_remote_sha "refs/tags/$prior")" ] || missing+=("$prior")
-    [ -n "$(ls_remote_sha "refs/tags/$dist")" ] || missing+=("$dist")
+    # Each probe is captured into a variable, never tested inline: a failed
+    # ls-remote dies inside the substitution, which only ends the subshell, so
+    # a `[ -n "$(ls_remote_sha ...)" ]` reads the failure as "absent" and the
+    # hint below would list tags that are published as missing. `|| exit 1`
+    # ends the script instead; die has already named the failed probe.
+    local prior_sha dist_sha
+    prior_sha=$(ls_remote_sha "refs/tags/$prior") || exit 1
+    dist_sha=$(ls_remote_sha "refs/tags/$dist") || exit 1
+    [ -n "$prior_sha" ] || missing+=("$prior")
+    [ -n "$dist_sha" ] || missing+=("$dist")
     gh release view "$prior" >/dev/null 2>&1 \
         || missing+=("the GitHub release for $prior")
     if [ "${#missing[@]}" -eq 0 ]; then
@@ -159,6 +163,7 @@ release_preflight() {
 }
 
 resume_preflight() {
+    local remote_tag
     V="$file_version"
     tag="v$V"
     dist_tag="dist-$tag"
@@ -166,10 +171,11 @@ resume_preflight() {
     # locally. No tag means no release was started at this version, and tagging
     # HEAD on a guess would tag whatever work landed since.
     git rev-parse -q --verify "refs/tags/$tag" >/dev/null || {
-        # The refusal is already decided; the probe below only picks which hint
-        # explains it, so an unreadable origin falling through to the second
-        # branch costs a less precise message and nothing else.
-        if [ -n "$(ls_remote_sha "refs/tags/$tag")" ]; then
+        # The refusal is already decided; the probe only picks which hint
+        # explains it. Captured rather than tested inline, so an unreadable
+        # origin refuses as itself instead of reading as "no release started".
+        remote_tag=$(ls_remote_sha "refs/tags/$tag") || exit 1
+        if [ -n "$remote_tag" ]; then
             printf 'hint: origin already has %s -- this clone is just missing it.\n' "$tag" >&2
             # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
             printf '      run `git fetch --tags`, then run `just resume-release`.\n' >&2

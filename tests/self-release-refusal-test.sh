@@ -348,8 +348,15 @@ new_sandbox
 git -C "$repo" remote set-url origin "$sandbox/does-not-exist.git"
 run minor
 assert_eq "$rc" 1 "dead origin: exit status"
-assert_contains "$out" "release v0.1.0 is unfinished" "dead origin: refuses"
+# The refusal is the probe failure itself. A failed ls-remote is not evidence
+# that the tags are absent, so neither the missing-list hint nor the "unfinished"
+# verdict may appear -- they would name v0.1.0, dist-v0.1.0 and the GitHub
+# release as unpublished when all three are.
+assert_contains "$out" "git ls-remote origin refs/tags/v0.1.0 failed" "dead origin: names the probe failure"
+assert_not_contains "$out" "not fully published. Missing:" "dead origin: no missing-list hint"
+assert_not_contains "$out" "is unfinished" "dead origin: no unfinished verdict"
 refute_tag v0.2.0 "dead origin"
+assert_gh_untouched "dead origin"
 # A resume that cannot read origin must not re-cut the dist tag on a guess:
 # a local tag differing from the published one is a dead end, since push_tag
 # then refuses to move it and says nothing about how to clear it.
@@ -362,6 +369,15 @@ git -C "$repo" remote set-url origin "$sandbox/does-not-exist.git"
 run --resume
 assert_eq "$rc" 1 "dead origin on resume: exit status"
 refute_tag dist-v0.2.0 "dead origin on resume"
+# The no-tag hint probes origin to pick its wording; an unreadable origin must
+# refuse as the probe failure, not claim "no release was started".
+new_sandbox
+git -C "$repo" tag -d v0.1.0 >/dev/null
+git -C "$repo" remote set-url origin "$sandbox/does-not-exist.git"
+run --resume
+assert_eq "$rc" 1 "dead origin, no local tag: exit status"
+assert_contains "$out" "git ls-remote origin refs/tags/v0.1.0 failed" "dead origin, no local tag: names the probe failure"
+assert_not_contains "$out" "no release was started" "dead origin, no local tag: no guessed hint"
 
 if [ "$failures" -eq 0 ]; then
     echo "self-release.sh: ok"

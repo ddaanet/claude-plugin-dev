@@ -59,7 +59,9 @@ already gives consumers — a prerelease that passed must not have to run again 
 finish the release it gated. Plus the guard that closes the hole above: a bump
 is refused while the version currently in `toolkit/VERSION` is tagged locally
 but missing either tag on origin or its GitHub release, and the refusal names
-what is missing.
+what is missing. A probe that cannot read origin is not an absence: each
+`ls-remote` is captured into a variable and a failure ends the run as itself, so
+the missing-list hint never names a tag that was only unreachable.
 
 The consumer script has no equivalent guard because it does not need one:
 `release_preflight` reads the version from `plugin.json`, and a half-landed
