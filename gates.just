@@ -48,7 +48,7 @@
 # correctly only while every check it runs reads inside it. The justfile and the
 # vendored `plugin-dev` tree are always hashed too, as absolute paths apart from
 # the list, so an exclude in the list never subtracts from them. A pathspec that
-# matches no file is refused. See plugin-dev/docs/gates.md before choosing one.
+# matches no file is refused. See plugin-dev/manual/gates.md before choosing one.
 
 [private]
 plugin_dev_gate_prolog := "/usr/bin/env bash\nset -euo pipefail\n" + "gate_builtins=(" + quote(justfile()) + " " + quote(source_directory()) + ")\n" + '''

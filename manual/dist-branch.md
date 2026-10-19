@@ -22,10 +22,14 @@ To opt in:
    ```
 
    Blank lines and lines starting with `#` are skipped, and a trailing `/` is
-   allowed. `dist.include` ships only if it lists itself. A README that links
-   into `docs/` needs `docs` listed too, or the link dangles in the `dist`
-   tree. `just check-refs` finds such links at commit time; a link to a file
-   not yet committed passes it and still refuses the release.
+   allowed. `dist.include` ships only if it lists itself. Keep user
+   documentation and design material apart: put what a user reads in `manual/`
+   and list `manual`; never list `docs`, where design records live, since
+   listing it ships them. The README links into `manual/` relatively, and
+   reaches design by at most one absolute URL, in a Development line. A
+   relative link into an unlisted directory dangles in the `dist` tree.
+   `just check-refs` finds such links at commit time; a link to a file not yet
+   committed passes it and still refuses the release.
 
 2. Commit it. A release reads the list from the release commit, not the
    worktree.
