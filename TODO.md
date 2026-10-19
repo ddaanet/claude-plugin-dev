@@ -6,4 +6,5 @@
 - scripts/self-release.sh common_preflight refuses a dirty tree with a bare "uncommitted changes" naming no path, while toolkit/release-preflight.sh report_dirty names them; make the self-release name the offending paths.
 - `just format-docs` runs rumdl over docs/ and plans/ only, so the shipped manual (toolkit/README.md, toolkit/docs/, toolkit/migrations/) is never reflowed and its 400-line count is measured on hand wrapping; widen the recipe's scope.
 - tests/docs-test.sh resolves docs/ and plans/ pointers with its own grep, which reads links inside inline code spans; check-refs.sh now covers the same ground over every Markdown file, so drop that half of docs-test or point it at check-refs.
+- gitlore's dist.include ships all of `scripts/`, which holds its own gate tooling beside the runtime scripts; decide per-file entries or moving the tooling (found in the 0.12 patch-rework triage, tmp/patch-rework/triage.md).
 - memory/MEMORY.md is over its byte budget (105%), so its tail is truncated at load: run /gitlore:index-audit when my human partner asks for it.
