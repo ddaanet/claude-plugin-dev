@@ -95,15 +95,17 @@ or removing a shipped file means updating the list in
   disk, which `tests/dist-tree-test.sh` pins.
 - `toolkit/README.md` — the consumer-facing manual, shipped in the dist
   tree. The place a plugin maintainer reads; keep it in step with the
-  scripts above.
-- `toolkit/docs/dist-branch.md` — the manual's dist-branch chapter: how a
+  scripts above. Its chapters live in the `manual` directory, which holds user
+  documentation and ships; `docs/` holds design and never does, and the
+  README reaches it by one absolute URL at most.
+- `toolkit/manual/dist-branch.md` — the manual's dist-branch chapter: how a
   plugin opts in with `dist.include`, and what each check refuses or warns
   about. Split out of `toolkit/README.md`, which keeps a stub section
   pointing here, so the manual stays under the 400-line cap.
-- `toolkit/docs/dogfood.md` — the manual's dogfooding chapter: setup of the
+- `toolkit/manual/dogfood.md` — the manual's dogfooding chapter: setup of the
   shim and the copy, launching, promoting changes, and the two dogfood hooks.
   `toolkit/README.md` keeps a stub section pointing here.
-- `toolkit/docs/gates.md` — the manual's gate-sentinel chapter: the prolog, how
+- `toolkit/manual/gates.md` — the manual's gate-sentinel chapter: the prolog, how
   to choose the input pathspecs so a cached pass stays true, the tool-version
   list and the quiet runner. `toolkit/README.md` keeps a stub section pointing
   here.

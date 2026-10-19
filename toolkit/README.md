@@ -160,7 +160,7 @@ git add plugin-dev justfile .claude/settings.json
 git commit -m "add claude-plugin-dev toolkit"
 ```
 
-Then follow [Dogfooding](#dogfooding) → [Setup](docs/dogfood.md#setup), which
+Then follow [Dogfooding](#dogfooding) → [Setup](manual/dogfood.md#setup), which
 ends with a first `just dogfood`. The `SessionStart` hook the install wired
 warns on every session until the shim is on PATH, the sync refuses to run until
 git ignores the copy, and a launch before `just dogfood` has created it starts
@@ -212,7 +212,7 @@ A plugin that lists its shipped paths in a `dist.include` at its root has each
 release publish a `dist` branch holding only those paths, plus a `dist-vX.Y.Z`
 tag, and its marketplace entry follows that branch. Nothing changes for a
 plugin without one. How to opt in, and what each check refuses or warns about,
-is in [docs/dist-branch.md](docs/dist-branch.md).
+is in [manual/dist-branch.md](manual/dist-branch.md).
 
 ## Reference check
 
@@ -256,7 +256,7 @@ itself when the files it reads are unchanged, and `run-bats.sh` prints a bats
 run as failures and a count. A plugin that imports neither is unaffected, and
 the `precommit` and `prerelease` contract does not change. How to choose the
 inputs so a cached pass stays true, and how to convert an existing `precommit`,
-is in [docs/gates.md](docs/gates.md) and
+is in [manual/gates.md](manual/gates.md) and
 `plugin-dev/migrations/v0.11.0.md`.
 
 ## Dogfooding
@@ -266,7 +266,7 @@ edit to it, so the dogfood launcher loads the plugin from a copy at
 `dist/plugin/` instead: agents edit the source, and the copy changes only when
 you run `just dogfood`. Setting up the shim and the copy, launching, what each
 kind of change needs to go live, and the two dogfood hooks are in
-[docs/dogfood.md](docs/dogfood.md), whose [Setup](docs/dogfood.md#setup) is the
+[manual/dogfood.md](manual/dogfood.md), whose [Setup](manual/dogfood.md#setup) is the
 first step after an install. A plugin that vendored the toolkit before the
 launcher shipped takes the steps in `plugin-dev/migrations/v0.9.0.md`.
 

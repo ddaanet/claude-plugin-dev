@@ -261,7 +261,7 @@ else
     echo "  2. Commit the changes:"
     echo "     git add $TOOLKIT_PREFIX justfile .claude/settings.json"
     echo "     git commit -m 'add claude-plugin-dev toolkit'"
-    echo "  3. Set up the dogfood launcher: $TOOLKIT_PREFIX/docs/dogfood.md,"
+    echo "  3. Set up the dogfood launcher: $TOOLKIT_PREFIX/manual/dogfood.md,"
     echo "     section Setup. Until then the SessionStart check"
     echo "     warns on every session."
     echo "  4. Create the copy the session loads, then launch claude from the"

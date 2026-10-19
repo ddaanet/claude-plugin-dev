@@ -37,9 +37,9 @@ check-refs.sh
 check-refs-parse.sh
 check-version.sh
 dist.sh
-docs/dist-branch.md
-docs/dogfood.md
-docs/gates.md
+manual/dist-branch.md
+manual/dogfood.md
+manual/gates.md
 dogfood.sh
 gates.just
 install.sh

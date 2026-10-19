@@ -171,14 +171,14 @@ assert_contains "$err" "has a .. component" "malformed dist.include: dist.sh's r
 
 echo "=== --shipped replaces dist.include ==="
 mk_plugin
-put toolkit/README.md '[man](docs/a.md) [repo](../docs/design.md)'
-put toolkit/docs/a.md '[back](../README.md)'
+put toolkit/README.md '[man](manual/a.md) [repo](../docs/design.md)'
+put toolkit/manual/a.md '[back](../README.md)'
 put README.md '[hub](docs/design.md) [kit](toolkit/README.md)'
 run_check --shipped toolkit
 assert_eq "$rc" "1" "--shipped: exit code"
 assert_contains "$err" "toolkit/README.md:1: ../docs/design.md — is not shipped" "--shipped: the listed tree is checked"
 assert_not_contains "$err" "README.md:1: docs/design.md" "--shipped: dist.include's README.md is no longer shipped"
-put toolkit/README.md '[man](docs/a.md)'
+put toolkit/README.md '[man](manual/a.md)'
 run_check --shipped toolkit/ .claude-plugin
 assert_eq "$rc" "0" "--shipped, two paths: exit code"
 assert_contains "$out" "shipped stays shipped" "--shipped, two paths: the check ran"

@@ -124,6 +124,26 @@ another sha is refused and never moved, and both are probed before the branch is
 pushed, so a conflicting tag leaves nothing pushed rather than a branch ahead of
 a tag that cannot follow it.
 
+## The manual ships, the design does not
+
+A shipped README needs somewhere to send a user for the long form, and a plugin
+has design material it does not want in front of users or in the directory's
+review. Listing `docs` to satisfy a README link would ship the design with it;
+leaving the link dangles it in the `dist` tree, which `check-refs` refuses. So
+the two are kept in different directories by role: `manual/` holds what a user
+reads, is listed in `dist.include` and is linked relatively, and `docs/` holds
+design and rationale, is never listed, and is reached from the README by one
+absolute URL in a Development line, which `check-refs` skips as a scheme link.
+One URL keeps the README from becoming an index of unshipped pages that would
+each need an exemption.
+
+The convention is a recommendation in the manual, not a check: a plugin that
+lists `docs` ships its design and nothing refuses it, since only the plugin
+knows which of its pages are meant to ship. The toolkit applies it to itself.
+Its chapters moved from `toolkit/docs/` to `toolkit/manual/`, which the
+consumer's tree shows as `plugin-dev/manual/`, so the shipped directory is named
+for what it holds and the repo's own `docs/` stays the design.
+
 ## When the script is missing
 
 `release.sh` and `dogfood.sh sync` both refuse when `dist.include` exists and

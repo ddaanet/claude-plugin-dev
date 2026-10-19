@@ -9,6 +9,9 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-19 — `toolkit/docs` becomes `toolkit/manual`](changelog/2026-10-19-toolkit-manual.md)
+  — user documentation ships in `manual/` and design stays in `docs/`; the
+  manual recommends the split to consumers.
 - [2026-10-18 — Precommit is cached, and its checks read disk](changelog/2026-10-18-disk-checks.md)
   — `precommit` runs behind its own sentinel, and the checks that listed the
   index list the files on disk, so a file staged after a cached pass is checked.

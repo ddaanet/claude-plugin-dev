@@ -213,6 +213,11 @@ the dated record of the reversal goes in the changelog.
 - **A missing `dist.sh` beside a plugin with `dist.include` is a refusal** — in
   the release and in the dogfood sync alike, never a release or copy without the
   list.
+- **User documentation ships in `manual/`; design stays in `docs/` and never
+  ships** — a plugin lists `manual` and never `docs`, its README links into
+  `manual/` relatively and reaches design by at most one absolute URL, in a
+  Development line. The toolkit follows its own rule: `toolkit/manual/` holds
+  the chapters, `docs/` the design.
 
 ### Gate sentinels — [references/gates.md](references/gates.md)
 
