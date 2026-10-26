@@ -156,7 +156,7 @@ whitespace:
         fi
     done < <(git ls-files -z --cached --others --exclude-standard)
 
-# Hard-wrap prose in docs/ and plans/ at 80 columns, so a line count means something.
+# Hard-wrap prose in docs/, plans/ and the shipped manual at 80 columns, so a line count means something.
 format-docs:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -182,7 +182,7 @@ format-docs:
     }
     # `fmt` exits 0 with anything it cannot wrap left in place; `check --fix`
     # would exit 1 on the same tree and fail the gate over a long URL.
-    "$bin" fmt --no-cache docs plans
+    "$bin" fmt --no-cache docs plans toolkit/README.md toolkit/manual toolkit/migrations
 
 # Overridable so a test can stand in a stub: `just rumdl=/path/to/stub format-docs`.
 rumdl := "rumdl"

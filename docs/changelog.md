@@ -9,6 +9,10 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-26 — `format-docs` reflows the shipped manual](changelog/2026-10-26-format-docs-manual.md)
+  — `toolkit/README.md`, `toolkit/manual/` and `toolkit/migrations/` join
+  `docs/` and `plans/` under rumdl, so their line count is measured on a
+  reflowed wrap.
 - [2026-10-19 — `toolkit/docs` becomes `toolkit/manual`](changelog/2026-10-19-toolkit-manual.md)
   — user documentation ships in `manual/` and design stays in `docs/`; the
   manual recommends the split to consumers.

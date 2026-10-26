@@ -26,7 +26,7 @@ cd "$(dirname "$0")/.."
 max_lines=400
 status=0
 
-# Every markdown file under the paths `format-docs` wraps, untracked ones
+# Every markdown file under `docs/` and `plans/`, untracked ones
 # included (`-co`): a draft has to fail the cap while it is being written,
 # not on the commit that tracks it. NUL-delimited, so a path containing
 # whitespace is one path.

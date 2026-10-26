@@ -152,8 +152,9 @@ or removing a shipped file means updating the list in
   promoting it into `plans/`. Root-level, so it is not shipped.
 - `pyproject.toml`, `.rumdl.toml`, `.envrc` — dev tooling, not a Python
   package and not shipped. `uv sync` materializes `.venv`, direnv puts
-  it on PATH, and `just format-docs` runs rumdl over `docs/` and
-  `plans/`.
+  it on PATH, and `just format-docs` runs rumdl over `docs/`, `plans/` and
+  the shipped manual: the toolkit README and the
+  manual and migrations directories beside it.
 
 ## Quality gate
 
