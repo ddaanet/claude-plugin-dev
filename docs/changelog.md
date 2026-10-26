@@ -9,6 +9,9 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-26 — `docs-test.sh` leaves link resolution to `check-refs.sh`](changelog/2026-10-26-docs-test-drops-pointer-check.md)
+  — the cap over `docs/` is all it checks now; `plans/` and `docs/changelog/`
+  lose link checking, being exempt from `check-refs.sh` on purpose.
 - [2026-10-26 — `format-docs` reflows the shipped manual](changelog/2026-10-26-format-docs-manual.md)
   — `toolkit/README.md`, `toolkit/manual/` and `toolkit/migrations/` join
   `docs/` and `plans/` under rumdl, so their line count is measured on a

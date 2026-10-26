@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Hygiene over `docs/` and `plans/`: the line cap over `docs/`, and the
-# pointers the split design doc depends on, over both.
+# Hygiene over `docs/`: the 400-line cap.
 #
 # The cap is 400 lines, and it only means anything because `just format-docs`
 # hard-wraps these paths at 80 columns first: without the wrap a file stays
@@ -12,13 +11,10 @@
 # frozen once it lands. A living doc that outgrows the cap is split, never
 # marked.
 #
-# `docs/design.md` is the hub and carries a one-line conclusion per decision;
-# the argument lives in a node under `docs/references/`. That shape is only
-# safe while the pointers resolve — a stub whose node has moved strands the
-# argument silently, and the next reader re-litigates a settled decision.
-# Only existence is checked here, not the graph's semantics: this is
-# deliberately a smaller check than gitlore's `scripts/check-docs-links.py`,
-# whose nine checks assume a `D<n>` decision numbering this repo does not use.
+# Whether a link resolves is `toolkit/check-refs.sh`'s check, over every
+# Markdown file, with `plans/` and `docs/changelog/` exempt on purpose: dated
+# records are never revised, so a link in one to a file deleted later stays true
+# of its day. This suite reads no link.
 set -euo pipefail
 unset CDPATH
 cd "$(dirname "$0")/.."
@@ -26,17 +22,9 @@ cd "$(dirname "$0")/.."
 max_lines=400
 status=0
 
-# Every markdown file under `docs/` and `plans/`, untracked ones
-# included (`-co`): a draft has to fail the cap while it is being written,
-# not on the commit that tracks it. NUL-delimited, so a path containing
-# whitespace is one path.
-md_files() {
-    git ls-files -z -co --exclude-standard -- docs plans | while IFS= read -r -d '' f; do
-        case "$f" in *.md) printf '%s\0' "$f" ;; esac
-    done
-}
-
-# The same list narrowed to `docs/`, the only tree the cap counts.
+# Every markdown file under `docs/`, untracked ones included (`-co`): a draft has
+# to fail the cap while it is being written, not on the commit that tracks it.
+# NUL-delimited, so a path containing whitespace is one path.
 docs_md_files() {
     git ls-files -z -co --exclude-standard -- docs | while IFS= read -r -d '' f; do
         case "$f" in *.md) printf '%s\0' "$f" ;; esac
@@ -52,31 +40,6 @@ while IFS= read -r -d '' f; do
     status=1
 done < <(docs_md_files)
 
-echo "=== docs: every relative pointer resolves ==="
-while IFS= read -r -d '' f; do
-    dir=$(dirname "$f")
-    # Fenced blocks are skipped: a link inside an example is not a pointer.
-    # `grep -o` yields one `](target)` per line, so a line with two links is
-    # fully covered.
-    while IFS= read -r target; do
-        case "$target" in
-            ''|http://*|https://*|mailto:*|'#'*) continue ;;
-        esac
-        # An anchor on a real file is still that file; a bare anchor was
-        # skipped above.
-        target=${target%%#*}
-        [ -n "$target" ] || continue
-        [ -e "$dir/$target" ] || {
-            echo "broken-link: $f -> $target" >&2
-            status=1
-        }
-    done < <(
-        awk '/^```/ { fence = !fence; next } !fence' "$f" \
-            | grep -oE '\]\([^)]+\)' \
-            | sed -e 's/^](//' -e 's/)$//'
-    )
-done < <(md_files)
-
 [ "$status" -eq 0 ] || exit 1
 echo
-echo "docs ok (cap $max_lines lines over docs/, pointers resolve over docs/ and plans/)"
+echo "docs ok (cap $max_lines lines over docs/)"

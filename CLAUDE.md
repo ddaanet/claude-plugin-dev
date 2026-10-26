@@ -187,8 +187,8 @@ wiring and legacy-entry migration),
 tree build, refusals, warnings and other subcommands),
 `check-refs-{syntax,scan,shipped}-test.sh` (`check-refs.sh`: what a reference
 is, which files are read and exempt, and the shipped check), `docs-test.sh` (the
-400-line cap over `docs/`, plus pointer resolution over `docs/` and
-`plans/`; the cap is soft for plans and gated nowhere),
+400-line cap over `docs/`; the cap is soft for plans and gated nowhere, and link
+resolution is `check-refs.sh`'s),
 `line-cap-test.sh` (the same 400-line cap over every other file; a
 suite that outgrows it is split along its scenario groups, never exempted),
 `doc-sync-test.sh` (the install/update command blocks shared by the two
