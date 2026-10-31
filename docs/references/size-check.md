@@ -118,14 +118,18 @@ recipe in `release.just` that nothing depends on. A consumer adds it to its
 consumer's sentinel hashes. Run inside a narrower cached body, a cached pass
 would commit a file the check never read (mechanics §3). The same reasoning
 keeps `check-refs` outside the cache, argued in [gates.md](gates.md). Running on
-every call has a cost: one listing and one `wc -c` per file. On gitlore (566
-tracked files) the run takes about 4.3 s, against about 0.5 s for the earlier
-single awk pass, measured on Linux under load. `wc` reads each file on stdin, so
-a name starting with a dash or holding an equals sign is read as the path it is,
-with counts aligned to the NUL-delimited list rather than keyed by name, so a
-path holding a newline cannot forge a result. This repo's own `precommit` runs
-it inside its cached body, after `check-refs.sh --shipped toolkit`, because that
-sentinel hashes the whole tree.
+every call has a cost: one listing and one batched `stat`, which reads each
+file's size from its metadata without reading the file. On gitlore the run takes
+about 0.35 s, against about 2.8 s for one `wc -c` per file, measured on Linux
+under load. The flavour is picked once, when the script loads: GNU coreutils
+`stat --version` exits 0 and takes `-c %s`, the BSD and macOS one fails it and
+takes `-f %z`. For a regular file the size `stat` reports is the count `wc -c`
+prints. The names reach `xargs -0` NUL-delimited and `stat` after `--`, so a
+name starting with a dash is read as the path it is, and counts align with the
+list by position rather than being keyed by name, so a path holding a newline
+cannot forge a result; a count of lines unequal to the list fails the run. This
+repo's own `precommit` runs it inside its cached body, after
+`check-refs.sh --shipped toolkit`, because that sentinel hashes the whole tree.
 
 **Rejected.**
 

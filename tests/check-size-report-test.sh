@@ -276,6 +276,100 @@ assert_eq "$rc" "1" "character awk: exit code"
 assert_eq "$err" "oversized-file: big.txt: 20001 bytes > 20000
 $hint" "character awk: the true count, no awk complaint"
 
+# install_stat <gnu|bsd>: a stub `stat` first on PATH, so neither platform
+# branch of the script is skipped on any machine. gnu: --version exits 0 and
+# `-c %s -- FILE...` is accepted; bsd: --version exits 1 and `-f %z -- FILE...`
+# is accepted, `-c` rejected. Sizes are always `wc -c` (never the real stat, so
+# both flavours run anywhere), one per line per file argument. Each size call
+# is logged to $stat_log as `arg1|arg2|arg3|argc`; --version probes are not.
+# A file argument ending in $STUB_STAT_FAIL gets a stderr message and exit 1.
+install_stat() {
+    mkdir -p "$sandbox/statbin"
+    cat > "$sandbox/statbin/stat" <<'STUB'
+#!/bin/sh
+if [ "$1" = --version ]; then
+    [ "$STUB_FLAVOR" = gnu ] && { echo 'stat (GNU coreutils) stub'; exit 0; }
+    echo 'stat: unrecognized option: --version' >&2
+    exit 1
+fi
+printf '%s|%s|%s|%s\n' "$1" "$2" "$3" "$#" >> "$STUB_STAT_LOG"
+if [ "$STUB_FLAVOR" = gnu ]; then a=-c b=%s; else a=-f b=%z; fi
+if [ "$1" != "$a" ] || [ "$2" != "$b" ]; then
+    echo "stat: illegal option: $1 $2" >&2
+    exit 1
+fi
+shift 2
+[ "$1" = -- ] && shift
+rc=0
+for f; do
+    if [ -n "$STUB_STAT_FAIL" ] && case $f in *"$STUB_STAT_FAIL") true ;; *) false ;; esac; then
+        echo "stat: cannot stat '$f': stub failure" >&2
+        rc=1
+        continue
+    fi
+    wc -c < "$f" | tr -d ' '
+done
+exit $rc
+STUB
+    chmod +x "$sandbox/statbin/stat"
+    stat_log="$sandbox/stat.log"
+    : > "$stat_log"
+    export STUB_FLAVOR="$1" STUB_STAT_LOG="$stat_log" STUB_STAT_FAIL=""
+    run_path="$sandbox/statbin"
+}
+# uninstall_stat: back to the real PATH.
+uninstall_stat() { run_path=""; unset STUB_FLAVOR STUB_STAT_LOG STUB_STAT_FAIL; }
+
+for flavor in gnu bsd; do
+    if [ "$flavor" = gnu ]; then flags='-c|%s|--|'; else flags='-f|%z|--|'; fi
+    echo "=== $flavor stat: sizes come from one batched call, in listing order ==="
+    mk_repo
+    install_stat "$flavor"
+    for i in $(seq -w 1 20); do put_big "f$i.txt" "$((over + 10#$i))"; done
+    run_check
+    assert_eq "$rc" "1" "$flavor stat: exit code"
+    expected=""
+    for i in $(seq -w 1 20); do
+        expected+="oversized-file: f$i.txt: $((over + 10#$i)) bytes > 20000"$'\n'
+    done
+    assert_eq "$(overage_lines)" "${expected%$'\n'}" "$flavor stat: each count on its own path"
+    calls="$(wc -l < "$stat_log" | tr -d ' ')"
+    (( calls >= 1 && calls < 20 )) || fail "$flavor stat: $calls size calls for 20 files, want batching"
+    assert_eq "$(grep -cv -F -- "$flags" "$stat_log" || true)" "0" "$flavor stat: every call is $flags FILE..."
+    assert_eq "$(awk -F'|' '{ n += $4 - 3 } END { print n + 0 }' "$stat_log")" "20" "$flavor stat: each file named once"
+    assert_eq "$(grep -c -e '^-f|' -e '|-f|' "$stat_log" || true)" "$([ "$flavor" = bsd ] && wc -l < "$stat_log" | tr -d ' ' || echo 0)" "$flavor stat: -f only on the BSD branch"
+    uninstall_stat
+
+    echo "=== $flavor stat: odd names survive the batched call ==="
+    mk_repo
+    install_stat "$flavor"
+    put_big "dir with space/big file.txt"
+    put_big $'new\nline.txt'
+    for p in k=v.txt ' lead.txt' 'trail.txt ' -dash.txt; do put_big "$p"; done
+    put_big zz-after.txt "$((over + 1))"
+    run_check
+    assert_eq "$rc" "1" "$flavor odd names: exit code"
+    for p in "dir with space/big file.txt" k=v.txt ' lead.txt' 'trail.txt ' -dash.txt $'new\nline.txt'; do
+        assert_contains "$err" "oversized-file: $p: 20001 bytes > 20000" "$flavor odd names: '$p' whole"
+    done
+    assert_contains "$err" "oversized-file: zz-after.txt: 20002 bytes > 20000" "$flavor odd names: last count on its path"
+    [ -s "$stat_log" ] || fail "$flavor odd names: stat was never called"
+    uninstall_stat
+
+    echo "=== $flavor stat: a stat failure on a listed file fails the run ==="
+    mk_repo
+    install_stat "$flavor"
+    put_small a.txt
+    put_small b.txt
+    put_small c.txt
+    export STUB_STAT_FAIL="b.txt"
+    run_check
+    uninstall_stat
+    assert_eq "$rc" "1" "$flavor stat failure: exit code"
+    assert_eq "$out" "" "$flavor stat failure: no sign-off"
+    assert_contains "$err" "check-size: counting failed" "$flavor stat failure: reported on stderr"
+done
+
 echo "=== a pass writes nothing to stderr and exits 0 ==="
 mk_repo
 put_small a.txt
