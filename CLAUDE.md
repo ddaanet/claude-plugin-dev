@@ -116,6 +116,10 @@ or removing a shipped file means updating the list in
   to choose the input pathspecs so a cached pass stays true, the tool-version
   list and the quiet runner. `toolkit/README.md` keeps a stub section pointing
   here.
+- `toolkit/manual/size-check.md` — the manual's size-check chapter: the
+  non-whitespace byte metric and the two caps, wiring `check-size` uncached, the
+  scope skips in order, the `size.exempt` format and refusals, and the report.
+  `toolkit/README.md` keeps a stub section pointing here.
 - `toolkit/migrations/vX.Y.Z.md` — optional per-release note for a step a
   consumer must take by hand. Printed by `update.sh` for the crossed range;
   `tests/dist-tree-test.sh` allows this path and no other under
