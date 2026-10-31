@@ -216,7 +216,7 @@ put_big web/package-lock.json
 commit_in "$repo"
 run_check
 expect_pass "built-ins"
-assert_contains "$out" "skipped: 6 plans/plugin-dev/lockfiles, " "built-ins: sign-off count"
+assert_contains "$out" "skipped: 6 plans/plugin-dev/lockfiles/generated, " "built-ins: sign-off count"
 
 echo "=== the skips run in order: type and readability before built-ins ==="
 mk_repo
@@ -233,7 +233,7 @@ if [ "$(id -u)" -ne 0 ]; then   # root reads through mode 000
 fi
 run_check
 assert_eq "$rc" "0" "skip order: exit code"
-assert_contains "$out" "skipped: 0 plans/plugin-dev/lockfiles, 1 binary, 1 symlinks, $unreadable unreadable" \
+assert_contains "$out" "skipped: 0 plans/plugin-dev/lockfiles/generated, 1 binary, 1 symlinks, $unreadable unreadable" \
     "skip order: each file counted by its first skip"
 if (( unreadable )); then
     assert_contains "$err" "plugin-dev/locked.sh" "skip order: the notice comes before the built-in"
@@ -268,8 +268,44 @@ put_big ignored.txt
 put_small keep.txt
 run_check
 expect_pass "ignored"
-assert_contains "$out" "skipped: 0 plans/plugin-dev/lockfiles, 0 binary, 0 symlinks, 0 unreadable" \
+assert_contains "$out" "skipped: 0 plans/plugin-dev/lockfiles/generated, 0 binary, 0 symlinks, 0 unreadable" \
     "ignored: no skip count moves"
+
+echo "=== linguist-generated files are skipped and counted, others count ==="
+mk_repo
+printf '%s\n' '*.gen linguist-generated' 'b/** linguist-generated=true' \
+    'keep.gen -linguist-generated' 'off.gen linguist-generated=false' \
+    'plans/** linguist-generated' > "$repo/.gitattributes"
+put_big a.gen
+put_big b/deep/x.txt
+put_big plans/p.gen
+put_big keep.gen
+put_big off.gen
+put_big plain.txt
+run_check
+assert_eq "$rc" "1" "generated: exit code"
+assert_not_contains "$err" "a.gen" "generated: set is skipped"
+assert_not_contains "$err" "b/deep/x.txt" "generated: =true is skipped"
+assert_contains "$err" "oversized-file: keep.gen: " "generated: -linguist-generated counts"
+assert_contains "$err" "oversized-file: off.gen: " "generated: =false counts"
+assert_contains "$err" "oversized-file: plain.txt: " "generated: unmarked counts"
+rm "$repo/keep.gen" "$repo/off.gen" "$repo/plain.txt"
+run_check
+expect_pass "generated only"
+assert_contains "$out" "bytes: 1 files;" "generated: only .gitattributes is counted"
+assert_contains "$out" "skipped: 3 plans/plugin-dev/lockfiles/generated, " \
+    "generated: three skipped, each counted once"
+
+echo "=== a generated file is not a size.exempt entry ==="
+mk_repo
+printf '%s\n' 'out.gen linguist-generated' > "$repo/.gitattributes"
+put_big out.gen
+printf '%s\n' 'out.gen # regenerated' > "$repo/size.exempt"
+run_check
+assert_eq "$rc" "1" "generated entry: exit code"
+assert_contains "$err" "size.exempt:1: out.gen — a generated file is always skipped" \
+    "generated entry: refused as always skipped"
+assert_not_contains "$err" "matches no listed file" "generated entry: not a missing file"
 
 echo "=== a newline in a name cannot forge a line ==="
 mk_repo

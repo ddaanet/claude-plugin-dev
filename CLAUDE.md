@@ -55,17 +55,16 @@ or removing a shipped file means updating the list in
   or reference definition whose relative target is missing (outside the exempt
   prefixes, `docs/changelog/` unless a root `refs.exempt` names others; root
   `plans/` is never read), and, given a `dist.include` or `--shipped`, one from a
-  shipped file
-  to an unshipped one. Reads every Markdown file on disk git does not ignore,
-  skipping `plugin-dev/`, root `plans/` and submodules. This repo's `precommit` runs it with
-  `--shipped toolkit`; consumers wire `precommit: check-refs`. Executable on
+  shipped file to an unshipped one. Reads every Markdown file on disk git does
+  not ignore, skipping `plugin-dev/`, root `plans/` and submodules. This repo's
+  `precommit` runs it with `--shipped toolkit`; consumers wire `precommit: check-refs`. Executable on
   disk, which `tests/dist-tree-test.sh` pins. Its two awk programs, the
   Markdown reader and the existence test over the git listing, live in
   `toolkit/check-refs-parse.sh`, which it sources from its own directory.
 - `toolkit/check-size.sh` — refuses a file over the size cap: 20000
   bytes as `wc -c` counts them, 10000 for a `SKILL.md` at any depth. Reads every file
   on disk git does not ignore, skipping `plugin-dev/`, root `plans/`, lock
-  files, binaries, symlinks and submodules, plus whatever a root `size.exempt`
+  files, files marked `linguist-generated`, binaries, symlinks and submodules, plus whatever a root `size.exempt`
   lists, one entry and its reason per line. Uncached; consumers wire
   `precommit: check-refs check-size`. Executable on disk, which
   `tests/dist-tree-test.sh` pins.

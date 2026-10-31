@@ -58,7 +58,12 @@ The skips apply in this order; a file stops at the first that takes it:
 5. **Binary files**, those whose content git detects as binary (`w/-text` in
    `git ls-files --eol`; a `.gitattributes` `binary` or `-text` attribute does
    not skip a text file), are skipped and counted.
-6. **Built-ins**: `plugin-dev/` and a root `plans/`, each as a whole leading
+6. **Generated files**: those whose `linguist-generated` attribute in
+   `.gitattributes` is `set` or `true` (`path linguist-generated`, or `=true`).
+   `-linguist-generated`, `=false`, `!linguist-generated` and any other value
+   leave the file counted. It is skipped before the built-ins are tried, and
+   counted with them in the sign-off.
+7. **Built-ins**: `plugin-dev/` and a root `plans/`, each as a whole leading
    path component (`plans-old/` is not skipped, nor is `docs/plans/`), and a
    file named `uv.lock` or `package-lock.json` at any depth.
 
@@ -98,6 +103,7 @@ fails the run even when no file is over a cap:
 | `no reason after the hash` | no ` #`, or nothing after it |
 | `matches no listed file` | the path is not a counted file or a directory holding one: a typo, an ignored, binary or deleted file, a skipped symlink |
 | `a built-in is always skipped` | the path is `plugin-dev`, `plans`, or inside either, or a lockfile basename |
+| `a generated file is always skipped` | the path is a file marked `linguist-generated`, which is skipped before the count |
 | `a file entry must be over its cap` | the named file is at or under its cap (a `SKILL.md` is held to the hub cap) |
 | `already listed on an earlier line` | the same path, after trimming a trailing `/` |
 
@@ -114,7 +120,7 @@ never re-examined. `size.exempt` is itself a file the check counts.
 A pass prints one line on stdout and exits 0:
 
 ```text
-check-size: cap 20000 bytes: 74 files; hub cap 10000: 2 SKILL.md; size.exempt: 1 entries, each with a reason and still needed; skipped: 31 plans/plugin-dev/lockfiles, 3 binary, 0 symlinks, 0 unreadable
+check-size: cap 20000 bytes: 74 files; hub cap 10000: 2 SKILL.md; size.exempt: 1 entries, each with a reason and still needed; skipped: 31 plans/plugin-dev/lockfiles/generated, 3 binary, 0 symlinks, 0 unreadable
 ```
 
 The counts are the files compared against a cap, the `SKILL.md` among them, the

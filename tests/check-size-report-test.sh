@@ -422,7 +422,7 @@ ln -s a.txt "$repo/link.txt"
 commit_in "$repo"
 run_check
 expect_pass "sign-off"
-assert_eq "$out" "check-size: cap 20000 bytes: 4 files; hub cap 10000: 2 SKILL.md; size.exempt: 0 entries, each with a reason and still needed; skipped: 4 plans/plugin-dev/lockfiles, 1 binary, 1 symlinks, 0 unreadable" "sign-off line"
+assert_eq "$out" "check-size: cap 20000 bytes: 4 files; hub cap 10000: 2 SKILL.md; size.exempt: 0 entries, each with a reason and still needed; skipped: 4 plans/plugin-dev/lockfiles/generated, 1 binary, 1 symlinks, 0 unreadable" "sign-off line"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2

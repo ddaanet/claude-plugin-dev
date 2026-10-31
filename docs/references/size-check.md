@@ -152,10 +152,15 @@ migration note carries the steps.
 Every listed path counts unless skipped, tested in this order: symlinks;
 anything not a regular file (a gitlink, a nested repo, a deleted tracked file, a
 sandbox character-device mask); unreadable files, each with a stderr notice and
-a count in the sign-off; binaries; the built-ins. The built-ins are
-`plugin-dev/`, root `plans/`, and `uv.lock` and `package-lock.json` at any
-depth. Untracked drafts and `docs/**` count. A `size.exempt` entry skips
-nothing: it forgives an overage after the count.
+a count in the sign-off; binaries; files marked `linguist-generated`; the
+built-ins. The built-ins are `plugin-dev/`, root `plans/`, and `uv.lock` and
+`package-lock.json` at any depth. A generated file is a `set` or `true`
+`linguist-generated` attribute, read by one batched `git check-attr -z --stdin`
+over the paths that reach that step, because a generated file has no author to
+split it and a lock file is only the commonest one; the two lockfile names stay
+as the fallback for a repo with no attribute. `size.exempt` refuses an entry
+naming such a file, as it does a built-in. Untracked drafts and `docs/**` count.
+A `size.exempt` entry skips nothing: it forgives an overage after the count.
 
 Unreadable files are skipped rather than failed because the known producer is
 the sandbox, and a gate red under the Bash tool and green in a hook is worse
@@ -182,9 +187,9 @@ same predicate; the manual states the difference once.
 **Stale entries are refused.** Each failure prints
 `size.exempt:<n>: <path> — <why>` and fails the run: an entry with no reason, an
 entry matching no listed file, a file entry within its cap, and a repeat of a
-built-in or of another entry. The commit that deletes or splits an exempted file
-must drop its line, so a later regrowth is caught. A warning would repeat until
-ignored.
+built-in, a generated file, or another entry. The commit that deletes or splits
+an exempted file must drop its line, so a later regrowth is caught. A warning
+would repeat until ignored.
 
 **Rejected** (mechanics §5):
 

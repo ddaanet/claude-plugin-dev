@@ -25,7 +25,8 @@ tree build, refusals, warnings and other subcommands),
 is, which files are read and exempt, `plans/` always skipped, and the shipped
 check),
 `check-size-{scope,exempt,report}-test.sh` (`check-size.sh`: which files are
-counted, the `size.exempt` refusals, and the report, caps and counts),
+counted (including `linguist-generated` files), the `size.exempt` refusals, and
+the report, caps and counts),
 `doc-sync-test.sh` (the install/update command blocks shared by the two
 READMEs, and the Layout list in the root [CLAUDE.md](../CLAUDE.md) against `toolkit/`'s actual
 contents), `citation-test.sh` (refuses a `<script>.sh:<line>`
