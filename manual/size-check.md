@@ -53,7 +53,9 @@ The skips apply in this order; a file stops at the first that takes it:
    disk but still in the index, is skipped silently.
 4. **Unreadable files** are skipped with a stderr line,
    `check-size: unreadable file skipped: <path>`, and counted.
-5. **Binary files**, those git does not treat as text, are skipped and counted.
+5. **Binary files**, those whose content git detects as binary (`w/-text` in
+   `git ls-files --eol`; a `.gitattributes` `binary` or `-text` attribute does
+   not skip a text file), are skipped and counted.
 6. **Built-ins**: `plugin-dev/` and a root `plans/`, each as a whole leading
    path component (`plans-old/` is not skipped, nor is `docs/plans/`), and a
    file named `uv.lock` or `package-lock.json` at any depth.
@@ -118,8 +120,8 @@ accepted `size.exempt` entries, and each skip category. A failure exits 1 with
 one stderr line per overage, sorted by path, then the hint:
 
 ```text
-oversized-file: skills/review/SKILL.md: 10412 non-whitespace bytes > 10000 (SKILL.md hub)
 oversized-file: docs/guide.md: 20311 non-whitespace bytes > 20000
+oversized-file: skills/review/SKILL.md: 10412 non-whitespace bytes > 10000 (SKILL.md hub)
 hint: split each file along a seam; do not shave prose or docstrings to fit
 ```
 
