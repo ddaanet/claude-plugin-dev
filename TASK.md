@@ -1,0 +1,3 @@
+## Current task
+
+Implement the size check designed in plans/2026-10-31-line-cap-gate/design.md: toolkit/check-size.sh counting non-whitespace bytes against caps of 20000 per file and 10000 per SKILL.md, a size.exempt ratchet, and the test and doc changes the design lists. Both of its open questions are settled at their defaults (binary detection by git ls-files --eol; a full pass over the 67 docs/design.md hub bullets, moving embedded argument into the docs/references nodes while every conclusion stays in the hub). Next action: read the design and plan its first slice, starting with the design.md bullet pass, since that file is over the new cap.
