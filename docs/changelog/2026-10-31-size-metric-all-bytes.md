@@ -28,8 +28,8 @@ tool's line-number prefix costs about 3.1 tokens a line, and all bytes track
 line count through newlines and indentation, which non-whitespace bytes do not.
 
 The previous cap was about 12k tokens as presented, looser than the 10k target.
-Re-wrapping a file still barely moves its bytes, since a wrap swaps spaces for
-newlines. Indentation is now counted, which is right, because the agent pays for
-it. The earlier decision, in
-[2026-10-31-size-check.md](2026-10-31-size-check.md), stands as the record of
-how the non-whitespace metric was reached.
+Re-wrapping a file moves its bytes little, since a wrap swaps spaces for
+newlines and adds only each new line's indentation and leader. Indentation is
+now counted, which is right, because the agent pays for it. The earlier
+decision, in [2026-10-31-size-check.md](2026-10-31-size-check.md), stands as the
+record of how the non-whitespace metric was reached.

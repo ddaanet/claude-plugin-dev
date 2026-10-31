@@ -39,20 +39,23 @@ files from 14 repositories, a single proportional fit gives 2.052 bytes per
 token as presented, with a median absolute error of 7.2% (token-fit, "Pooled
 fit, readtool"). The prefix costs about 3.1 tokens a line, and bytes track line
 count through newlines and indentation, so they carry the charge without a
-second term. A two-term fit of bytes plus lines fits better still (7.4% raw) and
-makes the cap two numbers no author can check in their head.
+second term. A two-term fit of bytes plus lines fits better still (6.9% as
+presented, 8.2% raw; token-fit, "Two predictors") and makes the cap two numbers
+no author can check in their head.
 
 **Against non-whitespace bytes.** They fit 9.5% as presented, and bytes beat
 them in 96% of resamples of the paired bootstrap. Raw, the two are
 indistinguishable (8.4% against 8.7%), so the choice rests on the presented
 case, the one an agent pays. Non-whitespace bytes also go blind to the newlines
-and indentation the prefix and the reading cost scale with. Re-wrapping still
-barely moves a byte count, since a wrap swaps a space for a newline; it moves by
-the characters a wrap adds per new line (a `>` on a blockquote continuation, a
-comment leader, a `\` continuation), 1 to 2 per line and 1 to 6% of a file
-(mechanics §8). No reflow formatter has to run ahead of the check: rumdl stays
-for readability where a repo already runs it, and is nowhere a precondition of
-the count. Indentation is counted, which is right: the agent pays for it.
+and indentation the prefix and the reading cost scale with. Re-wrapping moves a
+byte count little, since a wrap swaps a space for a newline; it moves by what
+each new line repeats: its indentation, as on a list continuation or a nested
+comment, and the characters a wrap adds (a `>` on a blockquote continuation, a
+comment leader, a `\` continuation). The bound of mechanics §8 does not carry
+over, because it counted no indentation. No reflow formatter has to run ahead of
+the check: rumdl stays for readability where a repo already runs it, and is
+nowhere a precondition of the count. Indentation is counted, which is right: the
+agent pays for it.
 
 **Against lines.** A line is not a unit of reading cost. A changelog index of
 103 lines held about 51000 non-whitespace bytes, some 26k tokens, and passed a
@@ -100,9 +103,10 @@ set by whatever grew last is not a calibration.
 A dated record is checked by the commit that writes it, while its author can
 still split it, and it never changes afterwards, so the cap fires once and at
 the right moment. No record failed in any of the 14 repositories surveyed. The
-changelog index grows by a bullet per change and does fail in three of them; its
-fix is a split by period, never an exemption, because an exemption on the one
-file that grows switches the cap off for exactly the file it exists for.
+changelog index grows by a bullet per change and does fail in three of them.
+This repo's own index, `docs/changelog.md`, is over the cap, and its root
+`size.exempt` exempts it, "retired or split once
+plans/2026-10-31-brief-retire-dated-changelog.md is decided".
 
 ## A shipped script, uncached, wired by hand
 
@@ -114,13 +118,14 @@ recipe in `release.just` that nothing depends on. A consumer adds it to its
 consumer's sentinel hashes. Run inside a narrower cached body, a cached pass
 would commit a file the check never read (mechanics §3). The same reasoning
 keeps `check-refs` outside the cache, argued in [gates.md](gates.md). Running on
-every call is also why the script keeps its work small: one listing and one
-`wc -c` per file, fed the file on stdin so a name starting with a dash or
-holding an equals sign is read as the path it is, with counts aligned to the
-NUL-delimited list rather than keyed by name, so a path holding a newline cannot
-forge a result. This repo's own `precommit` runs it inside its cached body,
-after `check-refs.sh --shipped toolkit`, because that sentinel hashes the whole
-tree.
+every call has a cost: one listing and one `wc -c` per file. On gitlore (566
+tracked files) the run takes about 4.3 s, against about 0.5 s for the earlier
+single awk pass, measured on Linux under load. `wc` reads each file on stdin, so
+a name starting with a dash or holding an equals sign is read as the path it is,
+with counts aligned to the NUL-delimited list rather than keyed by name, so a
+path holding a newline cannot forge a result. This repo's own `precommit` runs
+it inside its cached body, after `check-refs.sh --shipped toolkit`, because that
+sentinel hashes the whole tree.
 
 **Rejected.**
 
@@ -189,5 +194,4 @@ ignored.
 
 The overage report names neither `size.exempt` nor how to use it. It says to
 split along a seam and not to shave prose or docstrings to fit, because an agent
-reads an advertised exemption as its next step. This repo keeps no
-`size.exempt`: its suites are split, never exempted.
+reads an advertised exemption as its next step.
