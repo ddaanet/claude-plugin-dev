@@ -1,3 +1,0 @@
-## Current task
-
-The size-check work for 0.13.0 is landed on main and each commit has had its medium review. Next: the pre-release xhigh review of the unreleased range, from the tag named by toolkit/VERSION (the last release, vX.Y.Z) to main HEAD, per shared-claude.md: delegated, licence to split into several agents by area (check-size script and suites, release-script split into release-resume.sh, doc splits and design hub trim, migration note v0.13.0.md), each writing its report to a file under tmp/. Triage high and medium only; the reviewer that found them fixes them; then one medium review of the fixes, fixed with no further round. Low findings are listed as declined.
