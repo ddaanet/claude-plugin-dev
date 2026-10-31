@@ -103,12 +103,11 @@ the dated record of the reversal goes in the changelog.
   plugin's.
 - **One `install.sh` bootstraps and wires in a single invocation** — subtree
   add, justfile import, and the version-guard and two dogfood hooks into
-  `.claude/settings.json`. It only ever adds to what the consumer owns, a hook
-  counting as present when any entry under its event runs its command, whatever
-  the matcher, and re-running it is a no-op. The one thing it rewrites is the
-  version-guard's earlier unquoted command, requoted in place under whatever
-  matcher the consumer gave it, because a path with a space split the bare one
-  and the guard failed open.
+  `.claude/settings.json`. It only ever adds to what the consumer owns, and
+  re-running it is a no-op. The one thing it rewrites is the version-guard's
+  earlier unquoted command, requoted in place under whatever matcher the
+  consumer gave it, because a path with a space split the bare one and the guard
+  failed open.
 - **The first install is `curl … | bash` at a dist tag** — a `dist-` ref's root
   tree is `toolkit/`, so one tag serves the installer and the content it
   vendors, and the resolved tag is passed through so the two are one release.
@@ -132,25 +131,20 @@ the dated record of the reversal goes in the changelog.
   alone** — a plugin is at its first release exactly when no `vX.Y.Z` tag exists
   locally or on origin, the marketplace entry playing no part. There is nothing
   to bump from, so an explicit bump is refused, naming the version that will
-  ship instead. Choosing some other first version is the maintainer's committed
-  edit, not a recipe argument.
+  ship instead.
 - **The marketplace entry is bumped if present and created if absent** — one
   `just release` publishes a brand-new plugin end to end. A created entry gets
-  an https `url` source, since a `github` source clones over SSH; an opted-in
-  plugin's entry also gets `ref: dist`, and an existing entry's `source` is
-  otherwise never rewritten. The commit and the push are separately idempotent,
-  each measured against the remote.
+  an https `url` source; an opted-in plugin's entry also gets `ref: dist`, and
+  an existing entry's `source` is otherwise never rewritten. The commit and the
+  push are separately idempotent, each measured against the remote.
 - **No interactive confirmation** — `release` runs behind Claude Code's
-  permission layer or a human's own `just`, and the inner prompt re-asked the
-  same question.
+  permission layer or a human's own `just`.
 - **The consumer's commit gate is named `precommit`** — it names the moment it
-  fires, and matches the pre-commit ecosystem's vocabulary.
+  fires.
 - **`release` depends on `prerelease`, never on `precommit` directly** — a
-  consumer whose release gate is bigger than its commit gate widens it there,
-  instead of relying on remembering to type a second recipe.
-- **The default branch is read from `origin/HEAD`** — with `symbolic-ref`, which
-  is silent on stdout when the ref is unset, so the `main` fallback fires
-  cleanly.
+  consumer whose release gate is bigger than its commit gate widens it there.
+- **The default branch is read from `origin/HEAD`** — with `symbolic-ref`, so
+  the `main` fallback fires cleanly when the ref is unset.
 
 ### Recovery and the pre-flight state checks — [references/recovery.md](references/recovery.md)
 
@@ -177,16 +171,13 @@ the dated record of the reversal goes in the changelog.
   states what was checked, what was exempt, and what to run. It ships with the
   vendored tree, so it reaches consumers no memory store or `docs/` page does.
 - **A commit a consumer's gate refuses is rolled back** — the manifest bump and
-  the marketplace bump alike are restored from HEAD, because the leftover is
-  what `common_preflight` then reads as an unrelated dirty tree, blocking both
-  `release` and the `resume-release` that would finish a partly-public one.
-- **The clean-tree check exempts only the gitlore memory gitlink** — an agent
-  session moves it between commits by design, so its being ahead of HEAD is the
-  resting state. The memory path is read from `.gitmodules` by submodule name;
-  everything else still refuses, a tracked file under `.claude/` included. The
-  one reason to exempt `.claude/` was staged handoff frames, which now live in
-  tracked root files; the cost is that a dirty `.claude/settings.json` stops a
-  release. The refusal lists exemptions only when one applies.
+  the marketplace bump alike are restored from HEAD, so the leftover never
+  blocks `resume-release`.
+- **The clean-tree check exempts only the gitlore memory gitlink** — its being
+  ahead of HEAD is the resting state. The memory path is read from `.gitmodules`
+  by submodule name; everything else still refuses, a tracked file under
+  `.claude/` included. A dirty `.claude/settings.json` stops a release. The
+  refusal lists exemptions only when one applies.
 
 ### The dist branch — [references/dist-branch.md](references/dist-branch.md)
 
@@ -225,21 +216,16 @@ the dated record of the reversal goes in the changelog.
   calls neither, and the `precommit`/`prerelease` contract is unchanged; a
   consumer that adds the import line is the only one affected. `gates.just`
   defines one name, so it imports beside `release.just`.
-- **The functions travel as an interpolated prolog** — the guard must leave the
-  recipe and the record must read what the guard set, so both run in the
-  recipe's own shell; the import line is the only wiring. The bash sits in a
-  justfile string, so a test lints it.
+- **The functions travel as an interpolated prolog** — both run in the recipe's
+  own shell, and the import line is the only wiring.
 - **The consumer declares the inputs, and the cache is true only while every
   check reads inside them** — the toolkit cannot see the checks. A gitlink
   hashes by name only, so a check over one runs uncached ahead of the guard. The
   guard hashes the justfile and the vendored `plugin-dev` tree itself, apart
-  from the list and by the absolute paths just reports, and refuses a pathspec
-  that matches no file; no drift check ships, and the manual carries the rule
-  and a procedure to prove a list. Execute bits and symlink targets are hashed,
-  other modes are not.
+  from the list, and refuses a pathspec that matches no file; no drift check
+  ships.
 - **Tool versions are an exported `PLUGIN_DEV_GATE_TOOLS`, empty by default** —
-  one shell command per line, since the set differs per consumer and a lockfile
-  pins some of it.
+  one shell command per line.
 - **A pass is recorded only against the hash taken before the checks, and never
   from a hash that failed** — the guard's, or the one an opt-in `hash-sentinel`
   re-takes after a formatter; moved inputs and an uncomputable hash alike leave
@@ -258,16 +244,13 @@ the dated record of the reversal goes in the changelog.
 ### The reference check — [references/check-refs.md](references/check-refs.md)
 
 - **`check-refs.sh` runs from the consumer's `precommit`, not only at release**
-  — a link breaks the day its target moves, and a release is days too late to
-  say which commit did it.
+   — a link breaks the day its target moves.
 - **A reference is a Markdown link, image or reference definition, never a
-  backticked path** — backticked paths name the reader's own files, examples and
-  removed files as often as live ones, and no shape tells them apart.
+  backticked path**
 - **Files are read from disk: every Markdown file git does not ignore, tracked
-  or not** — the gate cache fingerprints the disk, so a check reading the index
-  would cache a verdict on a tree it never read. `plugin-dev/` and submodules
-  are skipped. A target exists when the same listing holds it, so an ignored or
-  case-folded target is refused and an untracked one passes.
+  or not** `plugin-dev/` and submodules are skipped. A target exists when the
+  same listing holds it, so an ignored or case-folded target is refused and an
+  untracked one passes.
 - **Dated records and plans are exempt from resolving** — `docs/changelog/` and
   `plans/` by default, a root `refs.exempt` in their place; a link to a file
   deleted later is true history.
@@ -290,15 +273,11 @@ the dated record of the reversal goes in the changelog.
   probing origin before acting, reached by `just release` and by a
   `just resume-release` that depends on no gate.
 - **A bump is refused while the current `toolkit/VERSION` is tagged but not
-  fully published** — the toolkit has no marketplace entry, so `VERSION` is the
-  only witness and a failed push leaves it looking correct. `release.sh` needs
-  no counterpart, because `check-version.sh` catches that state for a consumer.
+  fully published**
 - **`resume-release` re-cuts `dist-vX.Y.Z` from the `vX.Y.Z` tag, never `HEAD`**
   — and leaves a dist tag origin already holds alone rather than pushing a
   recomputed ref over a published one.
-- **The clean-tree exclusion is a literal pathspec here** — one repo, one known
-  mount path, so `release.sh`'s `.gitmodules` lookup would answer a question
-  with no second answer.
+- **The clean-tree exclusion is a literal pathspec here**
 
 ### The version-guard hook — [references/version-guard.md](references/version-guard.md)
 
@@ -312,8 +291,7 @@ the dated record of the reversal goes in the changelog.
   wording says the manifest already holds what the first release will publish,
   and names no route to any other version; only the agent channel branches, and
   a listing that failed takes the restrictive steady-state wording. Nothing
-  computed after the deny is decided may fail, so every status the wording
-  depends on is absorbed rather than propagated.
+  computed after the deny is decided may fail.
 
 ### The dogfood launcher — [references/dogfood.md](references/dogfood.md), [references/dogfood-sync.md](references/dogfood-sync.md)
 
@@ -328,28 +306,20 @@ the dated record of the reversal goes in the changelog.
 - **The plugin root is the repo root** — every consumer has the root layout, so
   nested roots are out of scope.
 - **The copy syncs only on `just dogfood`** — a launch, a relaunch or any other
-  `claude` through the shim loads the copy as it stands. Syncing at launch would
-  promote the working tree repo-wide on every `claude` that reaches the shim,
-  and syncing on each edit would cost a sync per tool call; both would run
-  half-edited hook scripts in live sessions.
+  `claude` through the shim loads the copy as it stands.
 - **A launch with no copy exports the copy's path anyway** — the shim sets
-  `CLAUDE_CODE_PLUGIN_DIRS` and execs, silently; Claude Code starts cleanly with
-  a missing plugin directory, and `/reload-plugins` loads the copy the first
-  `just dogfood` makes, with no relaunch (verified headless). The warning is
-  `session-start`'s. A refusal would leave no `claude` through the shim while
-  the copy cannot be made, and creating the copy would be a sync at launch by
-  another trigger.
+  `CLAUDE_CODE_PLUGIN_DIRS` and execs, silently; `/reload-plugins` loads the
+  copy the first `just dogfood` makes, with no relaunch. The warning is
+  `session-start`'s; the shim neither refuses nor creates the copy.
 - **`dogfood.sh` carries `sync`, `pre-tool` and `session-start`, each rooted at
   the script's own location** — never `CLAUDE_PROJECT_DIR` or a payload `cwd`,
   which a resumed session can take from another repository.
 - **The copy guard denies an edit into `dist/plugin/`, compared on physical
-  paths, and does not rewrite it** — the agent is given the source path, since a
-  silent rewrite would hide the mapping.
+  paths, and does not rewrite it** — the agent is given the source path.
 - **`session-start` reports a session that does not load the copy, a missing
   copy directory, and a missing `jq`** — whole-entry matching on the variable,
-  then a directory test; the human gets the remedy (`just dogfood` and
-  `/reload-plugins`, or `direnv allow` and a relaunch, never the shim's path),
-  the agent the fact, and nothing refuses.
+  then a directory test; the human gets the remedy, the agent the fact, and
+  nothing refuses.
 - **A failed sync is loud** — `just dogfood` exits non-zero, and rsync's stderr
   is never redirected. Every refusal, `rsync` missing from PATH included, comes
   before the copy is made, so a refused first sync leaves no copy rather than an
