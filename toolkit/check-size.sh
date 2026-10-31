@@ -96,7 +96,7 @@ count_kept() {
     fi
     if [ -n "$out" ]; then
         while IFS= read -r line; do
-            counts[i]=$(( line ))   # macOS stat pads its number with spaces; arithmetic drops them
+            counts[i]=$(( line ))
             i=$((i + 1))
         done <<<"$out"
     fi
