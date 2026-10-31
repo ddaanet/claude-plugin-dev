@@ -172,7 +172,7 @@ the dated record of the reversal goes in the changelog.
   vendored tree, so it reaches consumers no memory store or `docs/` page does.
 - **A commit a consumer's gate refuses is rolled back** — the manifest bump and
   the marketplace bump alike are restored from HEAD, so the leftover never
-  blocks `resume-release`.
+  blocks `release` or `resume-release`.
 - **The clean-tree check exempts only the gitlore memory gitlink** — its being
   ahead of HEAD is the resting state. The memory path is read from `.gitmodules`
   by submodule name; everything else still refuses, a tracked file under
@@ -244,11 +244,11 @@ the dated record of the reversal goes in the changelog.
 ### The reference check — [references/check-refs.md](references/check-refs.md)
 
 - **`check-refs.sh` runs from the consumer's `precommit`, not only at release**
-   — a link breaks the day its target moves.
+  — a link breaks the day its target moves.
 - **A reference is a Markdown link, image or reference definition, never a
-  backticked path**
+  backticked path.**
 - **Files are read from disk: every Markdown file git does not ignore, tracked
-  or not** `plugin-dev/` and submodules are skipped. A target exists when the
+  or not** — `plugin-dev/` and submodules are skipped. A target exists when the
   same listing holds it, so an ignored or case-folded target is refused and an
   untracked one passes.
 - **Dated records and plans are exempt from resolving** — `docs/changelog/` and
