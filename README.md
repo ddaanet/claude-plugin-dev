@@ -8,7 +8,7 @@ dotfiles).
 ## Contents
 
 - **`release.just`** — the recipes imported into the consumer's `justfile`:
-  `release`, `resume-release`, `check-version`, `check-refs`,
+  `release`, `resume-release`, `check-version`, `check-refs`, `check-size`,
   `update-plugin-dev` and `dogfood`. All are one-line wrappers: `release` and
   `resume-release` around `release.sh`, `check-refs` around `check-refs.sh`,
   `update-plugin-dev` around `update.sh`, `dogfood` around `dogfood.sh sync`.
@@ -58,6 +58,9 @@ dotfiles).
 - **`gates.just`** — opt-in, imported beside `release.just`. Defines the prolog
   that turns a gate recipe into one that skips itself while the files it reads
   are unchanged. See [Gate sentinels](#gate-sentinels).
+- **`check-size.sh`** — opt-in, wired as `precommit: check-refs check-size`.
+  Refuses a file over the non-whitespace byte cap. See
+  [Size check](#size-check).
 - **`run-bats.sh`** — opt-in quiet runner for `bats`: failures and a pass count
   instead of the TAP stream.
 - **`install.sh`** — one-shot install script: vendors the toolkit (resolving the
@@ -256,6 +259,14 @@ run as failures and a count. A plugin that imports neither is unaffected, and
 the `precommit` and `prerelease` contract does not change. How to choose the
 inputs so a cached pass stays true, and how to convert an existing `precommit`,
 is in [manual/gates.md](manual/gates.md) and `plugin-dev/migrations/v0.11.0.md`.
+
+## Size check
+
+Optional. `just check-size` refuses a file over 20000 non-whitespace bytes, or
+10000 for a `SKILL.md`, minus the entries of a root `size.exempt`. Wire it as
+`precommit: check-refs check-size`; it runs uncached. The metric, what is
+skipped, the `size.exempt` format and the report are in
+[manual/size-check.md](manual/size-check.md).
 
 ## Dogfooding
 
