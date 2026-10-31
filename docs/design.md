@@ -146,7 +146,7 @@ the dated record of the reversal goes in the changelog.
 - **The default branch is read from `origin/HEAD`** — with `symbolic-ref`, so
   the `main` fallback fires cleanly when the ref is unset.
 
-### Recovery and the pre-flight state checks — [references/recovery.md](references/recovery.md)
+### Recovery and the pre-flight state checks — [references/recovery.md](references/recovery.md), [references/clean-tree.md](references/clean-tree.md)
 
 - **`check-version.sh` detects a half-landed release** — `plugin.json` against
   its marketplace entry, exposed as a recipe and run as a `release` pre-flight,

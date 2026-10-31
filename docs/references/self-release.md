@@ -28,11 +28,11 @@ fixture shape the `tests/release-*-test.sh` suites use for the consumer flow.
 `scripts/self-release.sh` carries `common_preflight`'s one exclusion — `memory`
 — as a literal pathspec, rather than repeating `release.sh`'s `.gitmodules`
 lookup (see "The clean-tree check exempts only the memory gitlink" in
-[recovery.md](recovery.md) for why it is exempt, and why `.claude/` is not). It
-runs against exactly one repo, whose mount path is known, so discovery would be
-answering a question that has no second answer. That is the same reasoning that
-keeps it separate from `release.sh` at all: it is not consumer-shaped code and
-does not have to generalise.
+[clean-tree.md](clean-tree.md) for why it is exempt, and why `.claude/` is not).
+It runs against exactly one repo, whose mount path is known, so discovery would
+be answering a question that has no second answer. That is the same reasoning
+that keeps it separate from `release.sh` at all: it is not consumer-shaped code
+and does not have to generalise.
 
 ## The shape it shares, and the one guard it adds
 
