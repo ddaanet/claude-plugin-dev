@@ -74,16 +74,22 @@ is_builtin() {
     return 1
 }
 
-# count_kept: one awk process over every kept file, in listing order. Each
-# file yields one line, so counts[i] belongs to kept[i] by position.
+# count_kept: one awk process over every kept file, in listing order. Its
+# first line is the byte self-test; after it each file yields one line, so
+# counts[i] belongs to kept[i] by position.
 count_kept() {
-    local program out line i=0 dotted=() k
+    local program out line probe="" i=0 dotted=() k
     counts=()
     if (( nkept == 0 )); then
         return 0
     fi
+    # The self-test: length must count bytes, so a two-byte UTF-8 character is
+    # 2. An awk that decodes UTF-8 whatever the locale would give 1 and count
+    # every file low; onetrue-awk's second edition is believed to, but that is
+    # unverified here, where only mawk is installed. Either way the run fails.
     # shellcheck disable=SC2016  # awk program: its $ and braces are awk's, not the shell's
     program='
+BEGIN { print length("\303\251") }
 FNR == 1 && NR > 1 { print n }
 FNR == 1 { n = 0 }
 { gsub(/[ \011\015\014\013]/, ""); n += length($0) }
@@ -95,10 +101,16 @@ END { if (NR > 0) print n }
     if ! out="$(awk "$program" "${dotted[@]}")"; then
         fail_run "counting failed"
     fi
-    while IFS= read -r line; do
-        counts[i]=$line
-        i=$((i + 1))
-    done <<<"$out"
+    {
+        IFS= read -r probe
+        if [ "$probe" != 2 ]; then
+            fail_run "awk counts characters, not bytes: $(command -v awk) gives length $probe to a two-byte character"
+        fi
+        while IFS= read -r line; do
+            counts[i]=$line
+            i=$((i + 1))
+        done
+    } <<<"$out"
     if (( i != nkept )); then
         fail_run "counting failed: $i counts for $nkept files"
     fi
@@ -126,7 +138,7 @@ read_exempt() {
             *) p=$line; why= ;;
         esac
         trim "$p"
-        p=$REPLY
+        p=${REPLY%/}   # a directory entry may end in /, as in dist.include
         trim "$why"
         why=$REPLY
         if [ -z "$why" ]; then

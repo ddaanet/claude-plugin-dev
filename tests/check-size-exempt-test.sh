@@ -304,6 +304,13 @@ exempt 'docs # why'
 run_check
 expect_refused "docs matches nothing" 1 "docs"
 
+echo "=== a directory entry's trailing slash is stripped, as in dist.include ==="
+mk_repo
+put_big docs/x.txt
+exempt 'docs/ # frozen records'
+run_check
+expect_pass "trailing slash"
+
 echo "=== entries add to the built-ins, they do not replace them ==="
 mk_repo
 put_small keep.txt

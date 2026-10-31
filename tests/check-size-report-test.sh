@@ -97,10 +97,12 @@ commit_in() {
 }
 
 # run_check: run the script with cwd at ${run_dir:-$repo} and a UTF-8 locale it must
-# override. Sets $rc, $out, $err. A missing script is rc 127.
+# override, with ${run_path} first on PATH when set. Sets $rc, $out, $err. A
+# missing script is rc 127.
 run_check() {
     rc=0
-    (cd "${run_dir:-$repo}" && env -u LC_ALL LANG=en_US.UTF-8 bash "$check" \
+    (cd "${run_dir:-$repo}" && env -u LC_ALL LANG=en_US.UTF-8 \
+        PATH="${run_path:+$run_path:}$PATH" bash "$check" \
         >"$sandbox/stdout" 2>"$sandbox/stderr") || rc=$?
     out="$(cat "$sandbox/stdout")"
     err="$(cat "$sandbox/stderr")"
@@ -220,6 +222,21 @@ for n in nbsp emspace accents; do
         "oversized-file: $n.txt: $(ref_count "$repo/$n.txt") non-whitespace bytes > 20000" "multi-byte: $n"
 done
 assert_eq "$(ref_count "$repo/nbsp.txt")" "20200" "fixture: 10100 NBSP are 20200 bytes"
+
+echo "=== an awk whose length counts characters fails the run, never a pass ==="
+mk_repo
+put_small a.txt
+mkdir -p "$sandbox/fakebin"
+# A stand-in for an awk that decodes UTF-8: it answers 1 to every question,
+# which is the length such an awk gives a two-byte character.
+printf '#!/bin/sh\necho 1\n' > "$sandbox/fakebin/awk"
+chmod +x "$sandbox/fakebin/awk"
+run_path="$sandbox/fakebin"
+run_check
+run_path=""
+assert_eq "$rc" "1" "character awk: exit code"
+assert_eq "$out" "" "character awk: stdout"
+assert_contains "$err" "check-size: awk counts characters, not bytes: $sandbox/fakebin/awk" "character awk: reason names the awk"
 
 echo "=== a pass writes nothing to stderr and exits 0 ==="
 mk_repo
