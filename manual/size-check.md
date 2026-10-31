@@ -61,7 +61,6 @@ The skips apply in this order; a file stops at the first that takes it:
 6. **Built-ins**: `plugin-dev/` and a root `plans/`, each as a whole leading
    path component (`plans-old/` is not skipped, nor is `docs/plans/`), and a
    file named `uv.lock` or `package-lock.json` at any depth.
-7. **Empty files** are skipped without a count.
 
 What remains is counted. `size.exempt`, below, does not skip a file: it forgives
 an overage after the count.
@@ -97,7 +96,7 @@ fails the run even when no file is over a cap:
 | Refusal | Cause |
 | --- | --- |
 | `no reason after the hash` | no ` #`, or nothing after it |
-| `matches no listed file` | the path is not a counted file or a directory holding one: a typo, an ignored, binary, empty or deleted file, a skipped symlink |
+| `matches no listed file` | the path is not a counted file or a directory holding one: a typo, an ignored, binary or deleted file, a skipped symlink |
 | `a built-in is always skipped` | the path is `plugin-dev`, `plans`, or inside either, or a lockfile basename |
 | `a file entry must be over its cap` | the named file is at or under its cap (a `SKILL.md` is held to the hub cap) |
 | `already listed on an earlier line` | the same path, after trimming a trailing `/` |
