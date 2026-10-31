@@ -339,6 +339,38 @@ assert_not_contains "$out" "just release <bump>" \
     "origin-newer-tag resume hint must not advise the bump form when origin holds v1.2.3 itself"
 assert_eq "$(cat "$GH_LOG")" "" "origin-newer-tag resume must not call gh"
 
+echo "=== resume: a failed local tag listing advises the bump form, not the bare one ==="
+# Pins resume_preflight's no_local_tags flag, set only by a listing that
+# SUCCEEDED and came back empty. Virgin fixture: origin lists nothing, so the
+# elif chain reaches the local-evidence branches; a `git` wrapper fails only
+# `tag --list` (release_tags's one read), so the listing fails rather than
+# comes back empty. A fold of failure into the empty case routes to the bare
+# `just release` hint (measured: that mutant passed every other suite).
+# Origin is read with ls-remote, which the wrapper delegates untouched.
+new_sandbox ""
+make_virgin "0.1.0"
+git_wrapper_dir="$sandbox/git-wrapper"
+mkdir -p "$git_wrapper_dir"
+real_git="$(command -v git)"
+cat > "$git_wrapper_dir/git" <<STUB
+#!/bin/sh
+if [ "\$1" = "tag" ] && [ "\$2" = "--list" ]; then
+    echo "git: fatal: stub git failing tag --list" >&2
+    exit 1
+fi
+exec "$real_git" "\$@"
+STUB
+chmod +x "$git_wrapper_dir/git"
+saved_path="$PATH"
+export PATH="$git_wrapper_dir:$PATH"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+export PATH="$saved_path"
+assert_eq "$rc" "1" "failed-listing resume exit code"
+assert_contains "$out" "no tag v0.1.0 for plugin.json version 0.1.0" "failed-listing resume message"
+assert_contains "$out" "just release <bump>" "failed-listing resume hint names the bump form"
+assert_not_contains "$out" 'just release`' "failed-listing resume hint must not advise the bare form"
+assert_eq "$(cat "$GH_LOG")" "" "failed-listing resume must not call gh"
+
 echo "=== resume: no-op on a healthy repo ==="
 new_sandbox "1.2.3"
 run_in "$plugin" bash plugin-dev/release.sh patch
