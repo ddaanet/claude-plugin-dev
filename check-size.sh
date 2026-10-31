@@ -23,6 +23,14 @@ main() {
 cap=20000
 hub_cap=10000
 
+# GNU coreutils stat answers --version; BSD/macOS stat rejects it. The flavour is
+# chosen here, once, and count_kept runs the argv it names.
+if stat --version >/dev/null 2>&1; then
+    stat_cmd=(stat -c %s --)
+else
+    stat_cmd=(stat -f %z --)
+fi
+
 # scan_listing: one listing of the tree, sorted by path, and the scope skips in
 # order. Fills kept[] (non-empty files that reach the count) and the skip counts.
 scan_listing() {
@@ -73,18 +81,28 @@ is_builtin() {
     return 1
 }
 
-# count_kept: one wc -c per kept file, in listing order, so counts[i] belongs to
-# kept[i]. A file is fed on stdin, never named as an operand, so a name that
-# starts with a dash or holds an equals sign is read as the path it is.
+# count_kept: one batched stat over the kept files, in listing order, so the
+# output lines pair with kept[] by position. The names reach xargs NUL-delimited
+# and stat gets them after `--`, so no name is split or read as an option. xargs
+# may run stat more than once for a long list; its output stays in order.
 count_kept() {
-    local i n
+    local i=0 line out
     counts=()
-    for ((i = 0; i < nkept; i++)); do
-        if ! n="$(wc -c < "${kept[i]}")"; then
-            fail_run "counting failed: ${kept[i]}"
-        fi
-        counts[i]=$(( n ))   # macOS wc pads its number with spaces; arithmetic drops them
-    done
+    if (( nkept == 0 )); then
+        return 0
+    fi
+    if ! out="$(printf '%s\0' "${kept[@]}" | xargs -0 "${stat_cmd[@]}")"; then
+        fail_run "counting failed: stat exited with an error"
+    fi
+    if [ -n "$out" ]; then
+        while IFS= read -r line; do
+            counts[i]=$(( line ))   # macOS stat pads its number with spaces; arithmetic drops them
+            i=$((i + 1))
+        done <<<"$out"
+    fi
+    if (( i != nkept )); then
+        fail_run "counting failed: $i counts for $nkept files"
+    fi
 }
 
 # read_exempt: parse the root size.exempt into ex_paths[] (accepted entries)

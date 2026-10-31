@@ -36,12 +36,12 @@ It runs uncached, on every call. It reads every file git does not ignore, a set
 no sentinel's pathspecs cover whole, so inside a narrower cached gate body a
 cached pass could commit a file the check never read. A dependency runs before
 the recipe body, ahead of any sentinel guard, which is where this check belongs;
-it runs one `wc -c` per file, which costs a few seconds on a repository the size
-of gitlore (about 4.3 s for 566 files, against about 0.5 s for a single awk pass
-over the same files, measured on Linux under load). See
+it reads every size with one batched `stat`, which takes well under a second on
+a repository the size of gitlore (about 0.35 s, measured on Linux under load).
+See
 [Gate sentinels](gates.md).
 
-It needs `bash`, `git` and `wc`.
+It needs `bash`, `git`, `xargs` and a GNU or BSD `stat`.
 
 ## What it reads
 
