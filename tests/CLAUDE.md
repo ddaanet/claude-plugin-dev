@@ -22,7 +22,8 @@ wiring and legacy-entry migration),
 `dist-{build,refusal,warning,subcommands}-test.sh` (`dist.sh`'s allowlist,
 tree build, refusals, warnings and other subcommands),
 `check-refs-{syntax,scan,shipped}-test.sh` (`check-refs.sh`: what a reference
-is, which files are read and exempt, and the shipped check),
+is, which files are read and exempt, `plans/` always skipped, and the shipped
+check),
 `check-size-{scope,exempt,report}-test.sh` (`check-size.sh`: which files are
 counted, the `size.exempt` refusals, and the report, caps and counts),
 `doc-sync-test.sh` (the install/update command blocks shared by the two

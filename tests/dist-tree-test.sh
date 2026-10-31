@@ -36,6 +36,7 @@ bin/claude
 check-refs.sh
 check-refs-parse.sh
 check-size.sh
+exempt-list.sh
 check-version.sh
 dist.sh
 manual/dist-branch.md

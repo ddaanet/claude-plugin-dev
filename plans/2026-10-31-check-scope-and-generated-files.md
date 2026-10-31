@@ -1,8 +1,9 @@
 # check-size and check-refs: one scope rule, one exempt reader, generated files
 
 Covers TODO items "Shared path-list parser plus one rule for `plans/`" and "Skip
-generated and lock files in check-size by git attribute" (tmp/simplify-altitude.md
-items 2 and 3). Contract-level: steps state what must hold, not the code.
+generated and lock files in check-size by git attribute"
+(tmp/simplify-altitude.md items 2 and 3). Contract-level: steps state what must
+hold, not the code.
 
 ## Decisions (settled 2026-11-01: 1b and 2 as recommended)
 
@@ -22,8 +23,9 @@ items 2 and 3). Contract-level: steps state what must hold, not the code.
    allowlist whose refusals (CRLF, edge blanks, absolute paths, `..`, globs) are
    its contract, pinned by its suites and the dist-branch manual. The finding's
    "three parsers" becomes two sharing one reader, with the third out of scope
-   by design. Visible change for `refs.exempt`: blanks around a path are trimmed,
-   and a ` # note` after a path becomes a comment rather than part of the path.
+   by design. Visible change for `refs.exempt`: blanks around a path are
+   trimmed, and a ` # note` after a path becomes a comment rather than part of
+   the path.
 
 ## A. Scope rule and shared reader (after decisions 1 and 2)
 
@@ -43,18 +45,18 @@ items 2 and 3). Contract-level: steps state what must hold, not the code.
    `docs/references/check-refs.md` and `size-check.md`, for the scope rule; hub
    one-liners if they change; one dated changelog record.
 5. Tests: a `refs.exempt` with a trailing ` # note` and edge blanks; `plans/`
-   skipped by check-refs even when a `refs.exempt` exists (option b). Suites stay
-   under 20000 bytes.
+   skipped by check-refs even when a `refs.exempt` exists (option b). Suites
+   stay under 20000 bytes.
 
 ## B. Skip files marked `linguist-generated` in check-size
 
 1. One batched `git check-attr -z --stdin linguist-generated` over the paths
-   `scan_listing` already has; output is `path NUL attr NUL value NUL`. `set`
-   or `true` counts as generated; `unset`, `unspecified` and `false` do not.
-   Probe the value forms before relying on this list. Applied before
-   `is_builtin`; the `uv.lock` and `package-lock.json` names stay as a fallback.
-2. A `size.exempt` entry naming an attribute-skipped file is refused as
-   "always skipped", like a built-in, not as "matches no listed file".
+   `scan_listing` already has; output is `path NUL attr NUL value NUL`. `set` or
+   `true` counts as generated; `unset`, `unspecified` and `false` do not. Probe
+   the value forms before relying on this list. Applied before `is_builtin`; the
+   `uv.lock` and `package-lock.json` names stay as a fallback.
+2. A `size.exempt` entry naming an attribute-skipped file is refused as "always
+   skipped", like a built-in, not as "matches no listed file".
 3. Sign-off line: the skip count `plans/plugin-dev/lockfiles` gains generated
    files. Its wording is pinned by the report suite; update both.
 4. Docs: `toolkit/manual/size-check.md` "scope skips in order", the

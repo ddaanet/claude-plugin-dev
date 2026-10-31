@@ -32,8 +32,9 @@ dotfiles).
 - **`check-refs.sh`** — refuses a Markdown link whose target is missing, and,
   with a `dist.include`, one from a shipped file to an unshipped one. Run from
   `precommit`; the dist build runs it again on the tree it builds. Its parser
-  lives in `check-refs-parse.sh` beside it, which it sources. See
-  [Reference check](#reference-check).
+  lives in `check-refs-parse.sh` beside it, which it sources, as it does
+  `exempt-list.sh`, the reader of its exempt list that `check-size.sh` shares.
+  See [Reference check](#reference-check).
 - **`check-version.sh`** — compares `plugin.json`'s version against the plugin's
   `marketplace.json` entry. Exposed as `just check-version` and run as a
   `release` pre-flight, so a release refuses to start on top of a previous one
@@ -225,18 +226,19 @@ ignored target is refused, a target above the repository root too, and the match
 is exact-case even on a case-insensitive disk. Links with a scheme, pure
 `#anchors`, root `/paths`, fenced code, inline code spans and HTML comments are
 not checked, and neither are backticked paths. It reads every Markdown file on
-disk that git does not ignore, tracked or not, apart from `plugin-dev/` and
-submodules. Wire it into the commit gate as a dependency, so it runs on every
-call, ahead of any gate guard:
+disk that git does not ignore, tracked or not, apart from `plugin-dev/`, a root
+`plans/` and submodules. Wire it into the commit gate as a dependency, so it
+runs on every call, ahead of any gate guard:
 
 ```just
 precommit: check-refs
 ```
 
-Files under `docs/changelog/` and `plans/` are exempt, since a dated record's
-link to a file deleted later is still true. A `refs.exempt` at the root, one
-path per line with `#` comments, replaces that list; an empty one exempts
-nothing.
+Files under `docs/changelog/` are exempt, since a dated record's link to a file
+deleted later is still true. A `refs.exempt` at the root, one path per line with
+`#` comments and an optional ` # reason` after a path, replaces that default; an
+empty one exempts nothing. `plans/` is never read, like `plugin-dev/`, whatever
+`refs.exempt` says.
 
 With a `dist.include`, a link from a shipped file must also reach a shipped file
 that exists, exempt or not: the `dist` tree holds only the listed paths, and

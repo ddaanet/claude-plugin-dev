@@ -53,10 +53,11 @@ or removing a shipped file means updating the list in
   does nothing. Its build runs `check-refs.sh --tree` on the tree it built.
 - `toolkit/check-refs.sh` — refuses broken Markdown references: a link, image
   or reference definition whose relative target is missing (outside the exempt
-  prefixes, `docs/changelog/` and `plans/` unless a root `refs.exempt` names
-  others), and, given a `dist.include` or `--shipped`, one from a shipped file
+  prefixes, `docs/changelog/` unless a root `refs.exempt` names others; root
+  `plans/` is never read), and, given a `dist.include` or `--shipped`, one from a
+  shipped file
   to an unshipped one. Reads every Markdown file on disk git does not ignore,
-  skipping `plugin-dev/` and submodules. This repo's `precommit` runs it with
+  skipping `plugin-dev/`, root `plans/` and submodules. This repo's `precommit` runs it with
   `--shipped toolkit`; consumers wire `precommit: check-refs`. Executable on
   disk, which `tests/dist-tree-test.sh` pins. Its two awk programs, the
   Markdown reader and the existence test over the git listing, live in
@@ -68,6 +69,10 @@ or removing a shipped file means updating the list in
   lists, one entry and its reason per line. Uncached; consumers wire
   `precommit: check-refs check-size`. Executable on disk, which
   `tests/dist-tree-test.sh` pins.
+- `toolkit/exempt-list.sh` — sourced by `check-size.sh` and `check-refs.sh`
+  from their own directory, not executable: the one reader of `size.exempt` and
+  `refs.exempt`, and the scope rule both apply (`plugin-dev/` and root `plans/`
+  as whole leading components). `dist.sh`'s `dist.include` reader stays its own.
 - `toolkit/dogfood.sh` — the dogfood launcher's one script, with three
   subcommands. `sync` mirrors the plugin tree, minus git-ignored paths
   and every `.git`, into `dist/plugin/`, the copy the session loads;

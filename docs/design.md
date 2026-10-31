@@ -161,7 +161,8 @@ the dated record of the reversal goes in the changelog.
   backticked path.
 - Files are read from disk: every Markdown file git does not ignore, tracked or
   not.
-- Dated records and plans are exempt from resolving.
+- Dated records are exempt from resolving, and `plans/` is never read, as
+  `check-size` skips it.
 - **Shipped stays shipped, with no exemption**: given a `dist.include`, a link
   from a shipped file must reach a shipped file git lists.
 - `release.just` gains a `check-refs` recipe that nothing depends on.

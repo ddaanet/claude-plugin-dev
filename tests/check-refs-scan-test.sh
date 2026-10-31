@@ -4,8 +4,8 @@
 # Scope: which files are read and which are exempt -- every Markdown file on
 # disk git does not ignore, tracked or not, read from disk and never from the
 # index; never an ignored file, the vendored plugin-dev/ tree, a submodule or a
-# tracked file deleted from disk; the default exemptions (docs/changelog/ and
-# plans/) and a refs.exempt that replaces them. Its siblings
+# tracked file deleted from disk; the default exemption (docs/changelog/), a
+# refs.exempt that replaces it, and plans/, which is always skipped. Its siblings
 # check-refs-syntax-test.sh and check-refs-shipped-test.sh cover what a
 # reference is and the shipped-stays-shipped check.
 #
@@ -174,7 +174,7 @@ assert_eq "$(git -C "$repo" ls-files -s memory | cut -d' ' -f1)" "160000" "fixtu
 run_check
 expect_pass "submodule"
 
-echo "=== default exemptions: docs/changelog/ and plans/ ==="
+echo "=== default exemption docs/changelog/, and plans/ always skipped ==="
 mk_repo
 put docs/changelog/2020-01-01-x.md '[old](../../plans/gone.md)'
 put plans/p.md '[later](deleted.md)'
@@ -186,25 +186,36 @@ assert_not_contains "$err" "plans/p.md" "plans/ is exempt"
 rm "$repo/docs/changelogs.md"
 run_check
 expect_pass "exempt only"
-assert_contains "$out" "2 exempt" "the pass line counts the exempt files"
+assert_contains "$out" "1 exempt files skipped" "the pass line counts the exempt files, not plans/"
 
-echo "=== refs.exempt replaces the defaults ==="
+echo "=== refs.exempt replaces docs/changelog, never plans/ ==="
 mk_repo
 put plans/p.md '[later](deleted.md)'
+put docs/changelog/2020-01-01-x.md '[old](deleted.md)'
 put notes/n.md '[n](deleted.md)'
 put archive.md '[a](deleted.md)'
 put refs.exempt '# frozen records' '' 'notes/' 'archive.md'
 run_check
-expect_broken "plans/ no longer exempt" "plans/p.md:1: deleted.md"
+expect_broken "docs/changelog no longer exempt" "docs/changelog/2020-01-01-x.md:1: deleted.md"
+assert_not_contains "$err" "plans/p.md" "plans/ stays skipped beside a refs.exempt"
 assert_not_contains "$err" "notes/n.md" "a listed directory is exempt"
 assert_not_contains "$err" "archive.md" "a listed file is exempt"
 
+echo "=== refs.exempt: blanks trimmed, a trailing note is a comment ==="
+mk_repo
+put notes/n.md '[n](deleted.md)'
+put archive.md '[a](deleted.md)'
+printf '%s\r\n' '  notes/  # frozen' 'archive.md # kept' > "$repo/refs.exempt"
+run_check
+expect_pass "trimmed refs.exempt"
+assert_contains "$out" "2 exempt files skipped" "both listed paths matched"
+
 echo "=== an empty refs.exempt exempts nothing ==="
 mk_repo
-put plans/p.md '[later](deleted.md)'
+put docs/changelog/2020-01-01-x.md '[old](deleted.md)'
 : > "$repo/refs.exempt"
 run_check
-expect_broken "empty refs.exempt" "plans/p.md:1: deleted.md"
+expect_broken "empty refs.exempt" "docs/changelog/2020-01-01-x.md:1: deleted.md"
 
 echo "=== run from a subdirectory: paths are from the repo root ==="
 mk_repo

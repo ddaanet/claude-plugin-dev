@@ -175,8 +175,9 @@ silently covers files written later.
 **Two kinds of entry.** A file entry ratchets: it must name a listed file over
 its cap. A directory entry declares scope: it must hold a listed file, none of
 which need be over. Entries add to the built-ins and never replace them, unlike
-`refs.exempt`, whose list replaces the defaults; the manual states the
-difference once.
+`refs.exempt`, whose list replaces its one default, `docs/changelog`. Both lists
+go through one reader (`exempt-list.sh`) and both checks skip `plans/` by the
+same predicate; the manual states the difference once.
 
 **Stale entries are refused.** Each failure prints
 `size.exempt:<n>: <path> — <why>` and fails the run: an entry with no reason, an

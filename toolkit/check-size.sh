@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck source-path=SCRIPTDIR  # follow the sourced sibling (needs -x)
 # check-size: every file git does not ignore, read from disk, must hold at most
 # `cap` bytes, or `hub_cap` when it is a SKILL.md at any depth. A file's size is
 # all of its bytes, whitespace and newlines included, as `wc -c` counts them.
@@ -19,6 +20,10 @@ main() {
     read_exempt
     judge
 }
+
+# The sibling helper is found from this script's own location, before main
+# changes directory to the root.
+here="$(unset CDPATH; cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 cap=20000
 hub_cap=10000
@@ -67,12 +72,12 @@ scan_listing() {
     fi
 }
 
-# is_builtin <path>: plugin-dev/ and root plans/ as whole leading components,
-# and uv.lock or package-lock.json as the basename at any depth.
+# is_builtin <path>: the shared scope skip (plugin-dev/ and root plans/), and
+# uv.lock or package-lock.json as the basename at any depth.
 is_builtin() {
-    case $1 in
-        plugin-dev|plugin-dev/*|plans|plans/*) return 0 ;;
-    esac
+    if in_scope_skip "$1"; then
+        return 0
+    fi
     case ${1##*/} in
         uv.lock|package-lock.json) return 0 ;;
     esac
@@ -104,27 +109,17 @@ count_kept() {
 # read_exempt: parse the root size.exempt into ex_paths[] (accepted entries)
 # and refusals (stderr lines). Entries are checked against kept[] and counts[].
 read_exempt() {
-    local lineno=0 line p why k exact matched repeat lim nkept=${#kept[@]}
+    local i lineno p why k exact matched repeat lim nkept=${#kept[@]}
     ex_paths=()
     refusals=""
     [ -e size.exempt ] || return 0
-    if [ ! -r size.exempt ]; then
+    if ! read_path_list size.exempt; then
         fail_run "cannot read size.exempt"
     fi
-    while IFS= read -r line || [ -n "$line" ]; do
-        lineno=$((lineno + 1))
-        line=${line%$'\r'}
-        trim "$line"
-        [ -n "$REPLY" ] || continue
-        [[ $REPLY != '#'* ]] || continue
-        case $line in
-            *' #'*) p=${line%% #*}; why=${line#* #} ;;
-            *) p=$line; why= ;;
-        esac
-        trim "$p"
-        p=${REPLY%/}   # a directory entry may end in /, as in dist.include
-        trim "$why"
-        why=$REPLY
+    for ((i = 0; i < ${#list_paths[@]}; i++)); do
+        lineno=${list_lines[i]}
+        p=${list_paths[i]}
+        why=${list_whys[i]}
         if [ -z "$why" ]; then
             refuse "$lineno" "$p" "no reason after the hash"
             continue
@@ -169,19 +164,12 @@ read_exempt() {
             fi
         fi
         ex_paths+=("$p")
-    done < size.exempt
+    done
 }
 
 # refuse <line> <path> <why>: one refusal line, the failure is the caller's.
 refuse() {
     refusals+="size.exempt:$1: $2 — $3"$'\n'
-}
-
-# trim <string>: leading and trailing blanks removed, into REPLY.
-trim() {
-    REPLY=$1
-    while [[ $REPLY == [[:blank:]]* ]]; do REPLY=${REPLY#?}; done
-    while [[ $REPLY == *[[:blank:]] ]]; do REPLY=${REPLY%?}; done
 }
 
 # cap_for <path>: the cap that applies to the path, into REPLY.
@@ -244,5 +232,8 @@ fail_run() {
     printf 'check-size: %s\n' "$1" >&2
     exit 1
 }
+
+# shellcheck source=exempt-list.sh
+source "$here/exempt-list.sh"
 
 main "$@"

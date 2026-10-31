@@ -101,12 +101,13 @@ fails the run even when no file is over a cap:
 | `a file entry must be over its cap` | the named file is at or under its cap (a `SKILL.md` is held to the hub cap) |
 | `already listed on an earlier line` | the same path, after trimming a trailing `/` |
 
-`size.exempt` differs from `refs.exempt` (see
-[Reference check](../README.md#reference-check)) in two ways. Its entries
-**add** to the built-ins, never replace them; `refs.exempt` replaces its
-defaults, and an empty one exempts nothing. And its entries are held to being
-still needed, where `refs.exempt` is frozen history that is never re-examined.
-`size.exempt` is itself a file the check counts.
+`size.exempt` and `refs.exempt` (see
+[Reference check](../README.md#reference-check)) are read the same way and skip
+`plugin-dev/` and a root `plans/` the same way. They differ in two ways. Its
+entries **add** to the built-ins, never replace them; `refs.exempt` replaces its
+one default, `docs/changelog`, and an empty one exempts nothing. And its entries
+are held to being still needed, where `refs.exempt` is frozen history that is
+never re-examined. `size.exempt` is itself a file the check counts.
 
 ## The report
 

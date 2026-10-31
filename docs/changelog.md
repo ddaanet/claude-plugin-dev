@@ -9,6 +9,9 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-11-01 — One scope rule and a shared exempt reader](changelog/2026-11-01-one-scope-rule-shared-exempt-reader.md)
+  — `plans/` is skipped by both checks whatever `refs.exempt` says; one reader
+  serves `size.exempt` and `refs.exempt`.
 - [2026-10-31 — The size check reads sizes with one batched stat](changelog/2026-10-31-size-check-batched-stat.md)
 - [2026-10-31 — The size check counts all bytes](changelog/2026-10-31-size-metric-all-bytes.md)
   — a file's size is what `wc -c` prints, the caps stay 20000 and 10000 and aim
