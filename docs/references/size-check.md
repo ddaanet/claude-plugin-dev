@@ -152,9 +152,10 @@ migration note carries the steps.
 Every listed path counts unless skipped, tested in this order: symlinks;
 anything not a regular file (a gitlink, a nested repo, a deleted tracked file, a
 sandbox character-device mask); unreadable files, each with a stderr notice and
-a count in the sign-off; binaries; the built-ins; `size.exempt` entries. The
-built-ins are `plugin-dev/`, root `plans/`, and `uv.lock` and
-`package-lock.json` at any depth. Untracked drafts and `docs/**` count.
+a count in the sign-off; binaries; the built-ins. The built-ins are
+`plugin-dev/`, root `plans/`, and `uv.lock` and `package-lock.json` at any
+depth. Untracked drafts and `docs/**` count. A `size.exempt` entry skips
+nothing: it forgives an overage after the count.
 
 Unreadable files are skipped rather than failed because the known producer is
 the sandbox, and a gate red under the Bash tool and green in a hook is worse
