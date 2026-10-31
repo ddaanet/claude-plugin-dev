@@ -118,7 +118,8 @@ the dated record of the reversal goes in the changelog.
 - `check-version.sh` detects a half-landed release.
 - An empty local tag list is checked against origin first.
 - **A push redirected away from origin is refused** when the config key is set
-  at all rather than when it "diverges".
+  at all rather than when it "diverges"; `pushInsteadOf` is a stated bound, not
+  refused.
 - **`resume-release` completes one** — the last steps, `push_dist` included for
   an opted-in plugin, are an idempotent block that probes remote state before
   acting.
