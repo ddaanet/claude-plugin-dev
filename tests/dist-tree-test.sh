@@ -35,6 +35,7 @@ VERSION
 bin/claude
 check-refs.sh
 check-refs-parse.sh
+check-size.sh
 check-version.sh
 dist.sh
 manual/dist-branch.md
@@ -100,6 +101,12 @@ echo "=== toolkit/check-refs.sh is executable on disk ==="
 [ -f toolkit/check-refs.sh ] && [ -x toolkit/check-refs.sh ] \
     || fail "toolkit/check-refs.sh is not an executable file on disk"
 
+# Consumers may call it as `plugin-dev/check-size.sh` from a gate body, with no
+# `bash` before it, as they do the other two.
+echo "=== toolkit/check-size.sh is executable on disk ==="
+[ -f toolkit/check-size.sh ] && [ -x toolkit/check-size.sh ] \
+    || fail "toolkit/check-size.sh is not an executable file on disk"
+
 # Named separately from the exact-set check above: this is the specific
 # breakage consumers reported, and a bare `git submodule status` in a
 # consumer fatals repo-wide on an unregistered gitlink.
@@ -119,4 +126,4 @@ if [ "$failures" -ne 0 ]; then
     exit 1
 fi
 echo
-echo "dist tree ok ($(printf '%s\n' "$expected" | wc -l | tr -d ' ') files, bin/claude, run-bats.sh and check-refs.sh executable, no gitlink)"
+echo "dist tree ok ($(printf '%s\n' "$expected" | wc -l | tr -d ' ') files, bin/claude, run-bats.sh, check-refs.sh and check-size.sh executable, no gitlink)"

@@ -59,6 +59,13 @@ or removing a shipped file means updating the list in
   disk, which `tests/dist-tree-test.sh` pins. Its two awk programs, the
   Markdown reader and the existence test over the git listing, live in
   `toolkit/check-refs-parse.sh`, which it sources from its own directory.
+- `toolkit/check-size.sh` — refuses a file over the size cap: 20000
+  non-whitespace bytes, 10000 for a `SKILL.md` at any depth. Reads every file
+  on disk git does not ignore, skipping `plugin-dev/`, root `plans/`, lock
+  files, binaries, symlinks and submodules, plus whatever a root `size.exempt`
+  lists, one entry and its reason per line. Uncached; consumers wire
+  `precommit: check-refs check-size`. Executable on disk, which
+  `tests/dist-tree-test.sh` pins.
 - `toolkit/dogfood.sh` — the dogfood launcher's one script, with three
   subcommands. `sync` mirrors the plugin tree, minus git-ignored paths
   and every `.git`, into `dist/plugin/`, the copy the session loads;
@@ -101,7 +108,7 @@ or removing a shipped file means updating the list in
 - `toolkit/manual/dist-branch.md` — the manual's dist-branch chapter: how a
   plugin opts in with `dist.include`, and what each check refuses or warns
   about. Split out of `toolkit/README.md`, which keeps a stub section
-  pointing here, so the manual stays under the 400-line cap.
+  pointing here, so the manual stays under the size cap.
 - `toolkit/manual/dogfood.md` — the manual's dogfooding chapter: setup of the
   shim and the copy, launching, promoting changes, and the two dogfood hooks.
   `toolkit/README.md` keeps a stub section pointing here.
@@ -163,7 +170,7 @@ just precommit
 ```
 
 Runs `bash -n` and `shellcheck` on the shell scripts, `check-refs.sh
---shipped toolkit` over this repo's own Markdown, a private
+--shipped toolkit` over this repo's own Markdown, `check-size.sh` over every file, a private
 `_import-check` that imports `release.just` into a stub consumer to
 catch justfile syntax errors (it imports `gates.just` beside it too), and then
 **every test under `tests/`** —
@@ -186,11 +193,9 @@ wiring and legacy-entry migration),
 `dist-{build,refusal,warning,subcommands}-test.sh` (`dist.sh`'s allowlist,
 tree build, refusals, warnings and other subcommands),
 `check-refs-{syntax,scan,shipped}-test.sh` (`check-refs.sh`: what a reference
-is, which files are read and exempt, and the shipped check), `docs-test.sh` (the
-400-line cap over `docs/`; the cap is soft for plans and gated nowhere, and link
-resolution is `check-refs.sh`'s),
-`line-cap-test.sh` (the same 400-line cap over every other file; a
-suite that outgrows it is split along its scenario groups, never exempted),
+is, which files are read and exempt, and the shipped check),
+`check-size-{scope,exempt,report}-test.sh` (`check-size.sh`: which files are
+counted, the `size.exempt` refusals, and the report, caps and counts),
 `doc-sync-test.sh` (the install/update command blocks shared by the two
 READMEs, and the Layout list above against `toolkit/`'s actual
 contents), `citation-test.sh` (refuses a `<script>.sh:<line>`
@@ -206,9 +211,9 @@ passed, not just the linters. **One script under test per suite
 file**, each carrying its
 own copy of the small assertion harness rather than sourcing a shared
 one: a suite that can be read and run alone is worth more than the
-duplicated six lines. **No suite file passes 400 lines**: a suite that
+duplicated six lines. **No suite file passes 20000 non-whitespace bytes**: a suite that
 would is split along its scenario groups into sibling files, each with
-its own fixture setup, and `line-cap-test.sh` fails the gate otherwise. It also runs `whitespace` and
+its own fixture setup, and `check-size.sh` fails the gate otherwise. It also runs `whitespace` and
 `format-docs`, which needs rumdl: `uv sync` once, and the recipe finds
 `.venv/bin/rumdl` whether or not direnv has exported it. Must be green
 before committing.
@@ -319,8 +324,8 @@ split dist ref" for the reasoning.
   is correct forever precisely because it is dated. `just format-docs`
   still wraps `docs/changelog/` along with everything else: re-flowing a
   paragraph changes line breaks and not words, so it is not a revision,
-  and exempting the directory would leave the line cap unmeasurable
-  exactly where the longest records accumulate. The entries written
+  and exempting the directory would leave the longest records the
+  only unwrapped prose in `docs/`. The entries written
   before the wrap existed were reflowed once, in the pass that
   introduced it, and are grandfathered.
 
