@@ -27,12 +27,14 @@ or removing a shipped file means updating the list in
   `.claude-plugin/plugin.json`, commits, tags, pushes, creates the GitHub
   release, and bumps the marketplace entry. `--resume` probes what already
   landed and does only what is missing. Holds the argument parsing and the
-  step sequence; the steps live in four sibling files it sources from its own
+  step sequence; the steps live in five sibling files it sources from its own
   directory, sharing its shell, `set` line and globals:
   - `toolkit/release-preflight.sh` — the checks every run makes before any
     side effect: clean tree and its exemptions, push route, `MARKETPLACE_DIR`.
-  - `toolkit/release-tags.sh` — release-history reads, and the release and
-    resume preflights that decide what version this run publishes.
+  - `toolkit/release-tags.sh` — release-history reads, and the release
+    preflight that decides what version this run publishes.
+  - `toolkit/release-resume.sh` — the resume preflight: what a `--resume` run
+    probes and decides before finishing a partial release.
   - `toolkit/release-publish.sh` — the dist opt-in and pre-flight, the
     version commit and tag, each push, and the GitHub release.
   - `toolkit/release-marketplace.sh` — bumping or creating the plugin's
