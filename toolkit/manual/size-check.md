@@ -8,16 +8,16 @@ is opt-in: a plugin that does not wire it is unaffected, and `release`,
 
 ## The metric and the caps
 
-A file's size is its **non-whitespace bytes**: every byte left after deleting
-space, tab, carriage return, form feed and vertical tab. Newlines separate
-records and are not counted. Lines are not the measure because a line count
-rewards cramming long lines and a formatter that re-wraps moves it; this count
-does not move when the text is re-wrapped.
+A file's size is its **bytes**: exactly what `wc -c` prints, counted per file,
+whitespace, indentation and newlines included. The caps aim at about 10k and 5k
+tokens as an agent reads the file. Lines are not the measure because a line
+count rewards cramming long lines; bytes barely move when text is re-wrapped,
+which swaps spaces for newlines.
 
 | File | Cap |
 | --- | --- |
-| any file | 20000 non-whitespace bytes |
-| a `SKILL.md`, at any depth | 10000 non-whitespace bytes |
+| any file | 20000 bytes |
+| a `SKILL.md`, at any depth | 10000 bytes |
 
 The hub cap is lower because a `SKILL.md` is paid for on every invocation, while
 any other file is read only when opened. A file at exactly its cap passes; one
@@ -35,11 +35,10 @@ It runs uncached, on every call. It reads every file git does not ignore, a set
 no sentinel's pathspecs cover whole, so inside a narrower cached gate body a
 cached pass could commit a file the check never read. A dependency runs before
 the recipe body, ahead of any sentinel guard, which is where this check belongs;
-it is one `awk` process over the tree and cheap. See
+it is one `wc -c` per file and cheap. See
 [Gate sentinels](gates.md).
 
-It needs `bash`, `git` and an `awk` whose `length` counts bytes. The script
-tests that first, and fails the run if `awk` counts characters.
+It needs `bash`, `git` and `wc`.
 
 ## What it reads
 
@@ -112,7 +111,7 @@ still needed, where `refs.exempt` is frozen history that is never re-examined.
 A pass prints one line on stdout and exits 0:
 
 ```text
-check-size: cap 20000 non-whitespace bytes: 74 files; hub cap 10000: 2 SKILL.md; size.exempt: 1 entries, each with a reason and still needed; skipped: 31 plans/plugin-dev/lockfiles, 3 binary, 0 symlinks, 0 unreadable
+check-size: cap 20000 bytes: 74 files; hub cap 10000: 2 SKILL.md; size.exempt: 1 entries, each with a reason and still needed; skipped: 31 plans/plugin-dev/lockfiles, 3 binary, 0 symlinks, 0 unreadable
 ```
 
 The counts are the files compared against a cap, the `SKILL.md` among them, the
@@ -120,14 +119,13 @@ accepted `size.exempt` entries, and each skip category. A failure exits 1 with
 one stderr line per overage, sorted by path, then the hint:
 
 ```text
-oversized-file: docs/guide.md: 20311 non-whitespace bytes > 20000
-oversized-file: skills/review/SKILL.md: 10412 non-whitespace bytes > 10000 (SKILL.md hub)
+oversized-file: docs/guide.md: 20311 bytes > 20000
+oversized-file: skills/review/SKILL.md: 10412 bytes > 10000 (SKILL.md hub)
 hint: split each file along a seam; do not shave prose or docstrings to fit
 ```
 
-An `awk` that counts characters, running outside a git work tree, an unreadable
-`size.exempt` and an empty listing each end the run with one line,
-`check-size: <reason>`.
+Running outside a git work tree, an unreadable `size.exempt` and an empty
+listing each end the run with one line, `check-size: <reason>`.
 
 ## When it fails
 

@@ -9,6 +9,9 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-31 — The size check counts all bytes](changelog/2026-10-31-size-metric-all-bytes.md)
+  — a file's size is what `wc -c` prints, the caps stay 20000 and 10000 and aim
+  at 10k and 5k tokens as read; the awk self-test goes.
 - [2026-10-31 — A shipped size check, `check-size.sh`](changelog/2026-10-31-size-check.md)
   — files capped at 20000 non-whitespace bytes, 10000 for a `SKILL.md` hub,
   replacing the 400-line suites; overages exempted only by `size.exempt`.

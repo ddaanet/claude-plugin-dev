@@ -60,7 +60,7 @@ or removing a shipped file means updating the list in
   Markdown reader and the existence test over the git listing, live in
   `toolkit/check-refs-parse.sh`, which it sources from its own directory.
 - `toolkit/check-size.sh` — refuses a file over the size cap: 20000
-  non-whitespace bytes, 10000 for a `SKILL.md` at any depth. Reads every file
+  bytes as `wc -c` counts them, 10000 for a `SKILL.md` at any depth. Reads every file
   on disk git does not ignore, skipping `plugin-dev/`, root `plans/`, lock
   files, binaries, symlinks and submodules, plus whatever a root `size.exempt`
   lists, one entry and its reason per line. Uncached; consumers wire
@@ -117,7 +117,7 @@ or removing a shipped file means updating the list in
   list and the quiet runner. `toolkit/README.md` keeps a stub section pointing
   here.
 - `toolkit/manual/size-check.md` — the manual's size-check chapter: the
-  non-whitespace byte metric and the two caps, wiring `check-size` uncached, the
+  byte metric and the two caps, wiring `check-size` uncached, the
   scope skips in order, the `size.exempt` format and refusals, and the report.
   `toolkit/README.md` keeps a stub section pointing here.
 - `toolkit/migrations/vX.Y.Z.md` — optional per-release note for a step a
@@ -215,7 +215,7 @@ passed, not just the linters. **One script under test per suite
 file**, each carrying its
 own copy of the small assertion harness rather than sourcing a shared
 one: a suite that can be read and run alone is worth more than the
-duplicated six lines. **No suite file passes 20000 non-whitespace bytes**: a suite that
+duplicated six lines. **No suite file passes 20000 bytes**: a suite that
 would is split along its scenario groups into sibling files, each with
 its own fixture setup, and `check-size.sh` fails the gate otherwise. It also runs `whitespace` and
 `format-docs`, which needs rumdl: `uv sync` once, and the recipe finds

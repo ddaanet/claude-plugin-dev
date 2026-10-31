@@ -265,13 +265,13 @@ the dated record of the reversal goes in the changelog.
 
 ### The size check — [references/size-check.md](references/size-check.md)
 
-- **A file's size is its non-whitespace bytes, not its lines** — a line count
-  ignores line length and is honest only after a normalizing wrap; on disk
-  non-whitespace bytes fit tokens better than lines, they do not charge for
-  indentation, and a re-wrap moves them by a few percent at most. The script
-  refuses an awk whose `length` counts characters.
+- **A file's size is its bytes, as `wc -c` counts them, not its lines** — a line
+  count ignores line length and is honest only after a normalizing wrap; as the
+  Read tool presents a file, bytes fit tokens better than non-whitespace bytes
+  or lines, because the line-number prefix tracks newlines and indentation.
 - **Two fixed caps: 20000 for every counted file, 10000 for any `SKILL.md`** —
-  the old 400 and 200 lines at their measured density. Neither is configurable.
+  about 10k and 5k tokens as an agent reads the file, at 2.05 bytes per token.
+  Neither is configurable.
 - **`docs/changelog/` is counted** — a dated record is checked once, by the
   commit that writes it; the changelog index is split by period, not exempted.
 - **`check-size.sh` is a shipped script run uncached, wired by hand** — a

@@ -78,8 +78,10 @@ if ! [[ "$hub_cap" =~ ^[0-9]+$ ]]; then
 fi
 over=$((cap + 1))
 
-# nonws <n>: n non-whitespace bytes, no newline.
+# nonws <n>: n bytes of x, no newline.
 nonws() { head -c "$1" /dev/zero | tr '\0' x; }
+# blanks <n>: n bytes of nothing but spaces and newlines.
+blanks() { head -c "$1" < <(yes ' '); }
 
 # mk_repo: a fresh git repo $repo whose own path holds a space, no commit.
 mk_repo() {
@@ -91,7 +93,7 @@ mk_repo() {
 }
 
 # put_big <path> [n]: a file under $repo with n (default: over the cap)
-# non-whitespace bytes. put_small <path>: a file well within the cap.
+# bytes (no whitespace). put_small <path>: a file well within the cap.
 put_big() {
     mkdir -p "$(dirname "$repo/$1")"
     nonws "${2:-$over}" > "$repo/$1"
@@ -176,6 +178,20 @@ put_big skills/a/SKILL.md "$((hub_cap - 1))"
 exempt 'skills/a/SKILL.md # why'
 run_check
 expect_refused "hub entry within the hub cap" 1 "skills/a/SKILL.md"
+
+echo "=== whitespace counts toward the cap an entry forgives ==="
+mk_repo
+blanks "$over" > "$repo/blank.txt"
+mkdir -p "$repo/skills/a"
+blanks "$((hub_cap + 1))" > "$repo/skills/a/SKILL.md"
+exempt 'blank.txt # all blanks' 'skills/a/SKILL.md # all blanks'
+run_check
+expect_pass "whitespace-only files over their caps"
+mk_repo
+{ nonws "$((cap - 1))"; printf '\n'; } > "$repo/at-cap.txt"
+exempt 'at-cap.txt # why'
+run_check
+expect_refused "newline-ended file at exactly the cap" 1 "at-cap.txt"
 
 echo "=== refused: an entry with no reason ==="
 for e in 'big.txt' 'big.txt #' 'big.txt #    '; do

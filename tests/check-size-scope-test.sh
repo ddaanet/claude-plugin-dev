@@ -75,7 +75,7 @@ if ! [[ "$cap" =~ ^[0-9]+$ ]]; then
 fi
 over=$((cap + 1))
 
-# nonws <n>: n non-whitespace bytes, no newline.
+# nonws <n>: n bytes of x, no newline (a byte count and a non-whitespace count agree).
 nonws() { head -c "$1" /dev/zero | tr '\0' x; }
 
 # mk_repo: a fresh git repo $repo whose own path holds a space, no commit.
@@ -88,7 +88,7 @@ mk_repo() {
 }
 
 # put_big <path> [n]: a file under $repo with n (default: over the cap)
-# non-whitespace bytes. put_small <path>: a file well within the cap.
+# bytes (no whitespace). put_small <path>: a file well within the cap.
 put_big() {
     mkdir -p "$(dirname "$repo/$1")"
     nonws "${2:-$over}" > "$repo/$1"
@@ -283,21 +283,21 @@ put_big zz-after.txt "$((over + 1))"
 run_check
 assert_eq "$rc" "1" "odd names: exit code"
 for p in "dir with space/big file.txt" k=v.txt ' lead.txt' 'trail.txt ' -dash.txt; do
-    assert_contains "$err" "oversized-file: $p: $over non-whitespace bytes > $cap" \
+    assert_contains "$err" "oversized-file: $p: $over bytes > $cap" \
         "odd names: '$p' reported whole"
 done
-assert_contains "$err" "oversized-file: zz-after.txt: $((over + 1)) non-whitespace bytes > $cap" \
+assert_contains "$err" "oversized-file: zz-after.txt: $((over + 1)) bytes > $cap" \
     "odd names: the last count stays on its path"
-assert_eq "$(grep -c "non-whitespace bytes > $cap" <<<"$err")" "7" "odd names: seven overages"
+assert_eq "$(grep -c "bytes > $cap" <<<"$err")" "7" "odd names: seven overages"
 
 mk_repo
 put_small a-small.txt
-forged=$'forged\noversized-file: lie.txt: 99999 non-whitespace bytes > '"$cap"
+forged=$'forged\noversized-file: lie.txt: 99999 bytes > '"$cap"
 printf 'ok\n' > "$repo/$forged"
 put_big z-big.txt
 run_check
 assert_eq "$rc" "1" "forged name: exit code"
-assert_contains "$err" "oversized-file: z-big.txt: $over non-whitespace bytes > $cap" \
+assert_contains "$err" "oversized-file: z-big.txt: $over bytes > $cap" \
     "forged name: counts stay aligned with paths"
 assert_not_contains "$err" "99999" "forged name: no forged count"
 
