@@ -162,6 +162,11 @@ only when the result differs from it. A jq failure over an existing
 fall-through to writing a fresh one, which would mean an install silently
 replacing a consumer's whole configuration.
 
+Re-running `install.sh` is a no-op. The one thing it rewrites is the
+version-guard's earlier unquoted command, requoted in place under whatever
+matcher the consumer gave it, because a path with a space split the bare one and
+the guard failed open.
+
 Earlier draft: split into a separate "vendor" step (manual `git subtree add`)
 and a vendored "wire" step (`bash plugin-dev/install.sh` post-vendor). Rejected
 — the bootstrap loop ("you can't run `plugin-dev/install.sh` until `plugin-dev/`

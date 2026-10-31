@@ -4,7 +4,8 @@ Why `check-refs.sh` runs at commit time, what it counts as a reference, why it
 reads the disk, what it exempts, and how the shipped half meets the dist build.
 The dist tree it guards is argued in [dist-branch.md](dist-branch.md); the gate
 cache whose fingerprint it has to match is in [gates.md](gates.md). The
-conclusions these arguments support are listed in [../design.md](../design.md).
+conclusions these arguments support are listed in
+[../design.md](../design.md).
 
 ## Why at commit time
 
