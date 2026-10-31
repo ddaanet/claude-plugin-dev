@@ -78,10 +78,10 @@ give a two-byte character length 1 and count every file low, so every cap would
 pass files it should refuse, silently. The script's first awk output line is
 therefore a probe, `length` of a two-byte character, and the run fails with
 `check-size: awk counts characters, not bytes` naming the awk it found unless
-the probe prints 2. The only awk exercised so far is mawk; other awks, including
-the second edition of onetrue-awk, are believed to count characters and are not
-verified here. Failing the run is the point: a gate that reports green while
-undercounting is worse than no gate.
+the probe prints 2. The only awk exercised so far is mawk. The second edition of
+onetrue-awk is believed to count characters, unverified; BSD awk is unverified;
+gawk, by its documentation, counts bytes under `LC_ALL=C`. Failing the run is
+the point: a gate that reports green while undercounting is worse than no gate.
 
 ## The caps: 20000 and 10000
 

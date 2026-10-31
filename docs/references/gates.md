@@ -105,10 +105,10 @@ index instead (`git ls-files` with no `--others`, `ls-files -s` modes) sees a
 file appear the moment it is added, though the hash did not move: a pass
 recorded while an oversized file was still untracked stays cached through the
 `git add`, and the pre-commit hook lets the file commit unchecked. This repo's
-own `precommit` had five such checks (`whitespace`, the size cap, the citation
-check, the shipped-file list and its Layout mirror) when it was put behind the
-sentinel. The fix is in the checks, not the key: a suite's result is a function
-of the files on disk, so each enumerates with
+own `precommit` had five such checks (`whitespace`, `line-cap-test.sh`, the
+citation check, the shipped-file list and its Layout mirror) when it was put
+behind the sentinel. The fix is in the checks, not the key: a suite's result is
+a function of the files on disk, so each enumerates with
 `git ls-files -co --exclude-standard`, the set the hash lists, and reads execute
 bits with `[ -x ]`. Hashing the index as well was rejected: it would move the
 key on every `git add` for no change in what any disk-reading check sees, and it
