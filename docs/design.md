@@ -263,6 +263,24 @@ the dated record of the reversal goes in the changelog.
   consumer adds `precommit: check-refs`, a dependency that runs ahead of any
   gate guard on every call.
 
+### The size check — [references/size-check.md](references/size-check.md)
+
+- **A file's size is its non-whitespace bytes, not its lines** — a line count
+  ignores line length and is honest only after a normalizing wrap; bytes fit
+  tokens nearly as well as all bytes and do not move when a file is re-wrapped.
+  The script refuses an awk whose `length` counts characters.
+- **Two fixed caps: 20000 for every counted file, 10000 for any `SKILL.md`** —
+  the old 400 and 200 lines at their measured density. Neither is configurable.
+- **`docs/changelog/` is counted** — a dated record is checked once, by the
+  commit that writes it; the changelog index is split by period, not exempted.
+- **`check-size.sh` is a shipped script run uncached, wired by hand** — a
+  `check-size` recipe in `release.just` that nothing depends on; the consumer
+  adds `precommit: check-size`. It reads every file git does not ignore, a set
+  no sentinel hashes.
+- **A root `size.exempt` lists overages, each with a reason, and refuses stale
+  entries** — a file entry must be over its cap, a directory entry must hold a
+  listed file, entries add to the built-ins, and there are no globs.
+
 ### This repo's own release — [references/self-release.md](references/self-release.md)
 
 - **The toolkit releases itself with a separate script** —

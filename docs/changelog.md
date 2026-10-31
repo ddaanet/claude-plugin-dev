@@ -9,6 +9,9 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-10-31 — A shipped size check, `check-size.sh`](changelog/2026-10-31-size-check.md)
+  — files capped at 20000 non-whitespace bytes, 10000 for a `SKILL.md` hub,
+  replacing the 400-line suites; overages exempted only by `size.exempt`.
 - [2026-10-26 — `docs-test.sh` leaves link resolution to `check-refs.sh`](changelog/2026-10-26-docs-test-drops-pointer-check.md)
   — the cap over `docs/` is all it checks now; `plans/` and `docs/changelog/`
   lose link checking, being exempt from `check-refs.sh` on purpose.
