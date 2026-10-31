@@ -83,5 +83,5 @@ that submodule.
 
 This is the toolkit's most specific coupling to gitlore, but not a new one — the
 release tail is already written around gitlore's `pre-commit` and `pre-push`
-hooks (see "Recovery"). Naming the submodule gitlore installs is weaker than
-assuming where it installed it.
+hooks (see "Recovery" in [recovery.md](recovery.md)). Naming the submodule
+gitlore installs is weaker than assuming where it installed it.
