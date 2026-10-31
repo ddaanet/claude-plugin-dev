@@ -57,7 +57,7 @@
 # dist.include, one from a shipped file to an unshipped one. No recipe here
 # runs it: a plugin wires it into its own gate, `precommit: check-refs`.
 #
-# `check-size` refuses a file over the size cap, counted in non-whitespace bytes.
+# `check-size` refuses a file over the size cap, counted in bytes.
 # Like `check-refs`, no recipe here runs it: a plugin wires it into its own
 # gate, `precommit: check-refs check-size`.
 #
@@ -87,7 +87,7 @@ check-version:
 check-refs:
     bash "{{toolkit_prefix}}/check-refs.sh"
 
-# Refuse a file over the size cap in non-whitespace bytes, minus size.exempt.
+# Refuse a file over the size cap in bytes, minus size.exempt.
 check-size:
     bash "{{toolkit_prefix}}/check-size.sh"
 

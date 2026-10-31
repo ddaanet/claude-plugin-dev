@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # check-size: every file git does not ignore, read from disk, must hold at most
-# `cap` non-whitespace bytes, or `hub_cap` when it is a SKILL.md at any depth.
-# A byte is counted after deleting space, tab, CR, FF and VT; newline is the
-# record separator, so nothing has to be re-wrapped first. Exemptions are
-# listed one per line in the root size.exempt, each with a reason.
+# `cap` bytes, or `hub_cap` when it is a SKILL.md at any depth. A file's size is
+# all of its bytes, whitespace and newlines included, as `wc -c` counts them.
+# Exemptions are listed one per line in the root size.exempt, each with a reason.
 #
 # Usage: bash toolkit/check-size.sh   (no arguments, from anywhere in the tree)
 # Exit 0 prints one sign-off line on stdout. Exit 1 prints one stderr line per
@@ -74,46 +73,18 @@ is_builtin() {
     return 1
 }
 
-# count_kept: one awk process over every kept file, in listing order. Its
-# first line is the byte self-test; after it each file yields one line, so
-# counts[i] belongs to kept[i] by position.
+# count_kept: one wc -c per kept file, in listing order, so counts[i] belongs to
+# kept[i]. A file is fed on stdin, never named as an operand, so a name that
+# starts with a dash or holds an equals sign is read as the path it is.
 count_kept() {
-    local program out line probe="" i=0 dotted=() k
+    local i n
     counts=()
-    if (( nkept == 0 )); then
-        return 0
-    fi
-    # The self-test: length must count bytes, so a two-byte UTF-8 character is
-    # 2. An awk that decodes UTF-8 whatever the locale would give 1 and count
-    # every file low; onetrue-awk's second edition is believed to, but that is
-    # unverified here, where only mawk is installed. Either way the run fails.
-    # shellcheck disable=SC2016  # awk program: its $ and braces are awk's, not the shell's
-    program='
-BEGIN { print length("\303\251") }
-FNR == 1 && NR > 1 { print n }
-FNR == 1 { n = 0 }
-{ gsub(/[ \011\015\014\013]/, ""); n += length($0) }
-END { if (NR > 0) print n }
-'
-    for ((k = 0; k < nkept; k++)); do
-        dotted[k]="./${kept[k]}"
-    done
-    if ! out="$(awk "$program" "${dotted[@]}")"; then
-        fail_run "counting failed"
-    fi
-    {
-        IFS= read -r probe
-        if [ "$probe" != 2 ]; then
-            fail_run "awk counts characters, not bytes: $(command -v awk) gives length $probe to a two-byte character"
+    for ((i = 0; i < nkept; i++)); do
+        if ! n="$(wc -c < "${kept[i]}")"; then
+            fail_run "counting failed: ${kept[i]}"
         fi
-        while IFS= read -r line; do
-            counts[i]=$line
-            i=$((i + 1))
-        done
-    } <<<"$out"
-    if (( i != nkept )); then
-        fail_run "counting failed: $i counts for $nkept files"
-    fi
+        counts[i]=$(( n ))   # macOS wc pads its number with spaces; arithmetic drops them
+    done
 }
 
 # read_exempt: parse the root size.exempt into ex_paths[] (accepted entries)
@@ -231,7 +202,7 @@ judge() {
             label=""
         fi
         if (( n > lim )) && ! is_exempt "$p"; then
-            overage+="oversized-file: $p: $n non-whitespace bytes > $lim$label"$'\n'
+            overage+="oversized-file: $p: $n bytes > $lim$label"$'\n'
         fi
     done
     if [ -n "$refusals" ]; then
@@ -246,7 +217,7 @@ judge() {
     if (( failed )); then
         exit 1
     fi
-    printf 'check-size: cap %s non-whitespace bytes: %s files; hub cap %s: %s SKILL.md; size.exempt: %s entries, each with a reason and still needed; skipped: %s plans/plugin-dev/lockfiles, %s binary, %s symlinks, %s unreadable\n' \
+    printf 'check-size: cap %s bytes: %s files; hub cap %s: %s SKILL.md; size.exempt: %s entries, each with a reason and still needed; skipped: %s plans/plugin-dev/lockfiles, %s binary, %s symlinks, %s unreadable\n' \
         "$cap" "$nkept" "$hub_cap" "$hubs" "$ex_n" \
         "$skipped_builtin" "$skipped_binary" "$skipped_symlink" "$skipped_unreadable"
 }
