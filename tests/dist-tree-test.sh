@@ -91,23 +91,13 @@ echo "=== toolkit/bin/claude is executable on disk ==="
 [ -f toolkit/bin/claude ] && [ -x toolkit/bin/claude ] \
     || fail "toolkit/bin/claude is not an executable file on disk"
 
-# Consumers call the runner as `plugin-dev/run-bats.sh`, with no `bash` before
-# it, and a script without its execute bit fails there with "Permission denied".
-echo "=== toolkit/run-bats.sh is executable on disk ==="
-[ -f toolkit/run-bats.sh ] && [ -x toolkit/run-bats.sh ] \
-    || fail "toolkit/run-bats.sh is not an executable file on disk"
-
-# Consumers may call it as `plugin-dev/check-refs.sh` from a gate body, with no
-# `bash` before it, as they do the runner.
-echo "=== toolkit/check-refs.sh is executable on disk ==="
-[ -f toolkit/check-refs.sh ] && [ -x toolkit/check-refs.sh ] \
-    || fail "toolkit/check-refs.sh is not an executable file on disk"
-
-# Consumers may call it as `plugin-dev/check-size.sh` from a gate body, with no
-# `bash` before it, as they do the other two.
-echo "=== toolkit/check-size.sh is executable on disk ==="
-[ -f toolkit/check-size.sh ] && [ -x toolkit/check-size.sh ] \
-    || fail "toolkit/check-size.sh is not an executable file on disk"
+# Consumers call these as `plugin-dev/<name>`, with no `bash` before them, and
+# a script without its execute bit fails there with "Permission denied".
+for exe in run-bats.sh check-refs.sh check-size.sh; do
+    echo "=== toolkit/$exe is executable on disk ==="
+    [ -f "toolkit/$exe" ] && [ -x "toolkit/$exe" ] \
+        || fail "toolkit/$exe is not an executable file on disk"
+done
 
 # Named separately from the exact-set check above: this is the specific
 # breakage consumers reported, and a bare `git submodule status` in a

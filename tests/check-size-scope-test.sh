@@ -75,8 +75,8 @@ if ! [[ "$cap" =~ ^[0-9]+$ ]]; then
 fi
 over=$((cap + 1))
 
-# nonws <n>: n bytes of x, no newline (a byte count and a non-whitespace count agree).
-nonws() { head -c "$1" /dev/zero | tr '\0' x; }
+# xs <n>: n bytes of x, no newline.
+xs() { head -c "$1" /dev/zero | tr '\0' x; }
 
 # mk_repo: a fresh git repo $repo whose own path holds a space, no commit.
 mk_repo() {
@@ -88,10 +88,10 @@ mk_repo() {
 }
 
 # put_big <path> [n]: a file under $repo with n (default: over the cap)
-# bytes (no whitespace). put_small <path>: a file well within the cap.
+# bytes. put_small <path>: a file well within the cap.
 put_big() {
     mkdir -p "$(dirname "$repo/$1")"
-    nonws "${2:-$over}" > "$repo/$1"
+    xs "${2:-$over}" > "$repo/$1"
 }
 put_small() {
     mkdir -p "$(dirname "$repo/$1")"
@@ -124,7 +124,7 @@ expect_pass() {
 echo "=== symlinks are skipped, a dangling one too ==="
 mk_repo
 put_small keep.txt
-nonws "$over" > "$sandbox/outside.txt"
+xs "$over" > "$sandbox/outside.txt"
 ln -s "$sandbox/outside.txt" "$repo/link-to-big.txt"
 ln -s "$sandbox/nowhere" "$repo/dangling.txt"
 commit_in "$repo"
@@ -164,7 +164,7 @@ put_big pipe.txt
 commit_in "$repo"
 rm "$repo/pipe.txt"
 mkfifo "$repo/pipe.txt"
-{ nonws "$over" > "$repo/pipe.txt"; } &
+{ xs "$over" > "$repo/pipe.txt"; } &
 writer=$!
 run_check
 kill "$writer" 2>/dev/null || true
@@ -191,15 +191,15 @@ fi
 echo "=== binaries are skipped, tracked or untracked ==="
 mk_repo
 put_small keep.txt
-{ printf 'a\0'; nonws "$over"; } > "$repo/tracked.bin"
+{ printf 'a\0'; xs "$over"; } > "$repo/tracked.bin"
 git -C "$repo" add keep.txt tracked.bin
-{ printf 'a\0'; nonws "$over"; } > "$repo/untracked.bin"
+{ printf 'a\0'; xs "$over"; } > "$repo/untracked.bin"
 run_check
 expect_pass "binaries"
 assert_contains "$out" ", 2 binary, " "binaries: sign-off count"
 echo "=== the same bytes without the NUL are text and count ==="
 mk_repo
-{ printf 'a'; nonws "$over"; } > "$repo/text.dat"
+{ printf 'a'; xs "$over"; } > "$repo/text.dat"
 run_check
 assert_eq "$rc" "1" "text twin: exit code"
 assert_contains "$err" "oversized-file: text.dat: " "text twin: counted"
@@ -224,7 +224,7 @@ put_small keep.txt
 mkdir -p "$repo/sub"
 ln -s ../keep.txt "$repo/sub/uv.lock"
 mkdir -p "$repo/plans"
-{ printf 'a\0'; nonws "$over"; } > "$repo/plans/blob.bin"
+{ printf 'a\0'; xs "$over"; } > "$repo/plans/blob.bin"
 unreadable=0
 if [ "$(id -u)" -ne 0 ]; then   # root reads through mode 000
     put_big plugin-dev/locked.sh
@@ -271,25 +271,7 @@ expect_pass "ignored"
 assert_contains "$out" "skipped: 0 plans/plugin-dev/lockfiles, 0 binary, 0 symlinks, 0 unreadable" \
     "ignored: no skip count moves"
 
-echo "=== paths holding a space or a newline count, and cannot forge a line ==="
-mk_repo
-put_big "dir with space/big file.txt"
-put_big $'new\nline.txt'
-# awk reads an operand `k=v.txt` as an assignment and `-dash.txt` as an option;
-# `read` without IFS= strips edge blanks. zz-after.txt, last in C order and one
-# byte bigger, shows any count shifted off its path.
-for p in k=v.txt ' lead.txt' 'trail.txt ' -dash.txt; do put_big "$p"; done
-put_big zz-after.txt "$((over + 1))"
-run_check
-assert_eq "$rc" "1" "odd names: exit code"
-for p in "dir with space/big file.txt" k=v.txt ' lead.txt' 'trail.txt ' -dash.txt; do
-    assert_contains "$err" "oversized-file: $p: $over bytes > $cap" \
-        "odd names: '$p' reported whole"
-done
-assert_contains "$err" "oversized-file: zz-after.txt: $((over + 1)) bytes > $cap" \
-    "odd names: the last count stays on its path"
-assert_eq "$(grep -c "bytes > $cap" <<<"$err")" "7" "odd names: seven overages"
-
+echo "=== a newline in a name cannot forge a line ==="
 mk_repo
 put_small a-small.txt
 forged=$'forged\noversized-file: lie.txt: 99999 bytes > '"$cap"

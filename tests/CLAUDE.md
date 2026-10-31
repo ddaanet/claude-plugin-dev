@@ -1,6 +1,7 @@
 # Test suites
 
-The suites `just precommit` runs under `tests/`, and what each covers.
+The suites `just precommit` runs under `tests/` (every `*-test.sh`, by glob;
+this file only describes them), and what each covers.
 
 `version-guard-{decision,wording,git}-test.sh`, `check-version-test.sh`,
 the eleven `release-*-test.sh` suites that split `release.sh`'s consumer flow by

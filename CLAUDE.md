@@ -180,7 +180,8 @@ Runs `bash -n` and `shellcheck` on the shell scripts, `check-refs.sh
 `_import-check` that imports `release.just` into a stub consumer to
 catch justfile syntax errors (it imports `gates.just` beside it too), and then
 **every test under `tests/`**,
-each suite listed in [tests/CLAUDE.md](tests/CLAUDE.md). A
+found by the `tests/*-test.sh` glob, so a new suite is gated with no list to edit,
+each suite described in [tests/CLAUDE.md](tests/CLAUDE.md). A
 green `precommit` — including the one a
 pre-commit hook runs — is therefore evidence the whole release suite
 passed, not just the linters. **One script under test per suite

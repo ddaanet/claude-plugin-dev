@@ -78,8 +78,8 @@ if ! [[ "$hub_cap" =~ ^[0-9]+$ ]]; then
 fi
 over=$((cap + 1))
 
-# nonws <n>: n bytes of x, no newline.
-nonws() { head -c "$1" /dev/zero | tr '\0' x; }
+# xs <n>: n bytes of x, no newline.
+xs() { head -c "$1" /dev/zero | tr '\0' x; }
 # blanks <n>: n bytes of nothing but spaces and newlines.
 blanks() { head -c "$1" < <(yes ' '); }
 
@@ -93,10 +93,10 @@ mk_repo() {
 }
 
 # put_big <path> [n]: a file under $repo with n (default: over the cap)
-# bytes (no whitespace). put_small <path>: a file well within the cap.
+# bytes. put_small <path>: a file well within the cap.
 put_big() {
     mkdir -p "$(dirname "$repo/$1")"
-    nonws "${2:-$over}" > "$repo/$1"
+    xs "${2:-$over}" > "$repo/$1"
 }
 put_small() {
     mkdir -p "$(dirname "$repo/$1")"
@@ -188,7 +188,7 @@ exempt 'blank.txt # all blanks' 'skills/a/SKILL.md # all blanks'
 run_check
 expect_pass "whitespace-only files over their caps"
 mk_repo
-{ nonws "$((cap - 1))"; printf '\n'; } > "$repo/at-cap.txt"
+{ xs "$((cap - 1))"; printf '\n'; } > "$repo/at-cap.txt"
 exempt 'at-cap.txt # why'
 run_check
 expect_refused "newline-ended file at exactly the cap" 1 "at-cap.txt"

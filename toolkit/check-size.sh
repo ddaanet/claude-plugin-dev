@@ -32,11 +32,10 @@ else
 fi
 
 # scan_listing: one listing of the tree, sorted by path, and the scope skips in
-# order. Fills kept[] (non-empty files that reach the count) and the skip counts.
+# order. Fills kept[] (files that reach the count) and the skip counts.
 scan_listing() {
     local rec info path listed=0
     kept=()
-    nkept=0
     skipped_builtin=0
     skipped_binary=0
     skipped_symlink=0
@@ -58,12 +57,11 @@ scan_listing() {
             esac
             if is_builtin "$path"; then
                 skipped_builtin=$((skipped_builtin + 1))
-            elif [ -s "$path" ]; then
-                kept[nkept]=$path
-                nkept=$((nkept + 1))
+            else
+                kept+=("$path")
             fi
         fi
-    done < <(git ls-files -z -co --exclude-standard --eol | LC_ALL=C sort -z -t $'\t' -k2)
+    done < <(git ls-files -z -co --exclude-standard --eol | sort -z -t $'\t' -k2)
     if [ "$listed" -eq 0 ]; then
         fail_run "no files listed"
     fi
@@ -86,7 +84,7 @@ is_builtin() {
 # and stat gets them after `--`, so no name is split or read as an option. xargs
 # may run stat more than once for a long list; its output stays in order.
 count_kept() {
-    local i=0 line out
+    local i=0 line out nkept=${#kept[@]}
     counts=()
     if (( nkept == 0 )); then
         return 0
@@ -94,12 +92,10 @@ count_kept() {
     if ! out="$(printf '%s\0' "${kept[@]}" | xargs -0 "${stat_cmd[@]}")"; then
         fail_run "counting failed: stat exited with an error"
     fi
-    if [ -n "$out" ]; then
-        while IFS= read -r line; do
-            counts[i]=$(( line ))
-            i=$((i + 1))
-        done <<<"$out"
-    fi
+    while IFS= read -r line; do
+        counts[i]=$line
+        i=$((i + 1))
+    done <<<"$out"
     if (( i != nkept )); then
         fail_run "counting failed: $i counts for $nkept files"
     fi
@@ -108,9 +104,8 @@ count_kept() {
 # read_exempt: parse the root size.exempt into ex_paths[] (accepted entries)
 # and refusals (stderr lines). Entries are checked against kept[] and counts[].
 read_exempt() {
-    local lineno=0 line p why k exact matched repeat
+    local lineno=0 line p why k exact matched repeat lim nkept=${#kept[@]}
     ex_paths=()
-    ex_n=0
     refusals=""
     [ -e size.exempt ] || return 0
     if [ ! -r size.exempt ]; then
@@ -134,17 +129,16 @@ read_exempt() {
             refuse "$lineno" "$p" "no reason after the hash"
             continue
         fi
-        if [ -z "$p" ]; then
-            refuse "$lineno" "$p" "matches no listed file"
-            continue
-        fi
         if is_builtin "$p"; then
             refuse "$lineno" "$p" "a built-in is always skipped"
             continue
         fi
         repeat=0
-        for ((k = 0; k < ex_n; k++)); do
-            if [ "${ex_paths[k]}" = "$p" ]; then repeat=1; fi
+        for ((k = 0; k < ${#ex_paths[@]}; k++)); do
+            if [ "${ex_paths[k]}" = "$p" ]; then
+                repeat=1
+                break
+            fi
         done
         if (( repeat )); then
             refuse "$lineno" "$p" "already listed on an earlier line"
@@ -167,18 +161,14 @@ read_exempt() {
             continue
         fi
         if (( exact >= 0 )); then
-            if [ "${kept[exact]##*/}" = SKILL.md ]; then
-                lim=$hub_cap
-            else
-                lim=$cap
-            fi
+            cap_for "${kept[exact]}"
+            lim=$REPLY
             if (( counts[exact] <= lim )); then
                 refuse "$lineno" "$p" "a file entry must be over its cap"
                 continue
             fi
         fi
-        ex_paths[ex_n]=$p
-        ex_n=$((ex_n + 1))
+        ex_paths+=("$p")
     done < size.exempt
 }
 
@@ -194,32 +184,41 @@ trim() {
     while [[ $REPLY == *[[:blank:]] ]]; do REPLY=${REPLY%?}; done
 }
 
-# is_exempt <path>: the path is an accepted entry or lies below one.
-is_exempt() {
-    local k
-    for ((k = 0; k < ex_n; k++)); do
-        case $1 in
-            "${ex_paths[k]}"|"${ex_paths[k]}"/*) return 0 ;;
-        esac
+# cap_for <path>: the cap that applies to the path, into REPLY.
+cap_for() {
+    if [ "${1##*/}" = SKILL.md ]; then
+        REPLY=$hub_cap
+    else
+        REPLY=$cap
+    fi
+}
+
+# under_any <path> <prefix>...: the path equals a prefix or lies under one.
+under_any() {
+    local p="$1" s
+    shift
+    for s in "$@"; do
+        if [ "$s" = . ] || [ "$p" = "$s" ] || [[ "$p" == "$s/"* ]]; then
+            return 0
+        fi
     done
     return 1
 }
 
 # judge: print refusals and overages, then the sign-off or the failure.
 judge() {
-    local i p n lim label overage="" hubs=0 failed=0
+    local i p n lim label overage="" hubs=0 failed=0 nkept=${#kept[@]}
     for ((i = 0; i < nkept; i++)); do
         p=${kept[i]}
         n=${counts[i]}
-        if [ "${p##*/}" = SKILL.md ]; then
+        cap_for "$p"
+        lim=$REPLY
+        label=""
+        if (( lim == hub_cap )); then
             hubs=$((hubs + 1))
-            lim=$hub_cap
             label=" (SKILL.md hub)"
-        else
-            lim=$cap
-            label=""
         fi
-        if (( n > lim )) && ! is_exempt "$p"; then
+        if (( n > lim )) && ! under_any "$p" ${ex_paths[@]+"${ex_paths[@]}"}; then
             overage+="oversized-file: $p: $n bytes > $lim$label"$'\n'
         fi
     done
@@ -236,7 +235,7 @@ judge() {
         exit 1
     fi
     printf 'check-size: cap %s bytes: %s files; hub cap %s: %s SKILL.md; size.exempt: %s entries, each with a reason and still needed; skipped: %s plans/plugin-dev/lockfiles, %s binary, %s symlinks, %s unreadable\n' \
-        "$cap" "$nkept" "$hub_cap" "$hubs" "$ex_n" \
+        "$cap" "$nkept" "$hub_cap" "$hubs" "${#ex_paths[@]}" \
         "$skipped_builtin" "$skipped_binary" "$skipped_symlink" "$skipped_unreadable"
 }
 

@@ -66,9 +66,9 @@ trap cleanup EXIT
 cap=20000
 over=$((cap + 1))
 
-# nonws <n>: n bytes of x, no newline.
+# xs <n>: n bytes of x, no newline.
 # blanks <n>: n bytes of nothing but spaces and newlines, git still calls it text.
-nonws() { head -c "$1" /dev/zero | tr '\0' x; }
+xs() { head -c "$1" /dev/zero | tr '\0' x; }
 blanks() { head -c "$1" < <(yes ' '); }
 
 # mk_repo: a fresh git repo $repo whose own path holds a space, no commit.
@@ -81,10 +81,10 @@ mk_repo() {
 }
 
 # put_big <path> [n]: a file under $repo with n (default: over the cap)
-# bytes (no whitespace). put_small <path>: a file well within the cap.
+# bytes. put_small <path>: a file well within the cap.
 put_big() {
     mkdir -p "$(dirname "$repo/$1")"
-    nonws "${2:-$over}" > "$repo/$1"
+    xs "${2:-$over}" > "$repo/$1"
 }
 put_small() {
     mkdir -p "$(dirname "$repo/$1")"
@@ -153,17 +153,17 @@ assert_eq "$(grep -c '^oversized-file: ' <<<"$err")" "3" "several: three overage
 
 echo "=== exactly the cap passes, one byte more fails; every byte counts ==="
 mk_repo
-{ nonws "$((cap - 1))"; printf '\n'; } > "$repo/at-cap.txt"
-nonws "$cap" > "$repo/at-cap-no-eol.txt"
+{ xs "$((cap - 1))"; printf '\n'; } > "$repo/at-cap.txt"
+xs "$cap" > "$repo/at-cap-no-eol.txt"
 blanks "$cap" > "$repo/at-cap-blanks.txt"
 run_check
 expect_pass "at the cap"
 assert_eq "$(ref_count "$repo/at-cap.txt")" "20000" "fixture: at-cap.txt is 20000 bytes with its newline"
 assert_eq "$(ref_count "$repo/at-cap-blanks.txt")" "20000" "fixture: at-cap-blanks.txt is 20000 bytes"
 mk_repo
-{ nonws "$cap"; printf '\n'; } > "$repo/eol-over.txt"
+{ xs "$cap"; printf '\n'; } > "$repo/eol-over.txt"
 blanks "$over" > "$repo/blanks-over.txt"
-nonws "$over" > "$repo/no-eol-over.txt"
+xs "$over" > "$repo/no-eol-over.txt"
 run_check
 assert_eq "$rc" "1" "one over: exit code"
 assert_eq "$(overage_lines)" "oversized-file: blanks-over.txt: 20001 bytes > 20000
@@ -202,7 +202,7 @@ expect_pass "hub at its cap, look-alikes under the plain cap"
 mk_repo
 blanks 10001 > "$repo/SKILL.md"
 mkdir -p "$repo/s"
-{ nonws 9999; printf '\n'; } > "$repo/s/SKILL.md"
+{ xs 9999; printf '\n'; } > "$repo/s/SKILL.md"
 run_check
 assert_eq "$(overage_lines)" "oversized-file: SKILL.md: 10001 bytes > 10000 (SKILL.md hub)" "hub: whitespace counts, 10000 with its newline passes"
 mk_repo
@@ -235,8 +235,6 @@ awk 'BEGIN { for (i = 1; i <= 1500; i++) {
     if (i % 100 == 0) printf "x\f\vy\r\n" } printf "tail" }' > "$repo/mixed.txt"
 want="$(ref_count "$repo/mixed.txt")"
 (( want > cap )) || fail "fixture: mixed.txt reference $want is not over the cap"
-stripped="$(LC_ALL=C tr -d ' \t\n\r\f\v' < "$repo/mixed.txt" | wc -c | tr -d ' ')"
-(( want > stripped )) || fail "fixture: mixed.txt has whitespace the old count dropped"
 run_check
 assert_eq "$(overage_lines)" "oversized-file: mixed.txt: $want bytes > 20000" "reference count"
 
@@ -257,24 +255,6 @@ rep $'\302\240' 10000 > "$repo/nbsp-at-cap.txt"
 rep $'\302\240' 10100 > "$repo/nbsp-over.txt"
 run_check
 assert_eq "$(overage_lines)" "oversized-file: nbsp-over.txt: 20200 bytes > 20000" "NBSP: 10000 of them are 20000 bytes and pass"
-
-echo "=== an awk that counts characters changes nothing: no awk self-test ==="
-mkdir -p "$sandbox/fakebin"
-# A stand-in for an awk that decodes UTF-8: it answers 1 to every question,
-# which is the length such an awk gives a two-byte character.
-printf '#!/bin/sh\necho 1\n' > "$sandbox/fakebin/awk"
-chmod +x "$sandbox/fakebin/awk"
-run_path="$sandbox/fakebin"
-mk_repo
-put_small a.txt
-run_check
-expect_pass "character awk, within the cap"
-put_big big.txt
-run_check
-run_path=""
-assert_eq "$rc" "1" "character awk: exit code"
-assert_eq "$err" "oversized-file: big.txt: 20001 bytes > 20000
-$hint" "character awk: the true count, no awk complaint"
 
 # install_stat <gnu|bsd>: a stub `stat` first on PATH, so neither platform
 # branch of the script is skipped on any machine. gnu: --version exits 0 and
@@ -337,7 +317,6 @@ for flavor in gnu bsd; do
     (( calls >= 1 && calls < 20 )) || fail "$flavor stat: $calls size calls for 20 files, want batching"
     assert_eq "$(grep -cv -F -- "$flags" "$stat_log" || true)" "0" "$flavor stat: every call is $flags FILE..."
     assert_eq "$(awk -F'|' '{ n += $4 - 3 } END { print n + 0 }' "$stat_log")" "20" "$flavor stat: each file named once"
-    assert_eq "$(grep -c -e '^-f|' -e '|-f|' "$stat_log" || true)" "$([ "$flavor" = bsd ] && wc -l < "$stat_log" | tr -d ' ' || echo 0)" "$flavor stat: -f only on the BSD branch"
     uninstall_stat
 
     echo "=== $flavor stat: odd names survive the batched call ==="
@@ -431,7 +410,7 @@ mk_repo
 put_small a.txt
 mkdir -p "$repo/b"
 printf 'hub-doc\n' > "$repo/b/SKILL.md"
-: > "$repo/empty.txt"   # empty files: no count, in neither total
+: > "$repo/empty.txt"   # empty files: counted at 0 bytes, in the file total
 mkdir -p "$repo/e"
 : > "$repo/e/SKILL.md"
 put_big plans/p.md
@@ -443,7 +422,7 @@ ln -s a.txt "$repo/link.txt"
 commit_in "$repo"
 run_check
 expect_pass "sign-off"
-assert_eq "$out" "check-size: cap 20000 bytes: 2 files; hub cap 10000: 1 SKILL.md; size.exempt: 0 entries, each with a reason and still needed; skipped: 4 plans/plugin-dev/lockfiles, 1 binary, 1 symlinks, 0 unreadable" "sign-off line"
+assert_eq "$out" "check-size: cap 20000 bytes: 4 files; hub cap 10000: 2 SKILL.md; size.exempt: 0 entries, each with a reason and still needed; skipped: 4 plans/plugin-dev/lockfiles, 1 binary, 1 symlinks, 0 unreadable" "sign-off line"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2

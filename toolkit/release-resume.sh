@@ -18,8 +18,8 @@ resume_preflight() {
     git rev-parse -q --verify "refs/tags/$tag" >/dev/null || {
         # The refusal above is already decided — everything below only picks
         # which hint explains it, so a failed probe must never turn this into a
-        # harder refusal. Capture rule as in release_preflight, applied to BOTH
-        # listings: this is a `|| { … }` group, where `set -e` is in force (the
+        # harder refusal. Capture rule as in release_preflight (release-tags.sh),
+        # applied to BOTH listings: this is a `|| { … }` group, where `set -e` is in force (the
         # jq capture at the check-version.sh failure point spells out why), so
         # an unread failure aborts the run with git's own status and neither the
         # hint nor the `error:` line ever prints — a bare crash where a clean
@@ -60,8 +60,8 @@ resume_preflight() {
         elif [ -n "$origin_tag_list" ]; then
             # Origin holds some other semver release, but not this one — any
             # tag counts, not only $tag, for the same reason as the lost-tags
-            # guard above: an empty local tag set says nothing about what is
-            # published. Naming the bump form rather than falling through to
+            # guard in release-tags.sh's release_preflight: an empty local tag
+            # set says nothing about what is published. Naming the bump form rather than falling through to
             # the no-argument hint below: once the fetch lands, origin has a
             # real release to bump from, and a bare `just release` would be
             # refused on sight.

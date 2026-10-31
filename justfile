@@ -27,67 +27,19 @@ precommit:
     just whitespace
     just format-docs
     hash-sentinel
-    shellcheck -x toolkit/install.sh toolkit/version-guard.sh toolkit/check-version.sh toolkit/release.sh toolkit/release-preflight.sh toolkit/release-tags.sh toolkit/release-resume.sh toolkit/release-publish.sh toolkit/release-marketplace.sh toolkit/update.sh toolkit/dogfood.sh toolkit/dist.sh toolkit/check-refs.sh toolkit/check-refs-parse.sh toolkit/check-size.sh toolkit/run-bats.sh toolkit/bin/claude scripts/self-release.sh
+    shellcheck -x toolkit/*.sh toolkit/bin/claude scripts/*.sh
     bash toolkit/check-refs.sh --shipped toolkit
     bash toolkit/check-size.sh
-    bash -n tests/version-guard-decision-test.sh tests/version-guard-wording-test.sh tests/version-guard-git-test.sh tests/check-version-test.sh tests/release-core-test.sh tests/release-core-root-skip-test.sh tests/release-resume-push-test.sh tests/release-resume-hint-test.sh tests/release-tree-test.sh tests/release-first-test.sh tests/release-lost-tag-test.sh tests/release-push-route-test.sh tests/release-tags-test.sh tests/release-rollback-test.sh tests/release-pipefail-test.sh tests/release-hint-size-test.sh tests/release-dist-publish-test.sh tests/release-dist-resume-test.sh tests/release-dist-refusal-test.sh tests/release-dist-optin-test.sh tests/self-release-publish-test.sh tests/self-release-refusal-test.sh tests/update-plugin-dev-test.sh tests/install-vendor-test.sh tests/install-settings-test.sh tests/install-legacy-test.sh tests/dist-tree-test.sh tests/dist-build-test.sh tests/dist-refusal-test.sh tests/dist-warning-test.sh tests/dist-subcommands-test.sh tests/doc-sync-test.sh tests/citation-test.sh tests/dogfood-sync-copy-test.sh tests/dogfood-sync-nested-test.sh tests/dogfood-sync-allowlist-test.sh tests/dogfood-sync-refusal-test.sh tests/dogfood-pre-tool-paths-test.sh tests/dogfood-pre-tool-jq-test.sh tests/dogfood-session-start-test.sh tests/dogfood-session-warn-test.sh tests/dogfood-launcher-exec-test.sh tests/dogfood-launcher-path-test.sh tests/run-bats-test.sh tests/gates-sentinel-test.sh tests/gates-guards-test.sh tests/gates-inputs-test.sh tests/gates-hash-test.sh tests/dogfood-launcher-bin-test.sh tests/check-refs-syntax-test.sh tests/check-refs-scan-test.sh tests/check-refs-shipped-test.sh tests/whitespace-test.sh tests/check-size-scope-test.sh tests/check-size-exempt-test.sh tests/check-size-report-test.sh
+    # Every suite under tests/ is syntax-checked and run by glob, so a suite
+    # added there is gated without a second list to edit. `bash -n` takes one
+    # script, hence the loop.
+    for t in tests/*-test.sh; do
+        bash -n "$t"
+    done
     just _import-check
-    bash tests/version-guard-decision-test.sh
-    bash tests/version-guard-wording-test.sh
-    bash tests/version-guard-git-test.sh
-    bash tests/check-version-test.sh
-    bash tests/release-core-test.sh
-    bash tests/release-core-root-skip-test.sh
-    bash tests/release-resume-push-test.sh
-    bash tests/release-resume-hint-test.sh
-    bash tests/release-tree-test.sh
-    bash tests/release-first-test.sh
-    bash tests/release-lost-tag-test.sh
-    bash tests/release-push-route-test.sh
-    bash tests/release-tags-test.sh
-    bash tests/release-rollback-test.sh
-    bash tests/release-pipefail-test.sh
-    bash tests/release-hint-size-test.sh
-    bash tests/release-dist-publish-test.sh
-    bash tests/release-dist-resume-test.sh
-    bash tests/release-dist-refusal-test.sh
-    bash tests/release-dist-optin-test.sh
-    bash tests/self-release-publish-test.sh
-    bash tests/self-release-refusal-test.sh
-    bash tests/update-plugin-dev-test.sh
-    bash tests/install-vendor-test.sh
-    bash tests/install-settings-test.sh
-    bash tests/install-legacy-test.sh
-    bash tests/dist-tree-test.sh
-    bash tests/dist-build-test.sh
-    bash tests/dist-refusal-test.sh
-    bash tests/dist-warning-test.sh
-    bash tests/dist-subcommands-test.sh
-    bash tests/doc-sync-test.sh
-    bash tests/citation-test.sh
-    bash tests/dogfood-sync-copy-test.sh
-    bash tests/dogfood-sync-nested-test.sh
-    bash tests/dogfood-sync-allowlist-test.sh
-    bash tests/dogfood-sync-refusal-test.sh
-    bash tests/dogfood-pre-tool-paths-test.sh
-    bash tests/dogfood-pre-tool-jq-test.sh
-    bash tests/dogfood-session-start-test.sh
-    bash tests/dogfood-session-warn-test.sh
-    bash tests/dogfood-launcher-exec-test.sh
-    bash tests/dogfood-launcher-path-test.sh
-    bash tests/run-bats-test.sh
-    bash tests/gates-sentinel-test.sh
-    bash tests/gates-guards-test.sh
-    bash tests/gates-inputs-test.sh
-    bash tests/gates-hash-test.sh
-    bash tests/dogfood-launcher-bin-test.sh
-    bash tests/check-refs-syntax-test.sh
-    bash tests/check-refs-scan-test.sh
-    bash tests/check-refs-shipped-test.sh
-    bash tests/whitespace-test.sh
-    bash tests/check-size-scope-test.sh
-    bash tests/check-size-exempt-test.sh
-    bash tests/check-size-report-test.sh
+    for t in tests/*-test.sh; do
+        bash "$t"
+    done
     echo ok
     record-sentinel
 
@@ -230,6 +182,16 @@ _import-check:
         done
     }
 
+    # dry_is <recipe> <expected>: the recipe's dry run is exactly that one line.
+    dry_is() {
+        local out
+        out=$(just --justfile "$tmp/plain/justfile" --dry-run "$1" 2>&1)
+        if [[ "$out" != "$2" ]]; then
+            echo "error: $1 ran more or less than: $out" >&2
+            exit 1
+        fi
+    }
+
     # Plain shape: release gate and commit gate are the same.
     stub plain "prerelease: precommit\n"
     check plain stub-precommit
@@ -251,26 +213,14 @@ _import-check:
     # `dogfood` likewise depends on no gate: it only syncs the copy, and must
     # never run a consumer's commit gate or start a `claude`. The dry run is
     # compared whole, since the stub's own path holds "claude".
-    out=$(just --justfile "$tmp/plain/justfile" --dry-run dogfood 2>&1)
-    if [[ "$out" != 'bash "plugin-dev/dogfood.sh" sync' ]]; then
-        echo "error: dogfood ran more or less than dogfood.sh sync: $out" >&2
-        exit 1
-    fi
+    dry_is dogfood 'bash "plugin-dev/dogfood.sh" sync'
 
     # `check-refs` runs the script alone, with no gate: the consumer's
     # `precommit` depends on it, so a gate dependency here would be a cycle.
-    out=$(just --justfile "$tmp/plain/justfile" --dry-run check-refs 2>&1)
-    if [[ "$out" != 'bash "plugin-dev/check-refs.sh"' ]]; then
-        echo "error: check-refs ran more or less than check-refs.sh: $out" >&2
-        exit 1
-    fi
+    dry_is check-refs 'bash "plugin-dev/check-refs.sh"'
 
     # `check-size` likewise runs the script alone, with no gate.
-    out=$(just --justfile "$tmp/plain/justfile" --dry-run check-size 2>&1)
-    if [[ "$out" != 'bash "plugin-dev/check-size.sh"' ]]; then
-        echo "error: check-size ran more or less than check-size.sh: $out" >&2
-        exit 1
-    fi
+    dry_is check-size 'bash "plugin-dev/check-size.sh"'
 
     # Missing `prerelease` must be a hard error naming the missing recipe --
     # this is the contract consumers are told about, so test it, don't assume.
