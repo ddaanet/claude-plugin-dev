@@ -11,8 +11,9 @@ is opt-in: a plugin that does not wire it is unaffected, and `release`,
 A file's size is its **bytes**: exactly what `wc -c` prints, counted per file,
 whitespace, indentation and newlines included. The caps aim at about 10k and 5k
 tokens as an agent reads the file. Lines are not the measure because a line
-count rewards cramming long lines; bytes barely move when text is re-wrapped,
-which swaps spaces for newlines.
+count rewards cramming long lines; bytes move little when text is re-wrapped,
+which swaps spaces for newlines and repeats only each new line's indentation and
+leader.
 
 | File | Cap |
 | --- | --- |
@@ -35,7 +36,9 @@ It runs uncached, on every call. It reads every file git does not ignore, a set
 no sentinel's pathspecs cover whole, so inside a narrower cached gate body a
 cached pass could commit a file the check never read. A dependency runs before
 the recipe body, ahead of any sentinel guard, which is where this check belongs;
-it is one `wc -c` per file and cheap. See
+it runs one `wc -c` per file, which costs a few seconds on a repository the size
+of gitlore (about 4.3 s for 566 files, against about 0.5 s for a single awk pass
+over the same files, measured on Linux under load). See
 [Gate sentinels](gates.md).
 
 It needs `bash`, `git` and `wc`.
