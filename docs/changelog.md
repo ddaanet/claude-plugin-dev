@@ -9,6 +9,7 @@ overturned, it is rewritten in place and the reversal gets an entry here.
 
 Newest first.
 
+- [2026-11-01 — The size check names every source of linguist-generated](changelog/2026-11-01-size-check-attribute-sources.md)
 - [2026-11-01 — The size check skips files marked linguist-generated](changelog/2026-11-01-size-check-skips-generated.md)
 - [2026-11-01 — One scope rule and a shared exempt reader](changelog/2026-11-01-one-scope-rule-shared-exempt-reader.md)
   — `plans/` is skipped by both checks whatever `refs.exempt` says; one reader

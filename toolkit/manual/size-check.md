@@ -58,11 +58,15 @@ The skips apply in this order; a file stops at the first that takes it:
 5. **Binary files**, those whose content git detects as binary (`w/-text` in
    `git ls-files --eol`; a `.gitattributes` `binary` or `-text` attribute does
    not skip a text file), are skipped and counted.
-6. **Generated files**: those whose `linguist-generated` attribute in
-   `.gitattributes` is `set` or `true` (`path linguist-generated`, or `=true`).
-   `-linguist-generated`, `=false`, `!linguist-generated` and any other value
-   leave the file counted. It is skipped before the built-ins are tried, and
-   counted with them in the sign-off.
+6. **Generated files**: those whose `linguist-generated` attribute is `set` or
+   `true` (`path linguist-generated`, or `=true`). `-linguist-generated`,
+   `=false`, `!linguist-generated` and any other value leave the file counted.
+   It is skipped before the built-ins are tried, and counted with them in the
+   sign-off. The attribute is resolved as `git check-attr` resolves it: the
+   working tree's `.gitattributes` files, `.git/info/attributes` and the user's
+   `core.attributesFile`. The last two are outside the gate's hashed inputs, so
+   editing them does not invalidate a cached pass, and they differ between
+   clones: set the attribute in a committed `.gitattributes`.
 7. **Built-ins**: `plugin-dev/` and a root `plans/`, each as a whole leading
    path component (`plans-old/` is not skipped, nor is `docs/plans/`), and a
    file named `uv.lock` or `package-lock.json` at any depth.

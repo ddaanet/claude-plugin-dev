@@ -158,9 +158,13 @@ built-ins. The built-ins are `plugin-dev/`, root `plans/`, and `uv.lock` and
 `linguist-generated` attribute, read by one batched `git check-attr -z --stdin`
 over the paths that reach that step, because a generated file has no author to
 split it and a lock file is only the commonest one; the two lockfile names stay
-as the fallback for a repo with no attribute. `size.exempt` refuses an entry
-naming such a file, as it does a built-in. Untracked drafts and `docs/**` count.
-A `size.exempt` entry skips nothing: it forgives an overage after the count.
+as the fallback for a repo with no attribute. The attribute is resolved as
+`git check-attr` resolves it: the working tree's `.gitattributes` files,
+`.git/info/attributes` and the user's `core.attributesFile`. The last two are
+outside the gate's hashed inputs, so the manual says to set the attribute in a
+committed `.gitattributes`. `size.exempt` refuses an entry naming such a file,
+as it does a built-in. Untracked drafts and `docs/**` count. A `size.exempt`
+entry skips nothing: it forgives an overage after the count.
 
 Unreadable files are skipped rather than failed because the known producer is
 the sandbox, and a gate red under the Bash tool and green in a hook is worse
