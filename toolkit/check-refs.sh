@@ -75,7 +75,7 @@ main() {
     done
     here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     bad=0
-    tmp="$(mktemp -d)"
+    tmp="$(mktemp -d "${TMPDIR:-/tmp}/check-refs.XXXXXX")"
     trap 'rm -rf "$tmp"' EXIT
     if [ "$mode" = tree ]; then
         check_tree "$tree"

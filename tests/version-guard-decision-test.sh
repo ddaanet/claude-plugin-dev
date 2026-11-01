@@ -71,8 +71,8 @@ assert_not_contains() {
 # version-guard scenarios use a fake plugin root with a hand-crafted
 # .claude-plugin/plugin.json fixture, so assertions are independent of
 # whatever consumer plugin happens to vendor this toolkit.
-proj="$(mktemp -d)"
-guard_err="$(mktemp)"
+proj="$(mktemp -d "${TMPDIR:-/tmp}/version-guard-decision.XXXXXX")"
+guard_err="$(mktemp "${TMPDIR:-/tmp}/version-guard-decision.XXXXXX")"
 trap 'rm -rf "$proj" "$guard_err"' EXIT
 mkdir -p "$proj/.claude-plugin"
 cat > "$proj/.claude-plugin/plugin.json" <<'JSON'

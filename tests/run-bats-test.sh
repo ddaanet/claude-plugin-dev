@@ -40,7 +40,7 @@ assert_not_contains() {
     fi
 }
 
-sandbox="$(cd "$(mktemp -d)" && pwd -P)"
+sandbox="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/run-bats.XXXXXX")" && pwd -P)"
 trap 'rm -rf "$sandbox"' EXIT
 stubbin="$sandbox/stubbin"
 mkdir -p "$stubbin" "$sandbox/tmp"

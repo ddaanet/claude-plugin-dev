@@ -45,7 +45,7 @@ assert_contains() {
     fi
 }
 
-scratch="$(mktemp -d)"
+scratch="$(mktemp -d "${TMPDIR:-/tmp}/release-core-root-skip.XXXXXX")"
 trap 'rm -rf "$scratch"' EXIT
 stubs="$scratch/bin"
 mkdir -p "$stubs"

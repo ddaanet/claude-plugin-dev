@@ -121,7 +121,7 @@ make_toolkit_release() {
 
 new_sandbox() {
     # Sets $sandbox, $toolkit, $consumer.
-    sandbox="$(mktemp -d)"
+    sandbox="$(mktemp -d "${TMPDIR:-/tmp}/install-vendor.XXXXXX")"
     sandboxes+=("$sandbox")
     toolkit="$sandbox/toolkit"
     consumer="$sandbox/consumer"
@@ -135,7 +135,7 @@ new_sandbox() {
     # Toolkit-side memory remote, standing in for claude-plugin-dev-memory.git.
     git init -q --bare -b main "$sandbox/toolkit-memory-origin.git"
     local seed
-    seed="$(mktemp -d)"
+    seed="$(mktemp -d "${TMPDIR:-/tmp}/install-vendor.XXXXXX")"
     git init -q -b main "$seed"
     git_id "$seed"
     git -C "$seed" commit --allow-empty -qm "seed: toolkit memory"
@@ -152,7 +152,7 @@ new_sandbox() {
 
     # Consumer-side memory remote: unrelated to the toolkit's, same path.
     git init -q --bare -b main "$sandbox/consumer-memory-origin.git"
-    seed="$(mktemp -d)"
+    seed="$(mktemp -d "${TMPDIR:-/tmp}/install-vendor.XXXXXX")"
     git init -q -b main "$seed"
     git_id "$seed"
     git -C "$seed" commit --allow-empty -qm "seed: consumer memory"

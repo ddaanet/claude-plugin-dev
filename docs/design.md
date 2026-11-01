@@ -71,7 +71,8 @@ versioned with each consumer.
   retrievable, not subject to drift.
 - **Portability:** fresh clones of a consumer plugin must work without any
   contributor-side dotfiles, system config, or central installation. CI must be
-  able to run the recipe with no setup.
+  able to run the recipe with no setup. Temporary files name their directory,
+  because macOS `mktemp` without a template ignores `TMPDIR`.
 - **Fail-fast:** misconfigured invocations (missing manifest, dirty tree,
   version desync) abort with actionable errors before any destructive or slow
   operation.

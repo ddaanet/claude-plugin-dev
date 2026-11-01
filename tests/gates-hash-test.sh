@@ -52,7 +52,7 @@ assert_not_contains() {
     fi
 }
 
-sandbox="$(cd "$(mktemp -d)" && pwd -P)"
+sandbox="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/gates-hash.XXXXXX")" && pwd -P)"
 trap 'rm -rf "$sandbox"' EXIT
 
 # mk_consumer: a fresh repo $repo, whose own path holds a space, importing the

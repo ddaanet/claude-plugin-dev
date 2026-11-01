@@ -89,7 +89,7 @@ whitespace:
         # Listed but gone from the worktree: a deletion not yet staged, or one
         # staged but left out of a `git commit -- <paths>`, whose hook sees HEAD's index.
         [ -f "$f" ] || continue
-        tmp=$(mktemp)
+        tmp=$(mktemp "${TMPDIR:-/tmp}/whitespace.XXXXXX")
         git stripspace < "$f" > "$tmp"
         if cmp -s "$f" "$tmp"; then
             rm -f "$tmp"
@@ -162,7 +162,7 @@ install-hooks:
 _import-check:
     #!/usr/bin/env bash
     set -euo pipefail
-    tmp=$(mktemp -d)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/import-check.XXXXXX")
     trap 'rm -rf "$tmp"' EXIT
 
     stub() {

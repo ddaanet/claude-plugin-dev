@@ -96,7 +96,7 @@ new_sandbox() {
     # $1=marketplace entry version, or "" for no entry (first publication).
     # Sets $sandbox, $plugin, $marketplace; exports MARKETPLACE_DIR, PATH, GH_*.
     local entry_version="$1"
-    sandbox="$(mktemp -d)"
+    sandbox="$(mktemp -d "${TMPDIR:-/tmp}/release-tree.XXXXXX")"
     sandboxes+=("$sandbox")
     plugin="$sandbox/plugin"
     marketplace="$sandbox/marketplace"
@@ -169,7 +169,7 @@ mount_resting_submodule() {
     local parent="$1" path="${2:-memory}" name="${3:-gitlore-memory}"
     local sub_origin sub_seed
     sub_origin="$parent-$name-origin.git"
-    sub_seed=$(mktemp -d)
+    sub_seed=$(mktemp -d "${TMPDIR:-/tmp}/release-tree.XXXXXX")
     git init -q --bare -b main "$sub_origin"
     git init -q -b main "$sub_seed"
     git -C "$sub_seed" config user.email test@example.com

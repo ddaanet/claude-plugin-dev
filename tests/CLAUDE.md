@@ -31,6 +31,8 @@ the report, caps and counts),
 READMEs, and the Layout list in the root [CLAUDE.md](../CLAUDE.md) against `toolkit/`'s actual
 contents), `citation-test.sh` (refuses a `<script>.sh:<line>`
 citation into a file outside `plans/` and `docs/changelog/`),
+`mktemp-template-test.sh` (refuses a `mktemp` call with no template in any
+shell file),
 `whitespace-test.sh` (the `whitespace` recipe, against a fixture repo),
 the `dogfood.sh` suites (`dogfood-sync-{copy,nested,allowlist,refusal}-test.sh`,
 `dogfood-pre-tool-{paths,jq}-test.sh` and

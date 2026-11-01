@@ -69,8 +69,8 @@ assert_not_contains() {
 # version-guard scenarios use a fake plugin root with a hand-crafted
 # .claude-plugin/plugin.json fixture, so assertions are independent of
 # whatever consumer plugin happens to vendor this toolkit.
-proj="$(mktemp -d)"
-guard_err="$(mktemp)"
+proj="$(mktemp -d "${TMPDIR:-/tmp}/version-guard-git.XXXXXX")"
+guard_err="$(mktemp "${TMPDIR:-/tmp}/version-guard-git.XXXXXX")"
 # The fixtures are allocated here, ahead of the trap, so the trap can name
 # them: under `set -u` a failure between the trap and a later assignment runs
 # the trap with one unbound, which aborts it before the rm and leaks every
@@ -78,12 +78,12 @@ guard_err="$(mktemp)"
 # leaked-GIT_DIR scenario also points GIT_DIR at), a PATH stub directory for a
 # `git` that exits 127, one for a `grep` that exits 2, and one for a recording
 # `git`.
-git_proj="$(mktemp -d)"
-git_tagged_proj="$(mktemp -d)"
-guard_stub127_dir="$(mktemp -d)"
-guard_stubgrep_dir="$(mktemp -d)"
-guard_recordgit_dir="$(mktemp -d)"
-guard_recordgit_log="$(mktemp)"
+git_proj="$(mktemp -d "${TMPDIR:-/tmp}/version-guard-git.XXXXXX")"
+git_tagged_proj="$(mktemp -d "${TMPDIR:-/tmp}/version-guard-git.XXXXXX")"
+guard_stub127_dir="$(mktemp -d "${TMPDIR:-/tmp}/version-guard-git.XXXXXX")"
+guard_stubgrep_dir="$(mktemp -d "${TMPDIR:-/tmp}/version-guard-git.XXXXXX")"
+guard_recordgit_dir="$(mktemp -d "${TMPDIR:-/tmp}/version-guard-git.XXXXXX")"
+guard_recordgit_log="$(mktemp "${TMPDIR:-/tmp}/version-guard-git.XXXXXX")"
 trap 'rm -rf "$proj" "$guard_err" "$git_proj" "$git_tagged_proj" "$guard_stub127_dir" "$guard_stubgrep_dir" "$guard_recordgit_dir" "$guard_recordgit_log"' EXIT
 mkdir -p "$proj/.claude-plugin"
 cat > "$proj/.claude-plugin/plugin.json" <<'JSON'

@@ -96,7 +96,7 @@ new_sandbox() {
     # $1=marketplace entry version, or "" for no entry (first publication).
     # Sets $sandbox, $plugin, $marketplace; exports MARKETPLACE_DIR, PATH, GH_*.
     local entry_version="$1"
-    sandbox="$(mktemp -d)"
+    sandbox="$(mktemp -d "${TMPDIR:-/tmp}/release-resume-push.XXXXXX")"
     sandboxes+=("$sandbox")
     plugin="$sandbox/plugin"
     marketplace="$sandbox/marketplace"

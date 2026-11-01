@@ -30,7 +30,7 @@ assert_eq() {
 # A fake plugin root with a hand-crafted .claude-plugin/plugin.json, so
 # assertions are independent of whatever consumer plugin happens to vendor
 # this toolkit. The marketplace file is rewritten per scenario.
-proj="$(mktemp -d)"
+proj="$(mktemp -d "${TMPDIR:-/tmp}/check-version.XXXXXX")"
 trap 'rm -rf "$proj"' EXIT
 mkdir -p "$proj/.claude-plugin"
 cat > "$proj/.claude-plugin/plugin.json" <<'JSON'

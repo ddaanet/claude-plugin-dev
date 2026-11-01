@@ -97,7 +97,7 @@ new_sandbox() {
     # PATH, GH_*, CLAUDE_*. The git wrapper in $sandbox/wrap fails a push whose
     # arguments match $FAIL_PUSH_GLOB and is a pass-through otherwise.
     local entry_version="$1" optin="${2:-optin}"
-    sandbox="$(mktemp -d)"
+    sandbox="$(mktemp -d "${TMPDIR:-/tmp}/release-dist-publish.XXXXXX")"
     sandboxes+=("$sandbox")
     plugin="$sandbox/plugin"
     origin="$plugin-origin.git"

@@ -110,7 +110,7 @@ new_sandbox() {
     # A repo shaped like claude-plugin-dev, already released at 0.1.0: both
     # tags pushed and the GitHub release "created", so the prior-release guard
     # is satisfied and a test that wants it unsatisfied breaks it explicitly.
-    sandbox="$(mktemp -d)"
+    sandbox="$(mktemp -d "${TMPDIR:-/tmp}/self-release-publish.XXXXXX")"
     sandboxes+=("$sandbox")
     repo="$sandbox/repo"
 

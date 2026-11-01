@@ -111,7 +111,7 @@ check_citations() {
 }
 
 echo "=== citation gate: self-fixture discriminates tracked from plans/ ==="
-fixture="$(mktemp -d)"
+fixture="$(mktemp -d "${TMPDIR:-/tmp}/citation.XXXXXX")"
 trap 'rm -rf "$fixture"' EXIT
 git -C "$fixture" init -q
 git -C "$fixture" config user.email "citation-test@example.com"
