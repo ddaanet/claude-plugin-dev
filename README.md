@@ -204,8 +204,6 @@ layout and will fail or produce nonsense here.
 
 - [docs/design.md](docs/design.md) — living rationale for every design decision;
   what the toolkit *is*.
-- [docs/changelog.md](docs/changelog.md) — dated write-time records of how it
-  got there.
 - [CLAUDE.md](CLAUDE.md) — conventions binding on agent sessions in this repo.
 
 ## License

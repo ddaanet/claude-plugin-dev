@@ -236,12 +236,23 @@ After the pull, `update.sh` prints every note in the crossed range (old
 the human to apply: an upgrade never touches files outside `plugin-dev/`,
 because a consumer's justfile and settings are theirs, and a silently-mutating
 upgrade is exactly the class of surprise the rest of this design exists to
-prevent. Most releases need no note; the directory may not exist at all. The
-incoming end of the range is the pulled `VERSION`, or the version in the
-`dist-vX.Y.Z` ref when the pulled tree has none, so it is always known. Only the
-outgoing end can be missing (a consumer copy with no `VERSION`); then the range
-cannot be decided, and `update.sh` says so and points at
-`plugin-dev/migrations/` instead of printing nothing.
+prevent. Most releases need no note; the directory may not exist at all.
+
+**A breaking release's note says so in its first line.** The heading reads
+`# Migrating to X.Y.Z (breaking)`. A release is breaking when a consumer that
+only pulls it can be left broken with no step taken: a new opt-in recipe in
+`release.just` whose name can clash with a recipe the consumer defines itself
+(just refuses a recipe defined in both an import and the importer, so every
+`just` command then fails), or a required recipe the consumer lacks. The
+update's printed range is read by a human skimming for what needs doing, and the
+first line is what a skim reaches; a note that opens with prose about the
+release buries the one fact that decides whether to read on. A release that adds
+only pieces nothing can clash with needs no note at all. The incoming end of the
+range is the pulled `VERSION`, or the version in the `dist-vX.Y.Z` ref when the
+pulled tree has none, so it is always known. Only the outgoing end can be
+missing (a consumer copy with no `VERSION`); then the range cannot be decided,
+and `update.sh` says so and points at `plugin-dev/migrations/` instead of
+printing nothing.
 
 Structural limit, the same one that ruled out pruning leaked paths in
 `update-plugin-dev`: the consumer's *existing* vendored copy executes the

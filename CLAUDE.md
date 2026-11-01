@@ -47,8 +47,6 @@ Before adding, moving or editing a shipped file, open
   `limitations`, which argues the hub's one-line limitations), each holding the argument behind
   the hub's conclusions: alternatives weighed, the bug that motivated
   it, what it costs. A decision that changes is rewritten in both places.
-- `docs/changelog.md` — index of write-time records, newest first, one
-  entry per bullet. Bodies live in `docs/changelog/YYYY-MM-DD-slug.md`.
 - `plans/` — specs and implementation plans. Prospective content only;
   `docs/` holds what is true now.
 - `inbox/` — briefs, notes and findings that arrive from a session in
@@ -183,20 +181,22 @@ split dist ref" for the reasoning.
   `release.just`, and the example justfile `install.sh` generates. Put
   longer explanation in a file header or inside the recipe body — but
   never above a shebang recipe's `#!` line, which must come first.
-- **Design and changelog are separate files with separate rules.**
-  `docs/design.md` and its `docs/references/` nodes are present-tense:
-  overturned decisions are rewritten in place with the new reasoning,
-  never struck through, in the hub's conclusion and in the node's
-  argument alike. Each change also gets a dated write-time record at
-  `docs/changelog/YYYY-MM-DD-slug.md`, pointed at from
-  `docs/changelog.md` — those are never revised, because a dated record
-  is correct forever precisely because it is dated. `just format-docs`
-  still wraps `docs/changelog/` along with everything else: re-flowing a
-  paragraph changes line breaks and not words, so it is not a revision,
-  and exempting the directory would leave the longest records the
-  only unwrapped prose in `docs/`. The entries written
-  before the wrap existed were reflowed once, in the pass that
-  introduced it, and are grandfathered.
+- **The design is present tense; git carries the history.**
+  `docs/design.md` and its `docs/references/` nodes state what the toolkit is,
+  how it is built and why, with the reason a decision stands (the trade-off
+  weighed, the alternative ruled out, the constraint). Overturned decisions are
+  rewritten in place with the new reasoning, never struck through, in the hub's
+  conclusion and in the node's argument alike; an inverted decision is deleted.
+  The narration of a change (the incident, the belief that turned out false,
+  the order of events) goes in the commit body, which a design-significant
+  change always carries and a point-fix does not need. No dated record is
+  written beside the design.
+- **A breaking release ships a migration note that says so in its first
+  line.** `toolkit/migrations/vX.Y.Z.md` opens with the heading
+  `# Migrating to X.Y.Z (breaking)`; a consumer that pulls the release can
+  otherwise break with no step taken. A release that only adds opt-in pieces
+  with no clash possible needs no note. See docs/references/distribution.md
+  "Migration notes".
 
 ## Non-goals for this repo
 

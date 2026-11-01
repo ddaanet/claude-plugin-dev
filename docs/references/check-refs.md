@@ -66,20 +66,20 @@ the shell loop instead.
 
 ## Exemptions
 
-A dated changelog record and a plan are frozen: a link in one to a file deleted
-later is true about the day it was written. A plan never resolves its links
-either, and `plans/` is a scope rule like `plugin-dev/`: the scan never reads
-it, whatever `refs.exempt` says, exactly as `check-size` skips it always. One
-rule for both checks, in `exempt-list.sh`, beats a default one of them lets a
-consumer undo; no vendoring repo had a `refs.exempt` when it was made. The
-resolve check also skips `docs/changelog/` by default. A repo whose frozen
-records live elsewhere lists its own prefixes in a root `refs.exempt`, one per
-line with `#` comments and an optional ` # reason`, and the file replaces that
-default rather than adding to it, so an empty one exempts nothing. The list is
-read by the reader `check-size` uses for `size.exempt` (blanks trimmed, CR
-stripped, a trailing `/` dropped); `dist.sh`'s `dist.include` reader stays its
-own, being a strict allowlist whose refusals are its contract. A prefix matches
-whole path components, the same rule `dist.include` uses.
+A consumer's dated changelog record and a plan are frozen: a link in one to a
+file deleted later is true about the day it was written. A plan never resolves
+its links either, and `plans/` is a scope rule like `plugin-dev/`: the scan
+never reads it, whatever `refs.exempt` says, exactly as `check-size` skips it
+always. One rule for both checks, in `exempt-list.sh`, beats a default one of
+them lets a consumer undo; no vendoring repo had a `refs.exempt` when it was
+made. The resolve check also skips `docs/changelog/` by default. A repo whose
+frozen records live elsewhere lists its own prefixes in a root `refs.exempt`,
+one per line with `#` comments and an optional ` # reason`, and the file
+replaces that default rather than adding to it, so an empty one exempts nothing.
+The list is read by the reader `check-size` uses for `size.exempt` (blanks
+trimmed, CR stripped, a trailing `/` dropped); `dist.sh`'s `dist.include` reader
+stays its own, being a strict allowlist whose refusals are its contract. A
+prefix matches whole path components, the same rule `dist.include` uses.
 
 ## Shipped stays shipped
 

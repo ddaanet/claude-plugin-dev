@@ -1,9 +1,9 @@
 # The size check
 
 Why `check-size.sh` caps a file in bytes, why the two caps are fixed at 20000
-and 10000, why dated changelog records are counted, why it ships as an uncached
-script a consumer wires by hand, and how `size.exempt` lets a file stay over on
-purpose. The reference check it is wired beside is argued in
+and 10000, why a consumer's dated records are counted, why it ships as an
+uncached script a consumer wires by hand, and how `size.exempt` lets a file stay
+over on purpose. The reference check it is wired beside is argued in
 [check-refs.md](check-refs.md); the gate cache it deliberately stays outside is
 in [gates.md](gates.md). The conclusions these arguments support are listed in
 [../design.md](../design.md).
@@ -98,15 +98,14 @@ not a file that outgrew the cap. Should one appear, it becomes a per-path cap
 reviewed in `size.exempt`, never an environment variable (mechanics §6). A cap
 set by whatever grew last is not a calibration.
 
-## `docs/changelog/` is counted
+## Dated records are counted
 
-A dated record is checked by the commit that writes it, while its author can
-still split it, and it never changes afterwards, so the cap fires once and at
-the right moment. No record failed in any of the 14 repositories surveyed. The
-changelog index grows by a bullet per change and does fail in three of them.
-This repo's own index, `docs/changelog.md`, is over the cap, and its root
-`size.exempt` exempts it, "retired or split once
-plans/2026-10-31-brief-retire-dated-changelog.md is decided".
+A dated record a consumer keeps is checked by the commit that writes it, while
+its author can still split it, and it never changes afterwards, so the cap fires
+once and at the right moment. No record failed in any of the 14 repositories
+surveyed. A changelog index grows by a bullet per change and does fail in three
+of them; it is counted like any file, and a consumer that wants it over lists it
+in `size.exempt` with a reason.
 
 ## A shipped script, uncached, wired by hand
 

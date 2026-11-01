@@ -12,9 +12,8 @@
 #
 # Scope, and why: over `git ls-files -z -co --exclude-standard` -- the files on
 # disk the next `git add` can stage and the precommit sentinel hashes, so a
-# cached pass covers them -- excluding `plans/` and
-# `docs/changelog/` -- this repo's dated write-time records, which this
-# convention does not bind, per the design-and-changelog split in CLAUDE.md.
+# cached pass covers them -- excluding `plans/`, whose frozen specs this
+# convention does not bind.
 #
 # Residual bound: a citation INTO a `.md` file (e.g. an executed outline) is
 # not one of the three forbidden target forms and is never flagged, because an
@@ -77,8 +76,7 @@ assert_not_contains() {
 citation_pattern='([[:alnum:]_./-]+\.(sh|just)|justfile):[0-9]+'
 
 # Walks $1 (a git worktree root) over its non-ignored files, tracked or not -- NUL-delimited, so a
-# path holding whitespace is still one path -- excluding plans/ and
-# docs/changelog/, and reports every line in such a file matching
+# path holding whitespace is still one path -- excluding plans/, and reports every line in such a file matching
 # $citation_pattern. Prints one block per hit, exits non-zero iff any hit was
 # found. Residual: a matched line itself containing an embedded NUL would
 # still mis-split; no tracked file in this repo does, and NUL-delimiting the
@@ -88,7 +86,7 @@ check_citations() {
     local root="$1" rel f hits=0 lineno rest
     while IFS= read -r -d '' rel; do
         case "$rel" in
-        plans/* | docs/changelog/*) continue ;;
+        plans/*) continue ;;
         esac
         f="$root/$rel"
         [ -f "$f" ] || continue
@@ -102,7 +100,7 @@ check_citations() {
             printf '    dispatch in main, the --resume branch". A line number rots silently\n'
             printf '    the moment either file is next edited, landing a reader on different\n'
             printf '    real code with no error raised. Frozen dated artifacts under plans/\n'
-            printf '    and docs/changelog/ are exempt; a target in a .md file is not one of\n'
+            printf '    are exempt; a target in a .md file is not one of\n'
             printf '    the forbidden forms, since an extension alone cannot tell a living\n'
             printf '    document from a frozen one.\n'
         done < <(grep -noE "$citation_pattern" -- "$f" 2>/dev/null || true)
@@ -162,4 +160,4 @@ if [ "$failures" -ne 0 ]; then
     exit 1
 fi
 echo
-echo "citations ok (self-fixture discriminates tracked from plans/, no <script>.sh:<line> citation in non-ignored files outside plans/ and docs/changelog/)"
+echo "citations ok (self-fixture discriminates tracked from plans/, no <script>.sh:<line> citation in non-ignored files outside plans/)"

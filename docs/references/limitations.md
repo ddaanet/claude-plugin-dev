@@ -46,10 +46,10 @@ pull; the upgrade itself never edits consumer files.
 
 Roughly half of `release.sh` and the sibling files it sources is comment-only,
 much of it write-time record rather than contract. The `dist-` tree ships no
-design doc or changelog, so a consumer reading the script has none to reach for,
-and the record stays where the reader is. The cost is real: a comment that
-retells an incident ages with the code around it and has to be rewritten when
-the code moves.
+design doc, so a consumer reading the script has none to reach for, and the
+record stays where the reader is. The cost is real: a comment that retells an
+incident ages with the code around it and has to be rewritten when the code
+moves.
 
 ## A dogfood session launched from a subdirectory runs without its project hooks
 

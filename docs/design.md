@@ -1,8 +1,8 @@
 # claude-plugin-dev — Design
 
 Living design document. Updated when meaningful design decisions land or get
-overturned. Not a changelog of features — a record of
-*why this project has the shape it has*.
+overturned. It records *why this project has the shape it has*, not a list of
+features.
 
 This file is the hub. It carries the motivation, the requirements, and one line
 for every design decision and every limitation. The argument behind each line
@@ -86,7 +86,7 @@ versioned with each consumer.
 Each bullet states a conclusion. Its argument — the alternatives weighed, the
 bug that motivated it, what it costs — is in the node named by the heading. A
 decision that gets overturned is rewritten in both places, in the present tense;
-the dated record of the reversal goes in the changelog.
+the commit body carries why it changed.
 
 ### Distribution and versioning — [references/distribution.md](references/distribution.md)
 
@@ -100,7 +100,8 @@ the dated record of the reversal goes in the changelog.
 - The first install is `curl … | bash` at a dist tag.
 - `install.sh` takes its target from `$PWD`, not an argument.
 - The update flow lives in `update.sh`, not in the recipe body.
-- Migration notes ship in the dist tree and are printed, never applied.
+- Migration notes ship in the dist tree and are printed, never applied; a
+  breaking release's note says so in its first line.
 - `toolkit/VERSION` is the version source of truth, not the tags alone.
 
 ### The release flow — [references/release-flow.md](references/release-flow.md)
@@ -162,8 +163,8 @@ the dated record of the reversal goes in the changelog.
   backticked path.
 - Files are read from disk: every Markdown file git does not ignore, tracked or
   not.
-- Dated records are exempt from resolving, and `plans/` is never read, as
-  `check-size` skips it.
+- Frozen dated records a consumer keeps under `docs/changelog/` are exempt from
+  resolving by default, and `plans/` is never read, as `check-size` skips it.
 - **Shipped stays shipped, with no exemption**: given a `dist.include`, a link
   from a shipped file must reach a shipped file git lists.
 - `release.just` gains a `check-refs` recipe that nothing depends on.
@@ -172,7 +173,7 @@ the dated record of the reversal goes in the changelog.
 
 - A file's size is its bytes, as `wc -c` counts them, not its lines.
 - Two fixed caps: 20000 for every counted file, 10000 for any `SKILL.md`.
-- `docs/changelog/` is counted.
+- Dated records a consumer keeps under `docs/changelog/` are counted.
 - `check-size.sh` is a shipped script run uncached, wired by hand.
 - A root `size.exempt` lists overages, each with a reason, and refuses stale
   entries.
@@ -256,6 +257,6 @@ the node.
 
 ## History
 
-Write-time records of each change — what moved and the reasoning available at
-the time — live in [changelog.md](changelog.md), one file per entry. This
-document states what the toolkit *is*; the changelog states how it got there.
+Git carries how the toolkit got here: a design-significant change has a commit
+body with the why, and `git log --follow -- <path>` reaches the rest. This
+document states what the toolkit *is*.
