@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Refuses a `mktemp` call not of the portable form in this repo's shell. macOS
+# Refuses a `mktemp` call with no template in this repo's shell code. macOS
 # mktemp without a template places its file under _CS_DARWIN_USER_TEMP_DIR and
 # reads TMPDIR only as a fallback, so inside a command sandbox that grants TMPDIR
 # and not /var/folders the call fails outright; GNU honours TMPDIR, so Linux
@@ -8,8 +8,8 @@
 #
 #     mktemp [-d] "${TMPDIR:-/tmp}/<name>.XXXXXX"
 #
-# The check is a whitelist of that shape: after `mktemp`, an optional `-d`, then
-# the template as the very next word, double-quoted, single-quoted or unquoted,
+# The check admits only an optional `-d` then a template: after `mktemp`, the
+# template is the very next word, double-quoted, single-quoted or unquoted,
 # ending in the Xs and followed by a space, `)` or the end of the line. Any other
 # word there is refused, so `-t` is whatever its spelling, and so is a `2>` or
 # `||` ahead of the template.
@@ -24,7 +24,8 @@
 # Residual bound: only a `$(mktemp ...)` command substitution is read, on one
 # line, up to the end of its template. A backticked call, one whose output goes to
 # a file, and anything after the template in the same substitution are not seen.
-# An extensionless script such as `toolkit/bin/claude` is not read.
+# An extensionless script such as `toolkit/bin/claude` is not read. A template
+# with no directory, such as `name.XXXXXX`, is admitted.
 #
 # Usage: bash tests/mktemp-template-test.sh   (run from repo root)
 set -euo pipefail
