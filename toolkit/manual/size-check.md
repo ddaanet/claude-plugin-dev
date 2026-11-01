@@ -136,9 +136,10 @@ oversized-file: skills/review/SKILL.md: 10412 bytes > 10000 (SKILL.md hub)
 hint: split each file along a seam; do not shave prose or docstrings to fit
 ```
 
-Any failure to list, read or measure the tree, its attributes and `size.exempt`
-included, ends the run with one stderr line, `check-size: <reason>`, and exit 1,
-never a pass.
+A run that `check-size` detects it cannot complete ends with a
+`check-size: <reason>` line on stderr, after whatever the failing tool printed,
+and exit 1. An unreadable file is not such a failure: it is skipped, as step 4
+says.
 
 ## When it fails
 
