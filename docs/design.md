@@ -177,6 +177,18 @@ the dated record of the reversal goes in the changelog.
 - A root `size.exempt` lists overages, each with a reason, and refuses stale
   entries.
 
+### The frontmatter check — [references/frontmatter-check.md](references/frontmatter-check.md)
+
+- `claude plugin validate` passes frontmatter that is not YAML, so a shipped
+  check refuses it.
+- `description` is required and `name` is not: the validator warns on the first
+  and is silent on the second.
+- PyYAML parses the block, not awk, and the Python is embedded and run as
+  `python3 -I`.
+- `check-frontmatter.sh` is a shipped script run uncached, wired by hand, and
+  needs a venv the consumer adds.
+- Runtime loading was not probed.
+
 ### This repo's own release — [references/self-release.md](references/self-release.md)
 
 - The toolkit releases itself with a separate script.

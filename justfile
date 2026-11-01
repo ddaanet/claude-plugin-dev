@@ -8,8 +8,8 @@ import 'toolkit/gates.just'
 # shellcheck can find new problems, and every suite runs under bash, git, jq and
 # just. rumdl is pinned in pyproject.toml, an input, but the binary that runs is
 # whatever `format-docs` finds, so its version is hashed too, resolved the same
-# way.
-export PLUGIN_DEV_GATE_TOOLS := "bash --version\ngit --version\njust --version\njq --version\nshellcheck --version\n{ command -v rumdl >/dev/null 2>&1 && rumdl --version; } || .venv/bin/rumdl --version"
+# way. The venv's PyYAML is hashed likewise: the frontmatter suites parse with it.
+export PLUGIN_DEV_GATE_TOOLS := "bash --version\ngit --version\njust --version\njq --version\nshellcheck --version\n{ command -v rumdl >/dev/null 2>&1 && rumdl --version; } || .venv/bin/rumdl --version\n.venv/bin/python3 -I -c 'import yaml; print(yaml.__version__)'"
 
 _default:
     @just --list
@@ -222,6 +222,9 @@ _import-check:
     # `check-size` likewise runs the script alone, with no gate.
     dry_is check-size 'bash "plugin-dev/check-size.sh"'
 
+    # `check-frontmatter` likewise runs the script alone, with no gate.
+    dry_is check-frontmatter 'bash "plugin-dev/check-frontmatter.sh"'
+
     # Missing `prerelease` must be a hard error naming the missing recipe --
     # this is the contract consumers are told about, so test it, don't assume.
     stub missing ""
@@ -241,4 +244,4 @@ _import-check:
     grep -q '^sentinel-guard () {' <<< "$out" \
         || { echo "error: gates.just did not expose the prolog beside release.just" >&2; exit 1; }
 
-    echo "release.just import: ok (plain + widened + missing gate, resume-release, dogfood, check-refs, check-size, gates.just beside it)"
+    echo "release.just import: ok (plain + widened + missing gate, resume-release, dogfood, check-refs, check-size, check-frontmatter, gates.just beside it)"

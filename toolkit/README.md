@@ -9,9 +9,10 @@ dotfiles).
 
 - **`release.just`** — the recipes imported into the consumer's `justfile`:
   `release`, `resume-release`, `check-version`, `check-refs`, `check-size`,
-  `update-plugin-dev` and `dogfood`. All are one-line wrappers: `release` and
-  `resume-release` around `release.sh`, `check-refs` around `check-refs.sh`,
-  `update-plugin-dev` around `update.sh`, `dogfood` around `dogfood.sh sync`.
+  `check-frontmatter`, `update-plugin-dev` and `dogfood`. All are one-line
+  wrappers: `release` and `resume-release` around `release.sh`, `check-refs`
+  around `check-refs.sh`, `update-plugin-dev` around `update.sh`, `dogfood`
+  around `dogfood.sh sync`.
 - **`update.sh`** — pulls a newer toolkit version into the consumer. With no ref
   it resolves the newest `dist-` tag from the remote. After the pull it prints
   the migration notes for every version crossed — guidance to apply by hand; an
@@ -61,6 +62,10 @@ dotfiles).
   are unchanged. See [Gate sentinels](#gate-sentinels).
 - **`check-size.sh`** — opt-in, wired as `precommit: check-refs check-size`.
   Refuses a file over the byte cap. See [Size check](#size-check).
+- **`check-frontmatter.sh`** — opt-in, wired as
+  `precommit: check-refs check-size check-frontmatter`. Refuses a skill, agent
+  or command whose frontmatter is missing, unparseable or lacks a description.
+  See [Frontmatter check](#frontmatter-check).
 - **`run-bats.sh`** — opt-in quiet runner for `bats`: failures and a pass count
   instead of the TAP stream.
 - **`install.sh`** — one-shot install script: vendors the toolkit (resolving the
@@ -268,6 +273,15 @@ Optional. `just check-size` refuses a file over 20000 bytes, or 10000 for a
 `precommit: check-refs check-size`; it runs uncached. The metric, what is
 skipped, the `size.exempt` format and the report are in
 [manual/size-check.md](manual/size-check.md).
+
+## Frontmatter check
+
+Optional. `just check-frontmatter` refuses a skill, agent or command whose
+frontmatter block is missing, is not YAML, or has no string `description`. Wire
+it as `precommit: check-refs check-size check-frontmatter`; it runs uncached and
+needs PyYAML in the dev group of `pyproject.toml`. What is read, each refusal,
+what is not refused and the setup are in
+[manual/frontmatter-check.md](manual/frontmatter-check.md).
 
 ## Dogfooding
 

@@ -27,9 +27,13 @@ check),
 `check-size-{scope,exempt,report}-test.sh` (`check-size.sh`: which files are
 counted (including `linguist-generated` files), the `size.exempt` refusals, and
 the report, caps and counts),
+`check-frontmatter-{block,fields,scope,interpreter}-test.sh`
+(`check-frontmatter.sh`, against fixture plugin repos and the venv's real
+PyYAML: the block refusals, the `description` and `name` refusals, which files
+are read and the sign-off counts, and the missing or PyYAML-less interpreter),
 `doc-sync-test.sh` (the install/update command blocks shared by the two
-READMEs, and the Layout list in the root [CLAUDE.md](../CLAUDE.md) against `toolkit/`'s actual
-contents), `citation-test.sh` (refuses a `<script>.sh:<line>`
+READMEs, and [docs/toolkit-layout.md](../docs/toolkit-layout.md) against `toolkit/`'s actual
+contents, and the `toolkit/` paths the root [CLAUDE.md](../CLAUDE.md) names), `citation-test.sh` (refuses a `<script>.sh:<line>`
 citation into a file outside `plans/` and `docs/changelog/`),
 `mktemp-template-test.sh` (refuses a `mktemp` call with no template in `*.sh`,
 `*.just` and justfiles),

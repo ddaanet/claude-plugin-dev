@@ -36,6 +36,7 @@ bin/claude
 check-refs.sh
 check-refs-parse.sh
 check-size.sh
+check-frontmatter.sh
 exempt-list.sh
 check-version.sh
 dist.sh
@@ -43,6 +44,7 @@ manual/dist-branch.md
 manual/dogfood.md
 manual/gates.md
 manual/size-check.md
+manual/frontmatter-check.md
 dogfood.sh
 gates.just
 install.sh
@@ -94,7 +96,7 @@ echo "=== toolkit/bin/claude is executable on disk ==="
 
 # Consumers call these as `plugin-dev/<name>`, with no `bash` before them, and
 # a script without its execute bit fails there with "Permission denied".
-for exe in run-bats.sh check-refs.sh check-size.sh; do
+for exe in run-bats.sh check-refs.sh check-size.sh check-frontmatter.sh; do
     echo "=== toolkit/$exe is executable on disk ==="
     [ -f "toolkit/$exe" ] && [ -x "toolkit/$exe" ] \
         || fail "toolkit/$exe is not an executable file on disk"
@@ -119,4 +121,4 @@ if [ "$failures" -ne 0 ]; then
     exit 1
 fi
 echo
-echo "dist tree ok ($(printf '%s\n' "$expected" | wc -l | tr -d ' ') files, bin/claude, run-bats.sh, check-refs.sh and check-size.sh executable, no gitlink)"
+echo "dist tree ok ($(printf '%s\n' "$expected" | wc -l | tr -d ' ') files, bin/claude, run-bats.sh, check-refs.sh, check-size.sh and check-frontmatter.sh executable, no gitlink)"

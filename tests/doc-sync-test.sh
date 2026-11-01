@@ -11,7 +11,7 @@
 #      toolkit README's. That is one-directional by construction (the manual
 #      says more), and it still catches an edit to either side of a shared
 #      block, which is the drift that actually happens.
-#   2. CLAUDE.md's Layout list names every shipped file and says what it is for.
+#   2. docs/toolkit-layout.md names every shipped file and says what it is for.
 #      A file added to `toolkit/` and not to the list is invisible to the next
 #      session; a bullet left behind after a rename points at nothing.
 #      `tests/dist-tree-test.sh` pins the tree itself -- this ties the prose to
@@ -78,7 +78,7 @@ done < <(blocks_in README.md "Installing in a plugin" "Updating in a plugin")
 [ "$root_block_count" -gt 0 ] \
     || fail "no code blocks found in README.md's install/update sections (renamed heading?)"
 
-echo "=== CLAUDE.md's Layout list matches toolkit/ ==="
+echo "=== docs/toolkit-layout.md matches toolkit/ ==="
 # LICENSE ships but carries no explanation worth a bullet. Migration notes are
 # one optional file per release, covered by the single `vX.Y.Z.md` pattern
 # bullet rather than named individually -- both mirror the exemptions in
@@ -89,21 +89,31 @@ shipped="$(git ls-files --cached --others --exclude-standard toolkit/ \
     | sort)"
 shipped="$(printf '%s\ntoolkit/migrations/vX.Y.Z.md\n' "$shipped" | sort)"
 
-# Backtick-quoted `toolkit/...` paths anywhere in CLAUDE.md, not just the Layout
-# bullets: a path named in the Conventions section is a reference to the same
-# file and should not go stale either.
+# Backtick-quoted `toolkit/...` paths anywhere in the named file. The layout file
+# must name exactly the shipped set. CLAUDE.md names toolkit paths outside any
+# list (Quality gate, Conventions); each is a reference to the same file and
+# must not go stale either, but it need not name every file.
 # shellcheck disable=SC2016  # the backticks are markdown delimiters to match on, not command substitution
-documented="$(grep -oE '`toolkit/[A-Za-z0-9._/-]+`' CLAUDE.md \
-    | tr -d '`' \
-    | sed 's|^toolkit/migrations/v[0-9X][0-9XYZ.]*\.md$|toolkit/migrations/vX.Y.Z.md|' \
-    | sort -u)"
+paths_in() {
+    grep -oE '`toolkit/[A-Za-z0-9._/-]+`' "$1" \
+        | tr -d '`' \
+        | sed 's|^toolkit/migrations/v[0-9X][0-9XYZ.]*\.md$|toolkit/migrations/vX.Y.Z.md|' \
+        | sort -u
+}
+documented="$(paths_in docs/toolkit-layout.md)"
 
 if [ "$shipped" != "$documented" ]; then
-    fail "CLAUDE.md's toolkit/ paths do not match the shipped tree"
+    fail "docs/toolkit-layout.md's toolkit/ paths do not match the shipped tree"
     diff <(printf '%s\n' "$shipped") <(printf '%s\n' "$documented") \
         | sed 's/^/    /' >&2 || true
-    printf '  < only in toolkit/ (add a Layout bullet)\n' >&2
-    printf '  > only in CLAUDE.md (stale path, or a file that was removed)\n' >&2
+    printf '  < only in toolkit/ (add a bullet to docs/toolkit-layout.md)\n' >&2
+    printf '  > only in docs/toolkit-layout.md (stale path, or a file that was removed)\n' >&2
+fi
+
+stale="$(comm -13 <(printf '%s\n' "$shipped") <(paths_in CLAUDE.md))"
+if [ -n "$stale" ]; then
+    fail "CLAUDE.md names toolkit/ paths the shipped tree lacks"
+    printf '%s\n' "$stale" | sed 's/^/    /' >&2
 fi
 
 if [ "$failures" -ne 0 ]; then
@@ -111,4 +121,4 @@ if [ "$failures" -ne 0 ]; then
     exit 1
 fi
 echo
-echo "doc sync ok ($root_block_count shared command blocks, Layout matches toolkit/)"
+echo "doc sync ok ($root_block_count shared command blocks, toolkit-layout.md matches toolkit/)"
