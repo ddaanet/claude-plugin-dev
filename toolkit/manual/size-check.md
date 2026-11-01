@@ -41,7 +41,7 @@ a repository the size of gitlore (about 0.35 s, measured on Linux under load).
 See
 [Gate sentinels](gates.md).
 
-It needs `bash`, `git`, `xargs` and a GNU or BSD `stat`.
+It needs `bash`, `git`, `xargs`, `mktemp` and a GNU or BSD `stat`.
 
 ## What it reads
 
@@ -58,18 +58,17 @@ The skips apply in this order; a file stops at the first that takes it:
 5. **Binary files**, those whose content git detects as binary (`w/-text` in
    `git ls-files --eol`; a `.gitattributes` `binary` or `-text` attribute does
    not skip a text file), are skipped and counted.
-6. **Generated files**: those whose `linguist-generated` attribute is `set` or
-   `true` (`path linguist-generated`, or `=true`). `-linguist-generated`,
-   `=false`, `!linguist-generated` and any other value leave the file counted.
-   It is skipped before the built-ins are tried, and counted with them in the
-   sign-off. The attribute is resolved as `git check-attr` resolves it: the
-   working tree's `.gitattributes` files, `.git/info/attributes` and the user's
-   `core.attributesFile`. The last two are outside the gate's hashed inputs, so
-   editing them does not invalidate a cached pass, and they differ between
-   clones: set the attribute in a committed `.gitattributes`.
-7. **Built-ins**: `plugin-dev/` and a root `plans/`, each as a whole leading
+6. **Built-ins**: `plugin-dev/` and a root `plans/`, each as a whole leading
    path component (`plans-old/` is not skipped, nor is `docs/plans/`), and a
    file named `uv.lock` or `package-lock.json` at any depth.
+7. **Generated files**: those whose `linguist-generated` attribute is `set` or
+   `true` (`path linguist-generated`, or `=true`). `-linguist-generated`,
+   `=false`, `!linguist-generated` and any other value leave the file counted.
+   Only a file no built-in took is looked up, and a generated file is counted
+   with the built-ins in the sign-off. Every source `git check-attr` reads
+   counts, and only a committed `.gitattributes` is the same in every clone: set
+   the attribute there, since a rule anywhere else can pass a file in one clone
+   and fail it in another.
 
 What remains is counted. `size.exempt`, below, does not skip a file: it forgives
 an overage after the count.
@@ -137,8 +136,9 @@ oversized-file: skills/review/SKILL.md: 10412 bytes > 10000 (SKILL.md hub)
 hint: split each file along a seam; do not shave prose or docstrings to fit
 ```
 
-Running outside a git work tree, an unreadable `size.exempt` and an empty
-listing each end the run with one line, `check-size: <reason>`.
+Any failure to list, read or measure the tree, its attributes and `size.exempt`
+included, ends the run with one stderr line, `check-size: <reason>`, and exit 1,
+never a pass.
 
 ## When it fails
 

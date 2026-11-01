@@ -5,7 +5,8 @@
 # symlinks; anything not a regular file (a deleted tracked file, a gitlink, a
 # nested repo, a FIFO standing in for a file); unreadable files with their
 # stderr notice and sign-off count; binaries, tracked or not; the built-ins
-# plugin-dev/, root plans/, uv.lock and package-lock.json at any depth -- and
+# plugin-dev/, root plans/, uv.lock and package-lock.json at any depth; files
+# marked linguist-generated, and a failed attribute lookup failing the run -- and
 # the files that DO count: untracked ones, and paths holding a space or a
 # newline. Every exclusion fixture is over the cap exactly where only its own
 # exclusion keeps it out. Siblings: check-size-exempt-test.sh (size.exempt) and
@@ -306,6 +307,31 @@ assert_eq "$rc" "1" "generated entry: exit code"
 assert_contains "$err" "size.exempt:1: out.gen — a generated file is always skipped" \
     "generated entry: refused as always skipped"
 assert_not_contains "$err" "matches no listed file" "generated entry: not a missing file"
+
+echo "=== a failed attribute lookup fails the run, never a pass ==="
+# A `git` wrapper fails only check-attr, after draining its stdin; every other
+# git call reaches the real one. Read with its status ignored, the empty output
+# would leave no file counted and the oversized one would pass unseen.
+mk_repo
+put_big big.txt
+attr_fail_dir="$sandbox/git-wrapper"
+mkdir -p "$attr_fail_dir"
+real_git="$(command -v git)"
+cat > "$attr_fail_dir/git" <<STUB
+#!/bin/sh
+if [ "\$1" = "check-attr" ]; then
+    cat >/dev/null
+    echo "fatal: stub git failing check-attr" >&2
+    exit 128
+fi
+exec "$real_git" "\$@"
+STUB
+chmod +x "$attr_fail_dir/git"
+PATH="$attr_fail_dir:$PATH" run_check
+assert_eq "$rc" "1" "attribute lookup failure: exit code"
+assert_eq "$out" "" "attribute lookup failure: no sign-off"
+assert_contains "$err" "check-size: attribute lookup failed" \
+    "attribute lookup failure: reported on stderr"
 
 echo "=== a newline in a name cannot forge a line ==="
 mk_repo
