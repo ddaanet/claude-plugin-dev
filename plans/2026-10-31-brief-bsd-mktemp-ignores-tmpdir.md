@@ -46,3 +46,14 @@ refuses a call with no template argument, in the manner of the
 
 plugin-craft fixed its own call the same way and will take the toolkit fix
 through `just update-plugin-dev` once a dist tag carries it.
+
+## Second report, 2026-11-01
+
+From a shell-gotchas session, a second brief reporting the same cause: on macOS
+26 (Darwin 25.6) inside the sandbox, with the 0.14.0 dist vendored,
+`just precommit` stops at `check-refs` (`toolkit/check-refs.sh:78`, now one line
+down from the site named above) with `mkdtemp failed on /var/folders/…`. It adds
+sites outside `toolkit/`: the root `justfile` (`mktemp` at line 92, `mktemp -d`
+at 165) and most of `tests/`, where 54 files call `mktemp` and some
+(`check-size-*-test.sh`) already use the template form. shell-gotchas takes the
+fix through `just update-plugin-dev` once a dist tag carries it.
