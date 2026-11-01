@@ -91,6 +91,18 @@ put() {
     printf '%s' "$2" > "$repo/$1"
 }
 
+# put_good <path>: a valid file for that path. A skill's name is its directory's,
+# an agent's or command's its file's stem, so the same fixture passes every
+# kind's name rule.
+put_good() {
+    local n
+    case "$1" in
+        skills/*/SKILL.md) n="$(basename "$(dirname "$1")")" ;;
+        *) n="$(basename "$1" .md)" ;;
+    esac
+    put "$1" "$(printf -- '---\nname: "%s"\ndescription: a fine description\n---\nbody\n' "$n")"
+}
+
 # commit_in <dir>: commit everything in a repo, ignores respected.
 commit_in() {
     git -C "$1" add -A
@@ -118,8 +130,6 @@ one_of() {
         command) signoff 0 0 1 ;;
     esac
 }
-
-good_fm=$'---\ndescription: a fine description\n---\nbody\n'
 
 # run_check: run the script with cwd at $repo, the venv first on PATH
 # and the C locale (a UTF-8 file must not depend on the locale). Sets $rc,
@@ -194,7 +204,7 @@ refuse_in_all_kinds() {
     shift 2
     for kind in skill agent command; do
         mk_repo
-        put "$(kind_path "$kind" good)" "$good_fm"
+        put_good "$(kind_path "$kind" good)"
         run_check
         expect_ok "$label [$kind] control" "$(one_of "$kind")"
         bad="$(kind_path "$kind" bad)"
@@ -246,10 +256,10 @@ refuse_in_all_kinds "bare scalar" $'---\njust some words\n---\nbody\n' "mapping"
 refuse_in_all_kinds "empty block" $'---\n---\nbody\n' "mapping"
 
 echo "=== accepted shapes of the block ==="
-accept_in_all_kinds "closing line is the last line, no newline" $'---\ndescription: x\n---'
+accept_in_all_kinds "closing line is the last line, no newline" $'---\nname: fine\ndescription: x\n---'
 accept_in_all_kinds "first closing line wins; a later --- and later junk are body" \
-    $'---\ndescription: x\n---\nbody\n---\nnot: [yaml\n---\n'
-accept_in_all_kinds "non-ASCII UTF-8 under LC_ALL=C" $'---\ndescription: caf\xc3\xa9 \xe2\x80\x94 ok\n---\nbody\n'
+    $'---\nname: fine\ndescription: x\n---\nbody\n---\nnot: [yaml\n---\n'
+accept_in_all_kinds "non-ASCII UTF-8 under LC_ALL=C" $'---\nname: fine\ndescription: caf\xc3\xa9 \xe2\x80\x94 ok\n---\nbody\n'
 
 echo "=== YAML that executes code, or that PyYAML fails on without a YAMLError ==="
 refuse_in_all_kinds "python/object tag" $'---\ndescription: !!python/object/apply:os.getcwd []\n---\nbody\n' "YAML"
@@ -268,7 +278,7 @@ done
 
 echo "=== every refusing file is reported, and the good one is not ==="
 mk_repo
-put "$(kind_path skill good)" "$good_fm"
+put_good "$(kind_path skill good)"
 put "$(kind_path skill bad)" ""
 put "$(kind_path agent bad)" $'---\ndescription: a: b\n---\n'
 put "$(kind_path command bad)" $'---\n- x\n---\n'

@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # check-frontmatter: every skill, agent and command file git does not ignore,
 # read from disk, must open with a YAML frontmatter block that parses to a
-# mapping, with a non-blank string `description` and, when present, a non-blank
-# string `name`. Skills are skills/*/SKILL.md; agents and commands are the .md
-# files under agents/ and commands/ at any depth. Other .md files under a skill
-# are reference files and are not read.
+# mapping, with a non-blank string `description`. A `name` is required of a
+# skill and an agent, and must be a non-blank string when present; a skill's
+# `name` must equal its directory, and an agent's need not match its filename.
+# A command's `name` is optional and free. Skills are skills/*/SKILL.md; agents
+# and commands are the .md files under agents/ and commands/ at any depth. Other
+# .md files under a skill are reference files and are not read.
 #
 # Usage: bash toolkit/check-frontmatter.sh [root]
 # The root defaults to the current directory and must lie inside a git work
@@ -66,12 +68,11 @@ fail_run() {
 # program: the embedded Python. It reads NUL-delimited paths on stdin, prints
 # one stderr line per problem, and signs off on stdout when every file passes.
 program="$(cat <<'PY'
-import os
 import sys
 
 import yaml
 
-def block_reasons(raw):
+def block_reasons(raw, path=b""):
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
@@ -93,10 +94,12 @@ def block_reasons(raw):
         return ["block is not YAML: " + " ".join(str(error).split())]
     if not isinstance(data, dict):
         return ["block is not a mapping"]
-    return field_reasons(data)
+    return field_reasons(data, path)
 
-def field_reasons(data):
+def field_reasons(data, path=b""):
     reasons = []
+    parts = path.decode("utf-8", "replace").split("/")
+    kind = parts[0]
     if "description" not in data:
         reasons.append("description is missing")
     elif not isinstance(data["description"], str):
@@ -108,7 +111,14 @@ def field_reasons(data):
             reasons.append("name is not a string")
         elif not data["name"].strip():
             reasons.append("name is blank")
+        elif kind == "skills" and data["name"] != skill_dir(parts):
+            reasons.append("name %r differs from its directory %r" % (data["name"], skill_dir(parts)))
+    elif kind in ("skills", "agents"):
+        reasons.append("name is missing")
     return reasons
+
+def skill_dir(parts):
+    return parts[-2]
 
 def kind_of(path):
     if path.startswith(b"skills/"):
@@ -126,7 +136,7 @@ def main():
         counts[kind_of(path)] += 1
         with open(path, "rb") as handle:
             raw = handle.read()
-        for reason in block_reasons(raw):
+        for reason in block_reasons(raw, path):
             failed = True
             line = b"check-frontmatter: " + path + b": "
             line += reason.encode("utf-8", "backslashreplace") + b"\n"

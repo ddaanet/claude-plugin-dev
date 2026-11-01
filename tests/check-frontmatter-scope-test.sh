@@ -90,6 +90,18 @@ put() {
     printf '%s' "$2" > "$repo/$1"
 }
 
+# put_good <path>: a valid file for that path. A skill's name is its directory's,
+# an agent's or command's its file's stem, so the same fixture passes every
+# kind's name rule.
+put_good() {
+    local n
+    case "$1" in
+        skills/*/SKILL.md) n="$(basename "$(dirname "$1")")" ;;
+        *) n="$(basename "$1" .md)" ;;
+    esac
+    put "$1" "$(printf -- '---\nname: "%s"\ndescription: a fine description\n---\nbody\n' "$n")"
+}
+
 # commit_in <dir>: commit everything in a repo, ignores respected.
 commit_in() {
     git -C "$1" add -A
@@ -117,8 +129,6 @@ one_of() {
         command) signoff 0 0 1 ;;
     esac
 }
-
-good_fm=$'---\ndescription: a fine description\n---\nbody\n'
 
 # run_check: run the script with cwd at $repo, the venv first on PATH
 # and the C locale (a UTF-8 file must not depend on the locale). Sets $rc,
@@ -190,9 +200,9 @@ bad_fm=$'no frontmatter here\n'
 
 echo "=== paths with a space and an apostrophe ==="
 mk_repo
-put "skills/my skill/SKILL.md" "$good_fm"
-put "agents/my agent.md" "$good_fm"
-put "commands/it's here.md" "$good_fm"
+put_good "skills/my skill/SKILL.md"
+put_good "agents/my agent.md"
+put_good "commands/it's here.md"
 run_check
 expect_ok "spaced names pass" "$(signoff 1 1 1)"
 put "skills/my skill/SKILL.md" "$bad_fm"
@@ -206,7 +216,7 @@ has_refusal "spaced names refused" "commands/it's here.md" "block"
 
 echo "=== untracked and tracked files are read; ignored are not ==="
 mk_repo
-put "skills/tracked/SKILL.md" "$good_fm"
+put_good "skills/tracked/SKILL.md"
 commit_in "$repo"
 put "skills/tracked/SKILL.md" "$bad_fm"
 put "agents/untracked.md" "$bad_fm"
@@ -216,7 +226,7 @@ has_refusal "tracked and untracked" "skills/tracked/SKILL.md" "block"
 has_refusal "tracked and untracked" "agents/untracked.md" "block"
 
 mk_repo
-put "skills/good/SKILL.md" "$good_fm"
+put_good "skills/good/SKILL.md"
 put "skills/ignored/SKILL.md" "$bad_fm"
 put "agents/ignored.md" "$bad_fm"
 put ".gitignore" $'skills/ignored/\nagents/ignored.md\n'
@@ -230,7 +240,7 @@ has_refusal "same files without the ignore" "agents/ignored.md" "block"
 
 echo "=== a listed file gone from disk is skipped ==="
 mk_repo
-put "skills/good/SKILL.md" "$good_fm"
+put_good "skills/good/SKILL.md"
 put "skills/gone/SKILL.md" "$bad_fm"
 put "agents/gone.md" "$bad_fm"
 commit_in "$repo"
@@ -242,9 +252,9 @@ expect_ok "deleted tracked files" "$(signoff 1 0 0)"
 
 echo "=== agents and commands are read at any depth ==="
 mk_repo
-put "agents/top.md" "$good_fm"
-put "agents/sub/deep.md" "$good_fm"
-put "commands/ns/deeper/x.md" "$good_fm"
+put_good "agents/top.md"
+put_good "agents/sub/deep.md"
+put_good "commands/ns/deeper/x.md"
 run_check
 expect_ok "nested pass" "$(signoff 0 2 1)"
 put "agents/sub/deep.md" "$bad_fm"
@@ -256,7 +266,7 @@ has_refusal "nested bad" "commands/ns/deeper/x.md" "block"
 
 echo "=== files outside the three globs are not read ==="
 mk_repo
-put "skills/good/SKILL.md" "$good_fm"
+put_good "skills/good/SKILL.md"
 put "skills/good/reference.md" "$bad_fm"
 put "skills/good/references/node.md" "$bad_fm"
 put "skills/SKILL.md" "$bad_fm"
@@ -281,12 +291,12 @@ has_refusal "control" "agents/other.md" "block"
 
 echo "=== sign-off counts ==="
 mk_repo
-put "skills/a/SKILL.md" "$good_fm"
-put "skills/b/SKILL.md" "$good_fm"
-put "agents/a.md" "$good_fm"
-put "agents/n/b.md" "$good_fm"
-put "agents/c.md" "$good_fm"
-put "commands/a.md" "$good_fm"
+put_good "skills/a/SKILL.md"
+put_good "skills/b/SKILL.md"
+put_good "agents/a.md"
+put_good "agents/n/b.md"
+put_good "agents/c.md"
+put_good "commands/a.md"
 run_check
 expect_ok "2 skills, 3 agents, 1 command" "$(signoff 2 3 1)"
 
@@ -299,13 +309,13 @@ put "docs/x.md" "$bad_fm"
 run_check
 expect_ok "only unrelated files" "$(signoff 0 0 0)"
 mk_repo
-put "skills/only/SKILL.md" "$good_fm"
+put_good "skills/only/SKILL.md"
 run_check
 expect_ok "skills only" "$(signoff 1 0 0)"
 
 echo "=== a root argument ==="
 mk_repo
-put "skills/good/SKILL.md" "$good_fm"
+put_good "skills/good/SKILL.md"
 put "agents/bad.md" "$bad_fm"
 elsewhere="$sandbox/elsewhere dir"
 mkdir -p "$elsewhere"
@@ -336,7 +346,7 @@ run_root() {
 
 echo "=== a non-ASCII path is read ==="
 mk_repo
-put "skills/é/SKILL.md" "$good_fm"
+put_good "skills/é/SKILL.md"
 run_check
 expect_ok "non-ASCII path passes" "$(signoff 1 0 0)"
 put "skills/é/SKILL.md" "$bad_fm"
@@ -345,7 +355,7 @@ refused_one "non-ASCII path refused" "skills/é/SKILL.md" "block"
 
 echo "=== a module planted at the root is not imported ==="
 mk_repo
-put "agents/good.md" "$good_fm"
+put_good "agents/good.md"
 put "yaml.py" $'raise RuntimeError("planted yaml.py was imported")\n'
 put "sitecustomize.py" $'raise RuntimeError("planted sitecustomize.py was imported")\n'
 run_check
@@ -353,7 +363,7 @@ expect_ok "planted yaml.py" "$(signoff 0 1 0)"
 
 echo "=== directory names that only start like a kind are not read ==="
 mk_repo
-put "agents/good.md" "$good_fm"
+put_good "agents/good.md"
 put "agents-old/a.md" "$bad_fm"
 put "skills2/a/SKILL.md" "$bad_fm"
 put "commands.bak/a.md" "$bad_fm"
@@ -366,7 +376,7 @@ refused_one "control: agents/a.md is read" "agents/a.md" "block"
 echo "=== a root below the top level reads that subtree alone ==="
 mk_repo
 put "agents/outer.md" "$bad_fm"
-put "plugin/agents/good.md" "$good_fm"
+put_good "plugin/agents/good.md"
 elsewhere="$sandbox/elsewhere dir"
 mkdir -p "$elsewhere"
 run_root "$elsewhere" "$repo/plugin"

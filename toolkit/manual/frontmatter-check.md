@@ -3,9 +3,10 @@
 Part of the claude-plugin-dev manual; [README.md](../README.md) is the rest.
 
 `just check-frontmatter` refuses a skill, agent or command whose frontmatter
-block is missing, is not YAML, or lacks a `description`. It is opt-in: a plugin
-that does not wire it is unaffected, and `release`, `precommit` and `prerelease`
-keep their contract.
+block is missing, is not YAML, or lacks a `description`, or a skill or agent
+lacks a `name`, or a skill's `name` is not its directory's. It is opt-in: a
+plugin that does not wire it is unaffected, and `release`, `precommit` and
+`prerelease` keep their contract.
 
 `claude plugin validate` does not replace it: it passes `description: a: b` and
 `description: [x`, which are not valid YAML, with exit 0 (verified against CC
@@ -41,20 +42,25 @@ refusal exits 1.
 | `description is blank` | the value is a string of whitespace only |
 | `name is not a string` | `name` is present and is not a string, empty included |
 | `name is blank` | `name` is a string of whitespace only |
+| `name is missing` | a skill or an agent has no `name` key |
+| `name ... differs from its directory ...` | a skill's `name` is not exactly the name of the directory holding its `SKILL.md`; the line shows both |
 
 Line one must be exactly `---`. A file saved with CRLF line endings or a
 byte-order mark on line one has no block, and is refused as such.
 
 ## What it does not refuse
 
-- A `name` that differs from its skill directory or file name.
-- A missing `name`.
+- A command with no `name`, or with a `name` that differs from its file name.
+- An agent whose `name` differs from its file name.
 - Any other field, in any value that is valid YAML.
 
-`description` is required and `name` is not as this toolkit's policy. The Claude
-Code validator warns on a missing `description` in all three kinds and says
-nothing about a missing or differing `name` (verified against CC 2.1.316).
-Whether a runtime loads a file the check passes or refuses was not probed.
+`description` is required in every kind, and `name` in a skill and an agent with
+a skill's matching its directory, as this toolkit's policy. The Claude Code
+validator warns on a missing `description` in all three kinds and says nothing
+about a missing or differing `name` (verified against CC 2.1.316). Claude Code's
+skill docs make `name` optional and default it to the directory, so this is
+stricter: the name in the file is the name the skill goes by. Whether a runtime
+loads a file the check passes or refuses was not probed.
 
 ## Wiring it
 

@@ -90,6 +90,18 @@ put() {
     printf '%s' "$2" > "$repo/$1"
 }
 
+# put_good <path>: a valid file for that path. A skill's name is its directory's,
+# an agent's or command's its file's stem, so the same fixture passes every
+# kind's name rule.
+put_good() {
+    local n
+    case "$1" in
+        skills/*/SKILL.md) n="$(basename "$(dirname "$1")")" ;;
+        *) n="$(basename "$1" .md)" ;;
+    esac
+    put "$1" "$(printf -- '---\nname: "%s"\ndescription: a fine description\n---\nbody\n' "$n")"
+}
+
 # commit_in <dir>: commit everything in a repo, ignores respected.
 commit_in() {
     git -C "$1" add -A
@@ -117,8 +129,6 @@ one_of() {
         command) signoff 0 0 1 ;;
     esac
 }
-
-good_fm=$'---\ndescription: a fine description\n---\nbody\n'
 
 # run_check: run the script with cwd at $repo, the venv first on PATH
 # and the C locale (a UTF-8 file must not depend on the locale). Sets $rc,
@@ -243,7 +253,7 @@ assert_eq "$err" "" "no python3, zero files: stderr"
 echo "=== control: the narrowed PATH suffices once an interpreter is reachable ==="
 mk_repo
 mk_narrow
-put "skills/good/SKILL.md" "$good_fm"
+put_good "skills/good/SKILL.md"
 put "agents/bad.md" "$bad_fm"
 printf '#!/bin/sh\nexec "%s/python3" "$@"\n' "$venv_bin" > "$narrow/python3"
 chmod +x "$narrow/python3"
@@ -259,7 +269,7 @@ run_narrow
 expect_remedy "no python3 with a skill"
 mk_repo
 mk_narrow
-put "agents/x.md" "$good_fm"
+put_good "agents/x.md"
 run_narrow
 expect_remedy "no python3 with an agent"
 mk_repo
@@ -271,7 +281,7 @@ expect_remedy "no python3 with a command"
 echo "=== a python3 without yaml, files to check: the remedy ==="
 mk_repo
 mk_narrow
-put "skills/good/SKILL.md" "$good_fm"
+put_good "skills/good/SKILL.md"
 stub_log="$sandbox/stub.log"
 # Logs the call, then runs the venv's interpreter with -S (no site-packages), so
 # the check sees a real ModuleNotFoundError for yaml from a real interpreter.

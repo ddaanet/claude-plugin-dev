@@ -1,11 +1,12 @@
 # The frontmatter check
 
 Why `check-frontmatter.sh` exists beside `claude plugin validate`, why
-`description` is required and `name` is not, why it parses YAML with a Python
-dependency and not awk, why that Python is embedded and run as `python3 -I`, and
-what it costs a consumer. The sibling it is wired beside is argued in
-[size-check.md](size-check.md), including why a shipped check runs uncached and
-is wired by hand. The conclusions these arguments support are listed in
+`description` is required in every kind and `name` in a skill and an agent, why
+it parses YAML with a Python dependency and not awk, why that Python is embedded
+and run as `python3 -I`, and what it costs a consumer. The sibling it is wired
+beside is argued in [size-check.md](size-check.md), including why a shipped
+check runs uncached and is wired by hand. The conclusions these arguments
+support are listed in
 [../design.md](../design.md).
 
 Facts marked `verified against CC 2.1.316` were probed with
@@ -31,8 +32,9 @@ needs a check of its own, and every plugin wants the same one, so it ships.
 ## What it refuses, and why `description` is required
 
 A file fails when it has no block, is not UTF-8 or not YAML, parses to something
-other than a mapping, lacks a non-blank string `description`, or has a `name`
-that is present and not a non-blank string.
+other than a mapping, lacks a non-blank string `description`, has a `name` that
+is present and not a non-blank string, lacks a `name` in a skill or an agent, or
+is a skill whose `name` differs from the directory holding its `SKILL.md`.
 
 **`description` is required.** The validator warns on its absence in all three
 kinds, and the bundle's own text for an agent calls it a missing required field
@@ -43,12 +45,18 @@ it in all three kinds is this toolkit's policy, stricter than the validator's
 warning and the skill docs: an explicit description is the text the author chose
 for the model to match, and a fallback is not.
 
-**`name` is not.** The validator says nothing about an absent `name`, nor about
-one that differs from its directory or file (verified against CC 2.1.316).
-`sub-agents.md` lists `name` as required for an agent, and the check does not
-refuse its absence: that is a choice. A `name` that is present is held to a
-non-blank string, because the validator fails a non-string one and a blank one
-names nothing.
+**`name` is required for a skill and an agent, and a skill's must be its
+directory's.** The validator is silent on an absent `name` and on one that
+differs from its directory or file (verified against CC 2.1.316). The skill docs
+(`skills.md`) make `name` optional and default it to the directory, so requiring
+it and matching it is stricter than Claude Code, and is toolkit policy: the name
+a reader sees in the file is the name the skill goes by. `sub-agents.md` lists
+`name` as required for an agent and says the filename need not match, so an
+agent's `name` is required and free. A command's `name` stays optional and a
+differing one is accepted. A `name` that is present is held to a non-blank
+string in every kind, because the validator fails a non-string one and a blank
+one names nothing; a skill with such a `name` gets that one reason and not also
+the directory one.
 
 **No block.** The validator warns on a missing block in all three kinds
 (verified against CC 2.1.316). What Claude Code then does with such a file was

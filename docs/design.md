@@ -181,8 +181,10 @@ the dated record of the reversal goes in the changelog.
 
 - `claude plugin validate` passes frontmatter that is not YAML, and a shipped
   check refuses it as toolkit policy, though such a file may load.
-- `description` is required and `name` is not, as policy: the validator warns on
-  the first and is silent on the second.
+- `description` is required in every kind, and `name` in a skill and an agent; a
+  skill's `name` must be its directory's and an agent's is free. A command's
+  `name` is optional. All of it is toolkit policy, stricter than Claude Code:
+  the validator warns on a missing `description` and is silent on `name`.
 - PyYAML parses the block, not awk, and the Python is embedded and run as
   `python3 -I`.
 - `check-frontmatter.sh` is a shipped script run uncached, wired by hand, and

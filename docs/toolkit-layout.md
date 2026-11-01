@@ -54,7 +54,8 @@ when a bullet and the tree disagree.
   Uncached; consumers wire `precommit: check-refs check-size`. Executable on
   disk, which `tests/dist-tree-test.sh` pins.
 - `toolkit/check-frontmatter.sh` — refuses a skill, agent or command whose
-  frontmatter is not a YAML mapping with a string `description`. Reads
+  frontmatter is not a YAML mapping with a string `description`, or a skill or
+  agent lacks a `name`, or a skill's `name` is not its directory's. Reads
   `skills/*/SKILL.md` and `agents/` and `commands/` `.md` files git does not
   ignore, from disk. Python is embedded and run as `python3 -I`; PyYAML must
   import, else it names the remedy. Uncached; consumers wire
