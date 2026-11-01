@@ -16,14 +16,17 @@ and no session was started to confirm it.
 
 ## Why it exists
 
-`claude plugin validate` is the validator a plugin author has, and it does not
-parse the block well enough to be the gate. `description: a: b` and
-`description: [x`, neither of which is valid YAML, pass it with exit 0 (verified
-against CC 2.1.316). A frontmatter that is not a mapping, or a `name` that is
-not a string, does fail it with exit 1, and a missing `description` or a missing
-block is a warning, which a gate does not stop on. A plugin gate that wants a
-file to be loadable needs a check of its own, and every plugin wants the same
-one, so it ships.
+`claude plugin validate` is the validator a plugin author has, and it is not the
+gate this toolkit wants. `description: a: b` and `description: [x`, neither of
+which is valid YAML, pass it with exit 0 (verified against CC 2.1.316). It
+appears to retry a failed parse after a normalising pass, which was read in the
+bundle and not probed, so such a file may well load. This check refuses them
+anyway, as toolkit policy: a block that is not YAML depends on one tool's
+leniency, and other readers of the file fail on it. Quoting the value fixes it.
+A frontmatter that is not a mapping, or a `name` that is not a string, does fail
+it with exit 1, and a missing `description` or a missing block is a warning,
+which a gate does not stop on. A plugin gate that wants a file to be loadable
+needs a check of its own, and every plugin wants the same one, so it ships.
 
 ## What it refuses, and why `description` is required
 
@@ -33,22 +36,26 @@ that is present and not a non-blank string.
 
 **`description` is required.** The validator warns on its absence in all three
 kinds, and the bundle's own text for an agent calls it a missing required field
-(verified against CC 2.1.316). It is the text the model reads to decide when to
-use a skill, agent or command, so a file without one is dead weight even where
-it loads.
+(verified against CC 2.1.316). The public docs are looser for a skill, where
+`description` is recommended and falls back to the first non-empty body line
+(`skills.md`), and list it as required for an agent (`sub-agents.md`). Requiring
+it in all three kinds is this toolkit's policy, stricter than the validator's
+warning and the skill docs: an explicit description is the text the author chose
+for the model to match, and a fallback is not.
 
 **`name` is not.** The validator says nothing about an absent `name`, nor about
-one that differs from its directory or file (verified against CC 2.1.316). A
-check that refused either would refuse files Claude Code accepts. A `name` that
-is present is held to a non-blank string, because the validator fails a
-non-string one and a blank one names nothing.
+one that differs from its directory or file (verified against CC 2.1.316).
+`sub-agents.md` lists `name` as required for an agent, and the check does not
+refuse its absence: that is a choice. A `name` that is present is held to a
+non-blank string, because the validator fails a non-string one and a blank one
+names nothing.
 
-**No block.** The bundle says an agent without a block does not load at all, and
-a skill or command loads with empty metadata (verified against CC 2.1.316). Line
-one must be exactly `---`: a CRLF or a byte-order mark makes the line differ,
-and the file is refused, because a reader that matches the line exactly sees no
-block either. That strictness is the check's, and not a probed property of
-Claude Code.
+**No block.** The validator warns on a missing block in all three kinds
+(verified against CC 2.1.316). What Claude Code then does with such a file was
+not probed. Line one must be exactly `---`: a CRLF or a byte-order mark makes
+the line differ, and the file is refused, because a reader that matches the line
+exactly sees no block either. That strictness is the check's, and not a probed
+property of Claude Code.
 
 ## Why a Python dependency, not an awk parser
 
@@ -57,9 +64,8 @@ without reimplementing a parser. `a: b` is a mapping where `[x` opens a flow
 sequence that never closes, a scalar can span lines folded or quoted, and a
 value such as `2026-13-45` or `yes` parses to something other than a string. A
 hand-written subset would accept some invalid blocks and refuse some valid ones,
-which is the validator's fault, repeated. PyYAML `safe_load` is the reference
-parser the plugin ecosystem already uses, so the verdict is the parser's, not a
-rule of this toolkit's.
+which is the validator's fault, repeated. PyYAML `safe_load` gives a verdict
+that is YAML's, and what it refuses is this toolkit's policy, as argued above.
 
 The decision is my human partner's, 2026-11-01: Python dependencies come from
 `uv sync`, the venv is activated in `.envrc`, and no recipe uses `uv run`.
@@ -105,4 +111,5 @@ not.
   interpreter cannot import `yaml`.
 - **The check is stricter than the loader in places and weaker in others, and
   how much is unknown**: runtime loading was not probed, so a file it passes can
-  still fail to load and a file it refuses may load.
+  still fail to load and a file it refuses, such as one with
+  `description: a: b`, may load.

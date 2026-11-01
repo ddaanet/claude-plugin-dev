@@ -179,10 +179,10 @@ the dated record of the reversal goes in the changelog.
 
 ### The frontmatter check — [references/frontmatter-check.md](references/frontmatter-check.md)
 
-- `claude plugin validate` passes frontmatter that is not YAML, so a shipped
-  check refuses it.
-- `description` is required and `name` is not: the validator warns on the first
-  and is silent on the second.
+- `claude plugin validate` passes frontmatter that is not YAML, and a shipped
+  check refuses it as toolkit policy, though such a file may load.
+- `description` is required and `name` is not, as policy: the validator warns on
+  the first and is silent on the second.
 - PyYAML parses the block, not awk, and the Python is embedded and run as
   `python3 -I`.
 - `check-frontmatter.sh` is a shipped script run uncached, wired by hand, and

@@ -51,10 +51,10 @@ byte-order mark on line one has no block, and is refused as such.
 - A missing `name`.
 - Any other field, in any value that is valid YAML.
 
-`description` is required and `name` is not because the Claude Code validator
-warns on a missing `description` in all three kinds and says nothing about a
-missing or differing `name` (verified against CC 2.1.316). Whether a runtime
-loads a file the check passes or refuses was not probed.
+`description` is required and `name` is not as this toolkit's policy. The Claude
+Code validator warns on a missing `description` in all three kinds and says
+nothing about a missing or differing `name` (verified against CC 2.1.316).
+Whether a runtime loads a file the check passes or refuses was not probed.
 
 ## Wiring it
 
