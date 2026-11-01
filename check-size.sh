@@ -21,10 +21,6 @@ main() {
     judge
 }
 
-# The sibling helper is found from this script's own location, before main
-# changes directory to the root.
-here="$(unset CDPATH; cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 cap=20000
 hub_cap=10000
 
@@ -40,9 +36,7 @@ fi
 # order. Fills kept[] (files that reach the count), generated[] (files marked
 # linguist-generated) and the skip counts.
 scan_listing() {
-    local rec info path listed=0 gi=0 cand=()
-    kept=()
-    generated=()
+    local rec info path listed=0 cand=()
     skipped_builtin=0
     skipped_binary=0
     skipped_symlink=0
@@ -62,34 +56,29 @@ scan_listing() {
             case $info in
                 *'w/-text'*) skipped_binary=$((skipped_binary + 1)); continue ;;
             esac
-            cand+=("$path")
+            if is_builtin "$path"; then
+                skipped_builtin=$((skipped_builtin + 1))
+            else
+                cand+=("$path")
+            fi
         fi
     done < <(git ls-files -z -co --exclude-standard --eol | sort -z -t $'\t' -k2)
     if [ "$listed" -eq 0 ]; then
         fail_run "no files listed"
     fi
-    mark_generated ${cand[@]+"${cand[@]}"}
-    # generated[] is a subsequence of cand[], in the same order: one walk pairs them.
-    for path in ${cand[@]+"${cand[@]}"}; do
-        if [ "$gi" -lt "${#generated[@]}" ] && [ "${generated[gi]}" = "$path" ]; then
-            gi=$((gi + 1))
-            skipped_builtin=$((skipped_builtin + 1))
-        elif is_builtin "$path"; then
-            skipped_builtin=$((skipped_builtin + 1))
-        else
-            kept+=("$path")
-        fi
-    done
+    split_generated ${cand[@]+"${cand[@]}"}
 }
 
-# mark_generated <path>...: fills generated[] with the paths whose
-# linguist-generated attribute is `set` or `true`, from one batched
-# check-attr. Its -z output is path NUL attribute NUL value NUL per path.
-# `unset`, `unspecified`, `false` and any other value do not count. The
-# listing it reads is a temporary file, since a NUL cannot sit in a variable and
-# a process substitution would hide check-attr's exit status.
-mark_generated() {
+# split_generated <path>...: sorts the paths, in order, into generated[] (their
+# linguist-generated attribute is `set` or `true`), counted with the built-in
+# skips, and kept[], from one batched check-attr. Its -z output is path NUL
+# attribute NUL value NUL per path, in input order. `unset`, `unspecified`,
+# `false` and any other value do not count. The listing it reads is a temporary
+# file, since a NUL cannot sit in a variable and a process substitution would
+# hide check-attr's exit status.
+split_generated() {
     local tmp path _ value
+    kept=()
     generated=()
     [ "$#" -gt 0 ] || return 0
     tmp="$(mktemp "${TMPDIR:-/tmp}/check-size.XXXXXX")" || fail_run "cannot create a temporary file"
@@ -99,7 +88,11 @@ mark_generated() {
     fi
     while IFS= read -r -d '' path && IFS= read -r -d '' _ && IFS= read -r -d '' value; do
         case $value in
-            set|true) generated+=("$path") ;;
+            set|true)
+                generated+=("$path")
+                skipped_builtin=$((skipped_builtin + 1))
+                ;;
+            *) kept+=("$path") ;;
         esac
     done < "$tmp"
     rm -f "$tmp"
@@ -282,6 +275,6 @@ fail_run() {
 }
 
 # shellcheck source=exempt-list.sh
-source "$here/exempt-list.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/exempt-list.sh"
 
 main "$@"
