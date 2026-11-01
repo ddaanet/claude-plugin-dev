@@ -361,10 +361,7 @@ fi
 exec "$real_git" "\$@"
 STUB
 chmod +x "$git_wrapper_dir/git"
-saved_path="$PATH"
-export PATH="$git_wrapper_dir:$PATH"
-run_in "$plugin" bash plugin-dev/release.sh --resume
-export PATH="$saved_path"
+PATH="$git_wrapper_dir:$PATH" run_in "$plugin" bash plugin-dev/release.sh --resume
 assert_eq "$rc" "1" "failed-listing resume exit code"
 assert_contains "$out" "no tag v0.1.0 for plugin.json version 0.1.0" "failed-listing resume message"
 assert_contains "$out" "just release <bump>" "failed-listing resume hint names the bump form"

@@ -223,16 +223,13 @@ in_tree() {
 # load_exempt: sets exempt=() from refs.exempt, or to the default. plans/ and
 # plugin-dev/ are never listed here: the read loop drops them whatever the list says.
 load_exempt() {
-    local i
     exempt=()
     if [ ! -f refs.exempt ]; then
         exempt=(docs/changelog)
         return
     fi
     read_path_list refs.exempt || die "cannot read refs.exempt"
-    for ((i = 0; i < ${#list_paths[@]}; i++)); do
-        exempt+=("${list_paths[i]}")
-    done
+    exempt=(${list_paths[@]+"${list_paths[@]}"})
 }
 
 # is_shipped <path>: the root holds every shipped path, so it counts as one.
