@@ -2,11 +2,10 @@
 
 Part of the claude-plugin-dev manual; [README.md](../README.md) is the rest.
 
-`just check-frontmatter` refuses a skill, agent or command whose frontmatter
-block is missing, is not YAML, or lacks a `description`, or a skill or agent
-lacks a `name`, or a skill's `name` is not its directory's. It is opt-in: a
-plugin that does not wire it is unaffected, and `release`, `precommit` and
-`prerelease` keep their contract.
+`just check-frontmatter` refuses a skill, agent or command whose frontmatter is
+missing, not YAML, or breaks the toolkit's field rules, which the sections below
+give. It is opt-in: a plugin that does not wire it is unaffected, and `release`,
+`precommit` and `prerelease` keep their contract.
 
 `claude plugin validate` does not replace it: it passes `description: a: b` and
 `description: [x`, which are not valid YAML, with exit 0 (verified against CC
@@ -59,8 +58,13 @@ a skill's matching its directory, as this toolkit's policy. The Claude Code
 validator warns on a missing `description` in all three kinds and says nothing
 about a missing or differing `name` (verified against CC 2.1.316). Claude Code's
 skill docs make `name` optional and default it to the directory, so this is
-stricter: the name in the file is the name the skill goes by. Whether a runtime
-loads a file the check passes or refuses was not probed.
+stricter: the name in the file is the name the skill goes by.
+
+In a plugin, a skill's `name` is the last segment of its command (`skills.md`;
+runtime not probed), so changing a differing `name` to its directory renames the
+command. Renaming the directory to the `name` passes the check and keeps the
+command. Whether a runtime loads a file the check passes or refuses was not
+probed.
 
 ## Wiring it
 
