@@ -45,8 +45,8 @@ Before adding, moving or editing a shipped file, open
   (`distribution`, `dist-branch`, `check-refs`, `dogfood`, `dogfood-sync`,
   `gates`, `release-flow`, `recovery`, `clean-tree`, `self-release`, `size-check`, `frontmatter-check`, `version-guard`, and
   `limitations`, which argues the hub's one-line limitations), each holding the argument behind
-  the hub's conclusions: alternatives weighed, the bug that motivated
-  it, what it costs. A decision that changes is rewritten in both places.
+  the hub's conclusions: alternatives weighed, what it costs. A decision
+  that changes is rewritten in both places.
 - `plans/` — specs and implementation plans. Prospective content only;
   `docs/` holds what is true now.
 - `inbox/` — briefs, notes and findings that arrive from a session in
@@ -184,17 +184,20 @@ split dist ref" for the reasoning.
 - **The design is present tense; git carries the history.**
   `docs/design.md` and its `docs/references/` nodes state what the toolkit is,
   how it is built and why, with the reason a decision stands (the trade-off
-  weighed, the alternative ruled out, the constraint). Overturned decisions are
-  rewritten in place with the new reasoning, never struck through, in the hub's
-  conclusion and in the node's argument alike; an inverted decision is deleted.
+  weighed, the alternative ruled out, the constraint). The doc states the
+  decision that stands with its reason, never struck through, in the hub's
+  conclusion and in the node's argument alike; a decision inverted or retired is
+  deleted and the commit says why, and a rejected alternative that makes sense
+  on its own is a decision and stays.
   The narration of a change (the incident, the belief that turned out false,
   the order of events) goes in the commit body, which a design-significant
   change always carries and a point-fix does not need. No dated record is
   written beside the design.
 - **A breaking release ships a migration note that says so in its first
-  line.** `toolkit/migrations/vX.Y.Z.md` opens with the heading
+  line, from 0.15.0 on.** `toolkit/migrations/vX.Y.Z.md` opens with the heading
   `# Migrating to X.Y.Z (breaking)`; a consumer that pulls the release can
-  otherwise break with no step taken. A release that only adds opt-in pieces
+  otherwise break with no step taken. Earlier notes carry no marker, so an
+  unmarked note before 0.15.0 says nothing. A release that only adds opt-in pieces
   with no clash possible needs no note. See docs/references/distribution.md
   "Migration notes".
 

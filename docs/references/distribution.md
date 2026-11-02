@@ -238,16 +238,20 @@ because a consumer's justfile and settings are theirs, and a silently-mutating
 upgrade is exactly the class of surprise the rest of this design exists to
 prevent. Most releases need no note; the directory may not exist at all.
 
-**A breaking release's note says so in its first line.** The heading reads
-`# Migrating to X.Y.Z (breaking)`. A release is breaking when a consumer that
-only pulls it can be left broken with no step taken: a new opt-in recipe in
-`release.just` whose name can clash with a recipe the consumer defines itself
-(just refuses a recipe defined in both an import and the importer, so every
-`just` command then fails), or a required recipe the consumer lacks. The
-update's printed range is read by a human skimming for what needs doing, and the
-first line is what a skim reaches; a note that opens with prose about the
-release buries the one fact that decides whether to read on. A release that adds
-only pieces nothing can clash with needs no note at all. The incoming end of the
+**A breaking release's note says so in its first line, from 0.15.0 on.** Earlier
+notes carry no marker, so an unmarked note before 0.15.0 says nothing. The
+heading reads `# Migrating to X.Y.Z (breaking)`. A release is breaking when a
+consumer that only pulls it can be left broken with no step taken; that is the
+rule, and the cases are examples. A new opt-in recipe in `release.just` whose
+name can clash with a recipe the consumer defines itself is one (just refuses a
+recipe defined in both an import and the importer, so every `just` command then
+fails); a required recipe the consumer lacks is another; a shipped check
+tightened under a consumer who already wired it, so its gate now fails, is a
+third; a renamed sentinel variable a consumer reads is a fourth. The update's
+printed range is read by a human skimming for what needs doing, and the first
+line is what a skim reaches; a note that opens with prose about the release
+buries the one fact that decides whether to read on. A release that adds only
+pieces nothing can clash with needs no note at all. The incoming end of the
 range is the pulled `VERSION`, or the version in the `dist-vX.Y.Z` ref when the
 pulled tree has none, so it is always known. Only the outgoing end can be
 missing (a consumer copy with no `VERSION`); then the range cannot be decided,

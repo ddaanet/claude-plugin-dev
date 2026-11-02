@@ -64,8 +64,8 @@ dotfiles).
   Refuses a file over the byte cap. See [Size check](#size-check).
 - **`check-frontmatter.sh`** — opt-in, wired as
   `precommit: check-refs check-size check-frontmatter`. Refuses a skill, agent
-  or command whose frontmatter is missing, unparseable or lacks a description.
-  See [Frontmatter check](#frontmatter-check).
+  or command whose frontmatter is missing, not YAML, or breaks the toolkit's
+  field rules. See [Frontmatter check](#frontmatter-check).
 - **`run-bats.sh`** — opt-in quiet runner for `bats`: failures and a pass count
   instead of the TAP stream.
 - **`install.sh`** — one-shot install script: vendors the toolkit (resolving the
@@ -277,11 +277,10 @@ skipped, the `size.exempt` format and the report are in
 ## Frontmatter check
 
 Optional. `just check-frontmatter` refuses a skill, agent or command whose
-frontmatter block is missing, is not YAML, or has no string `description`, or a
-skill or agent has no `name`, or a skill's is not its directory's. Wire it as
-`precommit: check-refs check-size check-frontmatter`; it runs uncached and needs
-PyYAML in the dev group of `pyproject.toml`. What is read, each refusal, what is
-not refused and the setup are in
+frontmatter is missing, not YAML, or breaks the toolkit's field rules. Wire it
+as `precommit: check-refs check-size check-frontmatter`; it runs uncached and
+needs PyYAML in the dev group of `pyproject.toml`. What is read, each refusal,
+what is not refused and the setup are in
 [manual/frontmatter-check.md](manual/frontmatter-check.md).
 
 ## Dogfooding

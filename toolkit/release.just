@@ -61,8 +61,8 @@
 # Like `check-refs`, no recipe here runs it: a plugin wires it into its own
 # gate, `precommit: check-refs check-size check-frontmatter`.
 #
-# `check-frontmatter` refuses a skill, agent or command whose frontmatter block
-# is missing, not YAML, or lacks a string description. Like `check-size`, no
+# `check-frontmatter` refuses a skill, agent or command whose frontmatter is
+# missing, not YAML, or breaks the toolkit's field rules. Like `check-size`, no
 # recipe here runs it: a plugin wires it into its own gate, as above. It needs
 # PyYAML for the python3 on PATH.
 #
@@ -96,7 +96,7 @@ check-refs:
 check-size:
     bash "{{toolkit_prefix}}/check-size.sh"
 
-# Refuse a skill, agent or command whose frontmatter is missing, unparseable or lacks a description.
+# Refuse a skill, agent or command whose frontmatter is missing, not YAML, or breaks the field rules.
 check-frontmatter:
     bash "{{toolkit_prefix}}/check-frontmatter.sh"
 

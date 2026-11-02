@@ -269,8 +269,7 @@ Rejected alternatives:
 - **Taking the recipe name from a variable** (`release: {{gate}}`) — just does
   not support recipe names from variables in a dependency list.
 
-This is a **breaking change**, and the migration note of the release that
-shipped it says so in its first line (the rule is argued in
+This is a **breaking change** (the rule for marking one is argued in
 [distribution.md](distribution.md), "Migration notes"): a consumer that pulls
 the new toolkit without adding `prerelease` gets
 `error: Recipe release has unknown dependency prerelease`. That error is a

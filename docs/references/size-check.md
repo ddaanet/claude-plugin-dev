@@ -104,8 +104,8 @@ A dated record a consumer keeps is checked by the commit that writes it, while
 its author can still split it, and it never changes afterwards, so the cap fires
 once and at the right moment. No record failed in any of the 14 repositories
 surveyed. A changelog index grows by a bullet per change and does fail in three
-of them; it is counted like any file, and a consumer that wants it over lists it
-in `size.exempt` with a reason.
+of them; it is counted like any file, and a growing index splits, as the
+manual's size-check chapter says, since its overage has no known end.
 
 ## A shipped script, uncached, wired by hand
 

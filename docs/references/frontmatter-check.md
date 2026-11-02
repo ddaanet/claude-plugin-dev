@@ -51,12 +51,15 @@ differs from its directory or file (verified against CC 2.1.316). The skill docs
 (`skills.md`) make `name` optional and default it to the directory, so requiring
 it and matching it is stricter than Claude Code, and is toolkit policy: the name
 a reader sees in the file is the name the skill goes by. `sub-agents.md` lists
-`name` as required for an agent and says the filename need not match, so an
-agent's `name` is required and free. A command's `name` stays optional and a
-differing one is accepted. A `name` that is present is held to a non-blank
-string in every kind, because the validator fails a non-string one and a blank
-one names nothing; a skill with such a `name` gets that one reason and not also
-the directory one.
+`name` as required for an agent and says the filename need not match; it also
+says a plugin subagent with no `name` still loads under its filename (runtime
+not probed). Requiring an agent's `name` is therefore toolkit policy like the
+skill half, chosen for the same reason, not something Claude Code needs; the
+filename match is left out because the docs do not ask for it. A command's
+`name` stays optional and a differing one is accepted. A `name` that is present
+is held to a non-blank string in every kind, because the validator fails a
+non-string one and a blank one names nothing; a skill with such a `name` gets
+that one reason and not also the directory one.
 
 **No block.** The validator warns on a missing block in all three kinds
 (verified against CC 2.1.316). What Claude Code then does with such a file was
@@ -105,6 +108,12 @@ not.
 
 ## What it costs
 
+- **A skill's `name` and its command are one string.** In a plugin, the
+  frontmatter `name` replaces the directory name in the last segment of the
+  skill's command (`skills.md`; runtime not probed), so `skills/review/SKILL.md`
+  with `name: fancy` is `/my-plugin:fancy`. Correcting the `name` to the
+  directory renames the command; renaming the directory to the `name` passes the
+  check and keeps it.
 - **A consumer without a venv adds one**: `pyyaml` in `pyproject.toml`,
   `uv sync`, and a `PATH_add` in `.envrc`. The migration note carries the steps.
   The check refuses with a one-line remedy rather than skipping, since a skipped

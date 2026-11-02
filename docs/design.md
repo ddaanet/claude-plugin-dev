@@ -83,10 +83,12 @@ versioned with each consumer.
 
 ## Design decisions
 
-Each bullet states a conclusion. Its argument — the alternatives weighed, the
-bug that motivated it, what it costs — is in the node named by the heading. A
-decision that gets overturned is rewritten in both places, in the present tense;
-the commit body carries why it changed.
+Each bullet states a conclusion. Its argument — the alternatives weighed, what
+it costs — is in the node named by the heading. The doc states the decision that
+stands with its reason. A decision inverted or retired is deleted, and the
+commit body says why; a rejected alternative that makes sense on its own is a
+decision and stays. A decision that changes is rewritten in both places, in the
+present tense.
 
 ### Distribution and versioning — [references/distribution.md](references/distribution.md)
 
@@ -101,7 +103,8 @@ the commit body carries why it changed.
 - `install.sh` takes its target from `$PWD`, not an argument.
 - The update flow lives in `update.sh`, not in the recipe body.
 - Migration notes ship in the dist tree and are printed, never applied; a
-  breaking release's note says so in its first line.
+  breaking release's note says so in its first line, from 0.15.0 on; earlier
+  notes carry no marker, so an unmarked note before 0.15.0 says nothing.
 - `toolkit/VERSION` is the version source of truth, not the tags alone.
 
 ### The release flow — [references/release-flow.md](references/release-flow.md)
@@ -183,9 +186,10 @@ the commit body carries why it changed.
 - `claude plugin validate` passes frontmatter that is not YAML, and a shipped
   check refuses it as toolkit policy, though such a file may load.
 - `description` is required in every kind, and `name` in a skill and an agent; a
-  skill's `name` must be its directory's and an agent's is free. A command's
-  `name` is optional. All of it is toolkit policy, stricter than Claude Code:
-  the validator warns on a missing `description` and is silent on `name`.
+  skill's `name` must be its directory's and an agent's need not match its file.
+  A command's `name` is optional. All of it is toolkit policy, stricter than
+  Claude Code: the validator warns on a missing `description` and is silent on
+  an absent `name`.
 - PyYAML parses the block, not awk, and the Python is embedded and run as
   `python3 -I`.
 - `check-frontmatter.sh` is a shipped script run uncached, wired by hand, and
@@ -257,6 +261,7 @@ the node.
 
 ## History
 
-Git carries how the toolkit got here: a design-significant change has a commit
-body with the why, and `git log --follow -- <path>` reaches the rest. This
-document states what the toolkit *is*.
+Git carries how the toolkit got here: a design-significant change carries a
+commit body with the why from now on; an older commit may have only a subject,
+and the removed dated records stay readable in history under `docs/changelog/`.
+This document states what the toolkit *is*.

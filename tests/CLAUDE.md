@@ -27,10 +27,10 @@ and the report, caps and counts),
 `check-frontmatter-{block,fields,scope,interpreter}-test.sh`
 (`check-frontmatter.sh`, against fixture plugin repos and the venv's real
 PyYAML: the block refusals, the `description` and `name` refusals (a skill's
-`name` is its directory's, an agent's is required and free, a command's
-optional), which files are read and the sign-off counts, and the missing or
-PyYAML-less interpreter), `doc-sync-test.sh` (the install/update command blocks
-shared by the two READMEs, and
+`name` is its directory's, an agent's is required and need not match its file, a
+command's optional), which files are read and the sign-off counts, and the
+missing or PyYAML-less interpreter), `doc-sync-test.sh` (the install/update
+command blocks shared by the two READMEs, and
 [docs/toolkit-layout.md](../docs/toolkit-layout.md) against `toolkit/`'s actual
 contents, and the `toolkit/` paths the root [CLAUDE.md](../CLAUDE.md) names),
 `citation-test.sh` (refuses a `<script>.sh:<line>` citation into a file outside
