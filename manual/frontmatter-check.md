@@ -27,7 +27,8 @@ lists that is gone from disk is skipped.
 ## What it refuses
 
 Each problem is one stderr line, `check-frontmatter: <path>: <reason>`, with the
-path relative to the root. Every file is checked and every problem reported; any
+path relative to the root. Every file is checked. Within a file, a block refusal
+is reported alone and the field refusals follow once the block parses; any
 refusal exits 1.
 
 | Refusal | Cause |
