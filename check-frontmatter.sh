@@ -25,25 +25,24 @@ export LC_ALL=C
 main() {
     cd -- "${1:-.}" 2>/dev/null || fail_run "cannot enter ${1:-.}"
     listing="$(mktemp "${TMPDIR:-/tmp}/check-frontmatter.XXXXXX")"
-    list="$(mktemp "${TMPDIR:-/tmp}/check-frontmatter.XXXXXX")"
-    trap 'rm -f "$listing" "$list"' EXIT
+    trap 'rm -f "$listing"' EXIT
     git ls-files -z -co --exclude-standard >"$listing" 2>/dev/null \
         || fail_run "not a git work tree: $PWD"
-    nfiles=0
+    files=()
     while IFS= read -r -d '' path; do
         is_checked "$path" || continue
-        [ -e "$path" ] || continue
-        printf '%s\0' "$path" >>"$list"
-        nfiles=$((nfiles + 1))
+        # Not a regular file: a tracked file deleted from disk.
+        [ -f "$path" ] || continue
+        files+=("$path")
     done <"$listing"
-    if [ "$nfiles" -eq 0 ]; then
+    if [ "${#files[@]}" -eq 0 ]; then
         printf 'check-frontmatter ok (0 skills, 0 agents, 0 commands)\n'
         exit 0
     fi
     if ! python3 -I -c 'import yaml' >/dev/null 2>&1; then
         fail_run "python3 with PyYAML not found on PATH: add pyyaml to the dev group of pyproject.toml, run uv sync, and put .venv/bin on PATH from .envrc"
     fi
-    python3 -I -c "$program" <"$list"
+    printf '%s\0' "${files[@]}" | python3 -I -c "$program"
 }
 
 # is_checked <path>: the path is a file this check reads. In a case pattern `*`
@@ -67,12 +66,12 @@ fail_run() {
 
 # program: the embedded Python. It reads NUL-delimited paths on stdin, prints
 # one stderr line per problem, and signs off on stdout when every file passes.
-program="$(cat <<'PY'
+IFS= read -r -d '' program <<'PY' || true
 import sys
 
 import yaml
 
-def block_reasons(raw, path=b""):
+def block_reasons(raw, path, kind):
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
@@ -80,12 +79,9 @@ def block_reasons(raw, path=b""):
     lines = text.split("\n")
     if lines[0] != "---":
         return ["no frontmatter block: line one is not exactly ---"]
-    closing = -1
-    for number in range(1, len(lines)):
-        if lines[number] == "---":
-            closing = number
-            break
-    if closing < 0:
+    try:
+        closing = lines.index("---", 1)
+    except ValueError:
         return ["no frontmatter block: no closing --- line"]
     block = "\n".join(lines[1:closing])
     try:
@@ -94,12 +90,11 @@ def block_reasons(raw, path=b""):
         return ["block is not YAML: " + " ".join(str(error).split())]
     if not isinstance(data, dict):
         return ["block is not a mapping"]
-    return field_reasons(data, path)
+    return field_reasons(data, path, kind)
 
-def field_reasons(data, path=b""):
+def field_reasons(data, path, kind):
     reasons = []
-    parts = path.decode("utf-8", "replace").split("/")
-    kind = parts[0]
+    directory = path.decode("utf-8", "replace").split("/")[-2]
     if "description" not in data:
         reasons.append("description is missing")
     elif not isinstance(data["description"], str):
@@ -111,14 +106,11 @@ def field_reasons(data, path=b""):
             reasons.append("name is not a string")
         elif not data["name"].strip():
             reasons.append("name is blank")
-        elif kind == "skills" and data["name"] != skill_dir(parts):
-            reasons.append("name %r differs from its directory %r" % (data["name"], skill_dir(parts)))
+        elif kind == "skills" and data["name"] != directory:
+            reasons.append("name %r differs from its directory %r" % (data["name"], directory))
     elif kind in ("skills", "agents"):
         reasons.append("name is missing")
     return reasons
-
-def skill_dir(parts):
-    return parts[-2]
 
 def kind_of(path):
     if path.startswith(b"skills/"):
@@ -133,10 +125,11 @@ def main():
     for path in sys.stdin.buffer.read().split(b"\0"):
         if not path:
             continue
-        counts[kind_of(path)] += 1
+        kind = kind_of(path)
+        counts[kind] += 1
         with open(path, "rb") as handle:
             raw = handle.read()
-        for reason in block_reasons(raw, path):
+        for reason in block_reasons(raw, path, kind):
             failed = True
             line = b"check-frontmatter: " + path + b": "
             line += reason.encode("utf-8", "backslashreplace") + b"\n"
@@ -148,6 +141,5 @@ def main():
 
 main()
 PY
-)"
 
 main "$@"
