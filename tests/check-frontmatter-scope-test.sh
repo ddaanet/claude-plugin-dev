@@ -50,13 +50,6 @@ assert_contains() {
         printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
     fi
 }
-assert_not_contains() {
-    # $1=haystack $2=needle $3=label
-    if grep -qF -- "$2" <<<"$1"; then
-        fail "$3: output unexpectedly contained '$2'"
-        printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
-    fi
-}
 
 sandboxes=()
 cleanup() {
@@ -109,26 +102,8 @@ commit_in() {
         commit -q -m fixture
 }
 
-# kind_path <skill|agent|command> <tag>: where a file of that kind lives.
-kind_path() {
-    case "$1" in
-        skill) printf 'skills/%s/SKILL.md' "$2" ;;
-        agent) printf 'agents/%s.md' "$2" ;;
-        command) printf 'commands/%s.md' "$2" ;;
-    esac
-}
-
 # signoff <skills> <agents> <commands>: the exact stdout of a passing run.
 signoff() { printf 'check-frontmatter ok (%s skills, %s agents, %s commands)' "$1" "$2" "$3"; }
-
-# one_of <kind>: the sign-off of a repo holding exactly one file of that kind.
-one_of() {
-    case "$1" in
-        skill) signoff 1 0 0 ;;
-        agent) signoff 0 1 0 ;;
-        command) signoff 0 0 1 ;;
-    esac
-}
 
 # run_check: run the script with cwd at $repo, the venv first on PATH
 # and the C locale (a UTF-8 file must not depend on the locale). Sets $rc,

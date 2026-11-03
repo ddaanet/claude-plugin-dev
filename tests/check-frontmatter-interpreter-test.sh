@@ -102,45 +102,8 @@ put_good() {
     put "$1" "$(printf -- '---\nname: "%s"\ndescription: a fine description\n---\nbody\n' "$n")"
 }
 
-# commit_in <dir>: commit everything in a repo, ignores respected.
-commit_in() {
-    git -C "$1" add -A
-    git -C "$1" -c user.name=t -c user.email=t@t.invalid -c commit.gpgsign=false \
-        commit -q -m fixture
-}
-
-# kind_path <skill|agent|command> <tag>: where a file of that kind lives.
-kind_path() {
-    case "$1" in
-        skill) printf 'skills/%s/SKILL.md' "$2" ;;
-        agent) printf 'agents/%s.md' "$2" ;;
-        command) printf 'commands/%s.md' "$2" ;;
-    esac
-}
-
 # signoff <skills> <agents> <commands>: the exact stdout of a passing run.
 signoff() { printf 'check-frontmatter ok (%s skills, %s agents, %s commands)' "$1" "$2" "$3"; }
-
-# one_of <kind>: the sign-off of a repo holding exactly one file of that kind.
-one_of() {
-    case "$1" in
-        skill) signoff 1 0 0 ;;
-        agent) signoff 0 1 0 ;;
-        command) signoff 0 0 1 ;;
-    esac
-}
-
-# run_check: run the script with cwd at $repo, the venv first on PATH
-# and the C locale (a UTF-8 file must not depend on the locale). Sets $rc,
-# $out, $err and $nlines (stderr line count). A missing script is rc 127.
-run_check() {
-    rc=0
-    (cd "$repo" && env LC_ALL=C PATH="$venv_bin:$PATH" bash "$check" \
-        >"$sandbox/stdout" 2>"$sandbox/stderr") || rc=$?
-    out="$(cat "$sandbox/stdout")"
-    err="$(cat "$sandbox/stderr")"
-    nlines="$(wc -l < "$sandbox/stderr" | tr -d ' ')"
-}
 
 # expect_ok <label> <sign-off>: exit 0, the exact sign-off, nothing on stderr.
 expect_ok() {

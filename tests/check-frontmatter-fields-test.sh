@@ -5,8 +5,9 @@
 # Scope: the fields of a well-formed block. `description` missing, not a string
 # (a number, a list, a mapping, a YAML boolean, a YAML date), or blank; `name`
 # present and not a non-blank string; both at once giving one line each. In
-# all three kinds, each after a control that signs off on a good file of the
-# kind. Accepted: `name` absent, `name` differing from its directory or file,
+# all three kinds, each kind's refusals in one repo with a good control and one
+# checker run, the control and every file's own stderr lines asserted by path.
+# Accepted: `name` absent, `name` differing from its directory or file,
 # any other field, folded and quoted descriptions. Siblings:
 # check-frontmatter-block-test.sh, -scope-test.sh, -interpreter-test.sh.
 #
@@ -41,21 +42,6 @@ assert_eq() {
     # $1=actual $2=expected $3=label
     if [[ "$1" != "$2" ]]; then
         fail "$3: expected '$2', got '$1'"
-    fi
-}
-assert_contains() {
-    # $1=haystack $2=needle $3=label : a fixed string. A here-string, never a
-    # pipe: under pipefail grep -q can SIGPIPE the writer.
-    if ! grep -qF -- "$2" <<<"$1"; then
-        fail "$3: output did not contain '$2'"
-        printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
-    fi
-}
-assert_not_contains() {
-    # $1=haystack $2=needle $3=label
-    if grep -qF -- "$2" <<<"$1"; then
-        fail "$3: output unexpectedly contained '$2'"
-        printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
     fi
 }
 
@@ -103,13 +89,6 @@ put_good() {
     put "$1" "$(printf -- '---\nname: "%s"\ndescription: a fine description\n---\nbody\n' "$n")"
 }
 
-# commit_in <dir>: commit everything in a repo, ignores respected.
-commit_in() {
-    git -C "$1" add -A
-    git -C "$1" -c user.name=t -c user.email=t@t.invalid -c commit.gpgsign=false \
-        commit -q -m fixture
-}
-
 # kind_path <skill|agent|command> <tag>: where a file of that kind lives.
 kind_path() {
     case "$1" in
@@ -122,14 +101,8 @@ kind_path() {
 # signoff <skills> <agents> <commands>: the exact stdout of a passing run.
 signoff() { printf 'check-frontmatter ok (%s skills, %s agents, %s commands)' "$1" "$2" "$3"; }
 
-# one_of <kind>: the sign-off of a repo holding exactly one file of that kind.
-one_of() {
-    case "$1" in
-        skill) signoff 1 0 0 ;;
-        agent) signoff 0 1 0 ;;
-        command) signoff 0 0 1 ;;
-    esac
-}
+# fm <body-lines>: a block holding exactly those lines, then a body.
+fm() { printf -- '---\n%s\n---\nbody\n' "$1"; }
 
 good_fm=$'---\ndescription: a fine description\n---\nbody\n'
 
@@ -184,11 +157,99 @@ has_refusal() {
     fi
 }
 
-# refused_one <label> <path> <word>...: exactly one refusal, for that path.
-refused_one() {
-    local label="$1"
-    expect_refusals "$label" 1
-    has_refusal "$@"
+# path_lines <path>: how many stderr lines are about that file.
+path_lines() {
+    grep -cF -- "check-frontmatter: $1: " "$sandbox/stderr" || true
+}
+
+# signoff_of <kind> <n>: the sign-off of a repo holding n files, all of that kind.
+signoff_of() {
+    case "$1" in
+        skill) signoff "$2" 0 0 ;;
+        agent) signoff 0 "$2" 0 ;;
+        command) signoff 0 0 "$2" ;;
+    esac
+}
+
+# A batch is one repo of one $kind and one checker run. A cases function declares
+# the files with refuse/accept calls; it runs twice, first with mode=put to write
+# them and then, after the run, with mode=check to assert on each by its path.
+# n numbers the files of a pass, and @NAME@ in a content or a word stands for the
+# numbered file's own name, which a skill's `name` must equal.
+
+# refusal_batch <cases-function>: a good control and every refused file, one run.
+refusal_batch() {
+    mk_repo
+    put_good "$(kind_path "$kind" good)"
+    mode=put; n=0
+    "$1"
+    run_check
+    mode=check; n=0; expected=0
+    "$1"
+    expect_refusals "[$kind] refusals" "$expected"
+    assert_eq "$(path_lines "$(kind_path "$kind" good)")" "0" "[$kind] refusals: the good file has no line"
+}
+
+# acceptance_batch <cases-function>: every accepted file, one run, one sign-off.
+acceptance_batch() {
+    mk_repo
+    mode=put; n=0
+    "$1"
+    run_check
+    mode=check; n=0; accepted=0
+    "$1"
+    expect_ok "[$kind] accepted" "$(signoff_of "$kind" "$accepted")"
+}
+
+# refuse <label> <content> <word>... [-- <word>...]: a refused file at the next
+# numbered path of the kind.
+refuse() {
+    n=$((n + 1))
+    local tag="c$n" args=() a
+    for a in "${@:2}"; do
+        args+=("${a//@NAME@/$tag}")
+    done
+    refuse_at "$1" "$(kind_path "$kind" "$tag")" "${args[@]}"
+}
+
+# refuse_at <label> <path> <content> <word>... [-- <word>...]: a refused file at
+# that path. Each `--` separated group of words is one expected stderr line for
+# the path, and the path carries no other.
+refuse_at() {
+    local label="$1 [$kind]" path="$2" count=0 w
+    local -a words=()
+    if [ "$mode" = put ]; then
+        put "$path" "$3"
+        return 0
+    fi
+    shift 3
+    for w in "$@" --; do
+        if [ "$w" = -- ]; then
+            has_refusal "$label" "$path" "${words[@]}"
+            count=$((count + 1))
+            expected=$((expected + 1))
+            words=()
+        else
+            words+=("$w")
+        fi
+    done
+    assert_eq "$(path_lines "$path")" "$count" "$label: stderr lines for the file"
+}
+
+# accept <label> <content>: an accepted file at the next numbered path of the kind.
+accept() {
+    n=$((n + 1))
+    accept_at "$1" "$(kind_path "$kind" "c$n")" "${2//@NAME@/c$n}"
+}
+
+# accept_at <label> <path> <content>: an accepted file at that path.
+accept_at() {
+    if [ "$mode" = put ]; then
+        put "$2" "$3"
+        return 0
+    fi
+    accepted=$((accepted + 1))
+    assert_eq "$(path_lines "$2")" "0" "$1 [$kind]: stderr lines for the file"
 }
 
 finish() {
@@ -199,159 +260,116 @@ finish() {
     printf '\nall check-frontmatter %s scenarios passed\n' "$suite"
 }
 
-# fm <body-lines>: a block holding exactly those lines, then a body.
-fm() { printf -- '---\n%s\n---\nbody\n' "$1"; }
+# field_refusals: the files of one kind's refusal batch.
+field_refusals() {
+    local both
+    # description missing, not a string, blank
+    refuse "only a name" "$(fm 'name: @NAME@')" "description" "missing"
+    refuse "only other fields" "$(fm $'name: @NAME@\ntools: [a, b]')" "description" "missing"
+    refuse "description number" "$(fm $'name: @NAME@\ndescription: 42')" "description" "string"
+    refuse "description list" "$(fm $'name: @NAME@\ndescription: [a, b]')" "description" "string"
+    refuse "description mapping" "$(fm $'name: @NAME@\ndescription:\n  k: v')" "description" "string"
+    refuse "description boolean yes" "$(fm $'name: @NAME@\ndescription: yes')" "description" "string"
+    refuse "description date" "$(fm $'name: @NAME@\ndescription: 2026-11-01')" "description" "string"
+    refuse "description empty quotes" "$(fm $'name: @NAME@\ndescription: ""')" "description" "blank"
+    refuse "description spaces" "$(fm $'name: @NAME@\ndescription: "   "')" "description" "blank"
+    refuse "description folded scalar of nothing" "$(fm $'name: @NAME@\ndescription: >\n  ')" "description" "blank"
+    # name present and not a non-blank string
+    refuse "name number" "$(fm $'name: 42\ndescription: ok')" "name" "string"
+    refuse "name list" "$(fm $'name: [a]\ndescription: ok')" "name" "string"
+    refuse "name empty quotes" "$(fm $'name: ""\ndescription: ok')" "name" "blank"
+    refuse "name spaces" "$(fm $'name: "  "\ndescription: ok')" "name" "blank"
+    # description or name with no value
+    refuse "description with no value" "$(fm $'name: @NAME@\ndescription:')" "description"
+    refuse "name with no value" "$(fm $'name:\ndescription: ok')" "name"
+    # name and description both absent print both, but a command needs no name
+    both="$(fm 'tools: [a]')"
+    if [ "$kind" = command ]; then
+        refuse "both absent: only description" "$both" "description" "missing"
+    else
+        refuse "both absent" "$both" "name" "missing" -- "description" "missing"
+    fi
+    case "$kind" in
+        skill)
+            skill_refusals
+            ;;
+        agent)
+            refuse "name absent" "$(fm 'description: ok')" "name" "missing"
+            ;;
+    esac
+}
 
-# refuse_in_kinds "<kinds>" <label> <content> <word>...: for each listed kind, a
-# good file signs off; adding one bad file of that kind gives its single refusal.
-refuse_in_kinds() {
-    local kinds="$1" label="$2" content="$3" kind bad
-    shift 3
-    for kind in $kinds; do
-        mk_repo
-        put_good "$(kind_path "$kind" good)"
-        run_check
-        expect_ok "$label [$kind] control" "$(one_of "$kind")"
-        bad="$(kind_path "$kind" bad)"
-        put "$bad" "$content"
-        run_check
-        refused_one "$label [$kind]" "$bad" "$@"
+# skill_refusals: the refusals only a skill has, a `name` that is not its directory's.
+skill_refusals() {
+    local v
+    refuse "name absent" "$(fm 'description: ok')" "name" "missing"
+    refuse_at "two problems in one file give two lines" "skills/both/SKILL.md" "$(fm 'name: 42')" \
+        "name" "string" -- "description" "missing"
+    refuse_at "wrong name and no description" "skills/dir/SKILL.md" "$(fm 'name: other')" \
+        "directory" "dir" "other" -- "description" "missing"
+    refuse_at "name differs from the directory" "skills/bad/SKILL.md" "$(fm $'name: other\ndescription: ok')" \
+        "directory" "bad" "other"
+    refuse_at "name is the top-level component, not the parent" "skills/parent/SKILL.md" \
+        "$(fm $'name: skills\ndescription: ok')" "directory" "parent" "skills"
+    refuse_at "name differs by case only" "skills/lower/SKILL.md" "$(fm $'name: LOWER\ndescription: ok')" \
+        "directory" "lower" "LOWER"
+    refuse_at "name is a prefix and a substring of the directory" "skills/abcd/SKILL.md" \
+        "$(fm $'name: abc\ndescription: ok')" "directory" "abcd" "abc"
+    refuse_at "name extends the directory" "skills/abc/SKILL.md" "$(fm $'name: abcd\ndescription: ok')" \
+        "directory" "abc" "abcd"
+    refuse_at "name equals the directory but for a trailing space" "skills/trail/SKILL.md" \
+        "$(fm $'name: "trail "\ndescription: ok')" "directory" "trail"
+    refuse_at "numeric-looking directory, unquoted name is an int" "skills/42/SKILL.md" \
+        "$(fm $'name: 42\ndescription: ok')" "name" "string"
+    # A blank or non-string name gets that one reason: the count of one line pins
+    # that no directory reason is added.
+    for v in '""' '"  "'; do
+        refuse "blank name $v, no directory reason" "$(fm "name: $v"$'\ndescription: ok')" "name" "blank"
+    done
+    for v in '42' '[a]'; do
+        refuse "non-string name $v, no directory reason" "$(fm "name: $v"$'\ndescription: ok')" "name" "string"
     done
 }
-refuse_in_all_kinds() {
-    local label="$1" content="$2"
-    shift 2
-    refuse_in_kinds "skill agent command" "$label" "$content" "$@"
+
+# field_accepts: the files of one kind's acceptance batch.
+field_accepts() {
+    accept "folded block scalar" "$(fm $'name: @NAME@\ndescription: >\n  one\n  two')"
+    accept "quoted colon" "$(fm $'name: @NAME@\ndescription: "a: b"')"
+    accept "literal block scalar" "$(fm $'name: @NAME@\ndescription: |\n  line one\n  line two')"
+    accept "unknown and odd fields" \
+        "$(fm $'name: @NAME@\ndescription: ok\ntools: [Read, Grep]\nmodel: 42\nx-extra:\n  nested: [1, 2]\nallowed-tools: yes')"
+    case "$kind" in
+        skill)
+            accept_at "name equals the directory" "skills/bad/SKILL.md" "$(fm $'name: bad\ndescription: ok')"
+            accept_at "upper-case directory, same name" "skills/Mixed/SKILL.md" \
+                "$(fm $'name: Mixed\ndescription: ok')"
+            accept_at "directory with a space" "skills/my skill/SKILL.md" \
+                "$(fm $'name: my skill\ndescription: ok')"
+            accept_at "numeric-looking directory, quoted name" "skills/42/SKILL.md" \
+                "$(fm $'name: "42"\ndescription: ok')"
+            ;;
+        agent)
+            accept_at "name differs from the file" "agents/file-name.md" \
+                "$(fm $'name: some-other-name\ndescription: ok')"
+            accept_at "nested file, other name" "agents/sub/file-name.md" \
+                "$(fm $'name: agents\ndescription: ok')"
+            accept_at "name equals the file" "agents/same.md" "$(fm $'name: same\ndescription: ok')"
+            ;;
+        command)
+            accept_at "name absent" "commands/c.md" "$good_fm"
+            accept_at "name differs" "commands/d.md" "$(fm $'name: other\ndescription: ok')"
+            ;;
+    esac
 }
 
-# accept_at <label> <path> <content>: that one file, at that path, signs off.
-accept_at() {
-    mk_repo
-    put "$2" "$3"
-    run_check
-    local kind
-    case "$2" in skills/*) kind=skill ;; agents/*) kind=agent ;; *) kind='command' ;; esac
-    expect_ok "$1" "$(one_of "$kind")"
-}
-
-accept_in_all_kinds() {
-    local kind
-    for kind in skill agent command; do
-        mk_repo
-        put "$(kind_path "$kind" fine)" "$2"
-        run_check
-        expect_ok "$1 [$kind]" "$(one_of "$kind")"
-    done
-}
-
-echo "=== description missing ==="
-refuse_in_all_kinds "only a name" "$(fm 'name: bad')" "description" "missing"
-refuse_in_all_kinds "only other fields" "$(fm $'name: bad\ntools: [a, b]')" "description" "missing"
-
-echo "=== description not a string ==="
-refuse_in_all_kinds "number" "$(fm $'name: bad\ndescription: 42')" "description" "string"
-refuse_in_all_kinds "list" "$(fm $'name: bad\ndescription: [a, b]')" "description" "string"
-refuse_in_all_kinds "mapping" "$(fm $'name: bad\ndescription:\n  k: v')" "description" "string"
-refuse_in_all_kinds "boolean yes" "$(fm $'name: bad\ndescription: yes')" "description" "string"
-refuse_in_all_kinds "date" "$(fm $'name: bad\ndescription: 2026-11-01')" "description" "string"
-
-echo "=== description blank ==="
-refuse_in_all_kinds "empty quotes" "$(fm $'name: bad\ndescription: ""')" "description" "blank"
-refuse_in_all_kinds "spaces" "$(fm $'name: bad\ndescription: "   "')" "description" "blank"
-refuse_in_all_kinds "folded scalar of nothing" "$(fm $'name: bad\ndescription: >\n  ')" "description" "blank"
-
-echo "=== name present and not a non-blank string ==="
-refuse_in_all_kinds "number" "$(fm $'name: 42\ndescription: ok')" "name" "string"
-refuse_in_all_kinds "list" "$(fm $'name: [a]\ndescription: ok')" "name" "string"
-refuse_in_all_kinds "empty quotes" "$(fm $'name: ""\ndescription: ok')" "name" "blank"
-refuse_in_all_kinds "spaces" "$(fm $'name: "  "\ndescription: ok')" "name" "blank"
-
-echo "=== description or name with no value ==="
-refuse_in_all_kinds "description with no value" "$(fm $'name: bad\ndescription:')" "description"
-refuse_in_all_kinds "name with no value" "$(fm $'name:\ndescription: ok')" "name"
-
-echo "=== two problems in one file give two lines ==="
-mk_repo
-put_good "$(kind_path skill good)"
-put "$(kind_path skill both)" "$(fm 'name: 42')"
-run_check
-expect_refusals "name and description" 2
-has_refusal "name and description" "skills/both/SKILL.md" "name" "string"
-has_refusal "name and description" "skills/both/SKILL.md" "description" "missing"
-
-echo "=== a skill's name is required and must be its directory's ==="
-refuse_in_kinds "skill agent" "name absent" "$(fm 'description: ok')" "name" "missing"
-refuse_in_kinds "skill" "name differs from the directory" "$(fm $'name: other\ndescription: ok')" \
-    "directory" "bad" "other"
-refuse_in_kinds "skill" "name is the top-level component, not the parent" \
-    "$(fm $'name: skills\ndescription: ok')" "directory" "bad" "skills"
-refuse_in_kinds "skill" "name differs by case only" "$(fm $'name: BAD\ndescription: ok')" \
-    "directory" "bad" "BAD"
-refuse_in_kinds "skill" "name is a prefix and a substring of the directory" \
-    "$(fm $'name: ba\ndescription: ok')" "directory" "bad" "ba"
-refuse_in_kinds "skill" "name extends the directory" \
-    "$(fm $'name: badx\ndescription: ok')" "directory" "bad" "badx"
-refuse_in_kinds "skill" "name equals the directory but for a trailing space" \
-    "$(fm $'name: "bad "\ndescription: ok')" "directory" "bad"
-accept_at "skill: name equals the directory" "skills/bad/SKILL.md" "$(fm $'name: bad\ndescription: ok')"
-accept_at "skill: upper-case directory, same name" "skills/Mixed/SKILL.md" \
-    "$(fm $'name: Mixed\ndescription: ok')"
-accept_at "skill: directory with a space" "skills/my skill/SKILL.md" \
-    "$(fm $'name: my skill\ndescription: ok')"
-accept_at "skill: numeric-looking directory, quoted name" "skills/42/SKILL.md" \
-    "$(fm $'name: "42"\ndescription: ok')"
-refuse_in_kinds "skill" "numeric-looking directory, unquoted name is an int" \
-    "$(fm $'name: 42\ndescription: ok')" "name" "string"
-
-echo "=== a skill with a blank or non-string name gets that one reason ==="
-for v in '""' '"  "' '42' '[a]'; do
-    mk_repo
-    put "skills/bad/SKILL.md" "$(fm "name: $v"$'\ndescription: ok')"
-    run_check
-    expect_refusals "skill name $v" 1
-    assert_not_contains "$err" "directory" "skill name $v: no directory reason"
+echo "=== refused fields: description, name, and a skill's name against its directory ==="
+for kind in skill agent command; do
+    refusal_batch field_refusals
 done
 
-echo "=== an agent's name is required but need not match the file ==="
-accept_at "agent: name differs from the file" "agents/file-name.md" \
-    "$(fm $'name: some-other-name\ndescription: ok')"
-accept_at "agent: nested file, other name" "agents/sub/file-name.md" \
-    "$(fm $'name: agents\ndescription: ok')"
-accept_at "agent: name equals the file" "agents/same.md" "$(fm $'name: same\ndescription: ok')"
-
-echo "=== a command's name stays optional ==="
-accept_at "command: name absent" "commands/c.md" "$good_fm"
-accept_at "command: name differs" "commands/c.md" "$(fm $'name: other\ndescription: ok')"
-
-echo "=== name and description both absent print both ==="
-for kind in skill agent; do
-    mk_repo
-    put "$(kind_path "$kind" both)" "$(fm 'tools: [a]')"
-    run_check
-    expect_refusals "both absent [$kind]" 2
-    has_refusal "both absent [$kind]" "$(kind_path "$kind" both)" "name" "missing"
-    has_refusal "both absent [$kind]" "$(kind_path "$kind" both)" "description" "missing"
+echo "=== accepted: description forms, other fields, names by kind ==="
+for kind in skill agent command; do
+    acceptance_batch field_accepts
 done
-mk_repo
-put "commands/both.md" "$(fm 'tools: [a]')"
-run_check
-refused_one "both absent [command]: only description" "commands/both.md" "description" "missing"
-
-echo "=== a skill with a wrong name and no description prints both ==="
-mk_repo
-put "skills/dir/SKILL.md" "$(fm 'name: other')"
-run_check
-expect_refusals "wrong name, no description" 2
-has_refusal "wrong name, no description" "skills/dir/SKILL.md" "directory" "dir" "other"
-has_refusal "wrong name, no description" "skills/dir/SKILL.md" "description" "missing"
-
-echo "=== accepted: description forms ==="
-accept_in_all_kinds "folded block scalar" "$(fm $'name: fine\ndescription: >\n  one\n  two')"
-accept_in_all_kinds "quoted colon" "$(fm $'name: fine\ndescription: "a: b"')"
-accept_in_all_kinds "literal block scalar" "$(fm $'name: fine\ndescription: |\n  line one\n  line two')"
-
-echo "=== accepted: other fields are not checked ==="
-accept_in_all_kinds "unknown and odd fields" \
-    "$(fm $'name: fine\ndescription: ok\ntools: [Read, Grep]\nmodel: 42\nx-extra:\n  nested: [1, 2]\nallowed-tools: yes')"
 
 finish
