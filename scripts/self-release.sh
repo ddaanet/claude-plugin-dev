@@ -53,14 +53,22 @@ common_preflight() {
     # script has to discover.
     git diff --quiet HEAD -- . ':(exclude)memory' \
         || die "uncommitted changes"
-    branch=$(git symbolic-ref -q --short HEAD) || die "not on a branch"
+    # Read before the branch: the refusal below names it, and set -u would
+    # otherwise end the script on an unset variable.
     if main_branch=$(git symbolic-ref -q --short refs/remotes/origin/HEAD); then
         main_branch=${main_branch#origin/}
     else
         main_branch="main"
     fi
-    [ "$branch" = "$main_branch" ] \
-        || die "must be on $main_branch (currently $branch)"
+    branch=$(git symbolic-ref -q --short HEAD) \
+        || die "not on a branch (must be on $main_branch or dev)"
+    # Releases cut from the default branch or from dev, the branch where work
+    # lands. dev is never pushed: the release publishes the tag's commit to
+    # main alone.
+    case "$branch" in
+        "$main_branch"|dev) ;;
+        *) die "must be on $main_branch or dev (currently $branch)" ;;
+    esac
     [ -f toolkit/VERSION ] || die "toolkit/VERSION file missing"
     file_version=$(tr -d '[:space:]' < toolkit/VERSION)
     # Leading zeros are rejected, not merely tolerated: `$((08))` is a base
@@ -68,6 +76,15 @@ common_preflight() {
     # instead of refusing here.
     [[ "$file_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] \
         || die "toolkit/VERSION is not X.Y.Z: '$file_version'"
+    # A plain fetch: origin's main is read below, and a tag on its history that
+    # this clone lacks comes back with it.
+    git fetch origin || die "git fetch origin failed"
+    # Refused before anything is written: with either main holding commits HEAD
+    # lacks, the move or the push would refuse only after the tag was cut.
+    git merge-base --is-ancestor "refs/heads/$main_branch" HEAD \
+        || die "local $main_branch is not an ancestor of HEAD"
+    git merge-base --is-ancestor "refs/remotes/origin/$main_branch" HEAD \
+        || die "origin/$main_branch is not an ancestor of HEAD"
 }
 
 require_prior_release_published() {
@@ -163,27 +180,17 @@ release_preflight() {
 }
 
 resume_preflight() {
-    local remote_tag
     V="$file_version"
     tag="v$V"
     dist_tag="dist-$tag"
-    # Resume only ever finishes a release whose commit and tag already landed
-    # locally. No tag means no release was started at this version, and tagging
-    # HEAD on a guess would tag whatever work landed since.
+    # Resume only ever finishes a release whose commit and tag already landed.
+    # common_preflight's fetch has restored a release tag on origin's history, so
+    # no tag here means no release was started at this version, and tagging HEAD
+    # on a guess would tag whatever work landed since.
     git rev-parse -q --verify "refs/tags/$tag" >/dev/null || {
-        # The refusal is already decided; the probe only picks which hint
-        # explains it. Captured rather than tested inline, so an unreadable
-        # origin refuses as itself instead of reading as "no release started".
-        remote_tag=$(ls_remote_sha "refs/tags/$tag") || exit 1
-        if [ -n "$remote_tag" ]; then
-            printf 'hint: origin already has %s -- this clone is just missing it.\n' "$tag" >&2
-            # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
-            printf '      run `git fetch --tags`, then run `just resume-release`.\n' >&2
-        else
-            printf 'hint: no release was started at %s.\n' "$V" >&2
-            # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
-            printf '      run `just release <bump>` instead.\n' >&2
-        fi
+        printf 'hint: no release was started at %s.\n' "$V" >&2
+        # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
+        printf '      run `just release <bump>` instead.\n' >&2
         die "no tag $tag for toolkit/VERSION $V"
     }
 }
@@ -241,28 +248,50 @@ ensure_dist_tag() {
     note "dist tag $dist_tag: created locally"
 }
 
+move_main() {
+    # Runs before any push: a refusal here (another worktree holds main) leaves
+    # nothing published. Never rewinds main -- a main already past the tag's
+    # commit stays where it is, and the skip below covers it.
+    if git merge-base --is-ancestor "$release_commit" "refs/heads/$main_branch"; then
+        note "branch $main_branch: already contains $tag"
+        return
+    fi
+    git fetch -q . "$release_commit:refs/heads/$main_branch" || {
+        printf 'hint: %s was not moved to %s; nothing was pushed.\n' "$main_branch" "$tag" >&2
+        # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
+        printf '      clear what git reported above (another worktree may hold %s), then run `just resume-release`.\n' "$main_branch" >&2
+        die "could not move $main_branch to $tag"
+    }
+    acted=1
+    note "branch $main_branch: moved to $tag"
+}
+
 push_branch() {
-    local remote_head
-    remote_head=$(ls_remote_sha "refs/heads/$branch")
-    if [ -n "$remote_head" ] && [ "$remote_head" = "$(git rev-parse HEAD)" ]; then
-        note "branch $branch: already pushed"
+    # The fetch in common_preflight has just refreshed origin's main, so this
+    # reads its current position. A release commit already under it is
+    # published, whatever later commits came after.
+    if git merge-base --is-ancestor "$release_commit" "refs/remotes/origin/$main_branch"; then
+        note "branch $main_branch: already pushed"
         return
     fi
     # gitlore's pre-push hook publishes every memory store before the parent
     # push and refuses when one diverged. The commit and the tags are already
     # local by now, so the recovery is resume -- never an amend, which would
     # re-pin the gitlink and rewrite a commit the tag names.
-    git push || {
+    # Pushes the tag's commit, not HEAD: from dev, HEAD carries work that is not
+    # being released. The refspec does not name the branch checked out, so the
+    # push is the same from main and from dev.
+    git push origin "$release_commit:refs/heads/$main_branch" || {
         printf 'hint: the release commit and tag %s are local; nothing was pushed.\n' "$tag" >&2
         # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
         printf '      clear what the push reported above, then run `just resume-release`.\n' >&2
         # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
         printf '      gitlore refuses the push while a memory store is diverged: `/gitlore:resolve`\n' >&2
         printf '      in Claude Code clears it. Repeat the pair if the push is refused again.\n' >&2
-        die "push of $branch failed"
+        die "push of $main_branch failed"
     }
     acted=1
-    note "branch $branch: pushed"
+    note "branch $main_branch: pushed"
 }
 
 push_tag() {
@@ -316,7 +345,11 @@ if [ "$mode" = "release" ]; then
 else
     resume_preflight
 fi
+# The tag's commit: HEAD on a release, but on a resume HEAD may be past it. Resolved
+# to a sha because `git fetch .` refuses the unresolved ^{commit} form.
+release_commit=$(git rev-parse "$tag^{commit}")
 ensure_dist_tag
+move_main
 push_branch
 push_tag "$tag"
 push_tag "$dist_tag"

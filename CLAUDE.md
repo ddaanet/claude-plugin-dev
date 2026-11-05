@@ -106,7 +106,11 @@ just release [patch|minor|major]
 Reads `toolkit/VERSION`, bumps, commits `release: X.Y.Z` (the gitmoji
 commit-msg hook lands it as `🔖 X.Y.Z`; nothing probes the subject), tags,
 cuts the `dist-vX.Y.Z` split tag consumers vendor, pushes main + both
-tags, and creates a GitHub release. Refuses to run on a dirty tree or when
+tags, and creates a GitHub release. It runs from `main` or `dev` and never
+changes branch: after a fetch it requires local and origin `main` to be
+ancestors of `HEAD`, fast-forwards local `main` to the release commit without a
+checkout, and pushes that commit to `main`, never `dev`. See
+docs/references/self-release.md. Refuses to run on a dirty tree or when
 `toolkit/VERSION` disagrees with the latest tag (same invariant as the
 consumer release recipe protects on `plugin.json`), and refuses to bump
 while the *current* `toolkit/VERSION` is tagged but not fully published

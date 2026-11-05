@@ -52,7 +52,7 @@ and left the stranded one tagged in two places with no GitHub release, refused
 by nothing. The guard set was complete against every state except the one the
 flow actually produces when it breaks.
 
-So the script now mirrors the consumer flow: an idempotent tail that both
+So the script mirrors the consumer flow: an idempotent tail that both
 `just release` and `just resume-release` run, each step probing origin before
 acting, and `resume-release` depending on no gate for the reason `release.just`
 already gives consumers — a prerelease that passed must not have to run again to
@@ -78,3 +78,51 @@ not, it leaves it alone rather than re-splitting: the split is deterministic in
 practice, but "in practice" is not a basis for pushing a recomputed ref over a
 published one, and `push_tag`'s mismatch refusal is the only thing standing
 between a differing split and a moved tag.
+
+## It releases from `main` or `dev` and publishes the tag's commit
+
+Work lands on `dev`; a release is a review of `dev` against `main`, after which
+`main` moves to the release. The script runs from either branch, so the release
+does not start with a checkout of `main` that the session would then have to
+undo. Any other branch, and a detached `HEAD`, are refused with both allowed
+names in the message: a half-finished plan branch would otherwise be released
+and pushed to `main` under a version tag. `dev` is a literal, like the `memory`
+pathspec, because this is the one repo the script runs against. The default
+branch is still read from `origin/HEAD`.
+
+**Refused before anything is written.** `common_preflight` fetches origin and
+dies if the fetch fails, then refuses unless local `main` and `origin/main` are
+both ancestors of `HEAD`. With either holding a commit `HEAD` lacks, the
+fast-forward of `main` or the push would refuse only after the commit and tags
+were cut, which is the stranded state `resume-release` exists to absorb;
+refusing first costs nothing to undo. This applies on `main` too: a `main` that
+trails `origin/main` is refused up front. The fetch is a plain one, which also
+brings back a release tag on origin's history, so a resume from a clone missing
+the tag finds it and finishes. An unreachable origin was already fatal to the
+probes, so the fetch adds no new way to fail. A tag that origin holds off the
+history of the branches fetched is not brought back, and resume then refuses
+with its no-release-started hint.
+
+**`main` moves without a checkout.** After the tags, `main` is fast-forwarded to
+the tag's commit with `git fetch . <sha>:refs/heads/main`, before any push.
+Another worktree holding `main` makes git refuse, and the run stops with nothing
+published and the same `just resume-release` hint as a failed push. Switching to
+`main`, fast-forwarding and switching back was weighed and rejected: it moves
+the checkout the session stands in, and a failure between the two switches
+leaves it on the wrong branch. Pushing alone and leaving local `main` behind was
+rejected too, since a stale local `main` is still an ancestor of `HEAD` and no
+check would flag it. A `main` that already contains the tag's commit is left
+alone, never rewound.
+
+**The push publishes the tag's commit, not `HEAD`.** On `dev`, `HEAD` carries
+work that is not being released, and a bare `git push` would publish it or
+nothing at all, depending on configuration. The script pushes
+`<sha>:refs/heads/main`, the same from either branch, and `dev` is never pushed
+by it. On a resume, `HEAD` is often past the release commit, so the tag names
+the commit and the push-probe asks whether that commit is an ancestor of
+origin's `main`. Comparing origin's `main` to `HEAD` instead would republish, or
+refuse, over commits the release never covered; the ancestor test makes a resume
+after later commits publish none of them. The cost is that those commits reach
+origin by an ordinary push, outside the script. gitlore's pre-push hook ignores
+the refspec and pushes each memory store's `live`, so memory publishes as it
+does from `main`.

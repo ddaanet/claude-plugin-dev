@@ -213,9 +213,9 @@ echo "=== resume refusals ==="
 new_sandbox
 git -C "$repo" tag -d v0.1.0 >/dev/null
 run --resume
-assert_eq "$rc" 1 "resume, tag on origin only: exit status"
-assert_contains "$out" "origin already has v0.1.0" "resume, tag on origin only: hint"
-assert_contains "$out" "git fetch --tags" "resume, tag on origin only: remedy"
+assert_eq "$rc" 0 "resume, tag only on origin: exit status"
+assert_tag v0.1.0 local "resume, tag only on origin: the fetch restores it"
+assert_contains "$out" "release v0.1.0 is already complete" "resume, tag only on origin: completes"
 new_sandbox
 git -C "$repo" tag -d v0.1.0 >/dev/null
 git -C "$repo" push -q origin ":refs/tags/v0.1.0"
@@ -270,7 +270,7 @@ new_sandbox
 git -C "$repo" checkout -q -b side
 run minor
 assert_eq "$rc" 1 "wrong branch: exit status"
-assert_contains "$out" "must be on main (currently side)" "wrong branch"
+assert_contains "$out" "must be on main or dev (currently side)" "wrong branch"
 refute_tag v0.2.0 "wrong branch"
 assert_gh_untouched "wrong branch"
 
@@ -352,7 +352,7 @@ assert_eq "$rc" 1 "dead origin: exit status"
 # that the tags are absent, so neither the missing-list hint nor the "unfinished"
 # verdict may appear -- they would name v0.1.0, dist-v0.1.0 and the GitHub
 # release as unpublished when all three are.
-assert_contains "$out" "git ls-remote origin refs/tags/v0.1.0 failed" "dead origin: names the probe failure"
+assert_contains "$out" "git fetch origin failed" "dead origin: names the fetch failure"
 assert_not_contains "$out" "not fully published. Missing:" "dead origin: no missing-list hint"
 assert_not_contains "$out" "is unfinished" "dead origin: no unfinished verdict"
 refute_tag v0.2.0 "dead origin"
@@ -369,14 +369,15 @@ git -C "$repo" remote set-url origin "$sandbox/does-not-exist.git"
 run --resume
 assert_eq "$rc" 1 "dead origin on resume: exit status"
 refute_tag dist-v0.2.0 "dead origin on resume"
-# The no-tag hint probes origin to pick its wording; an unreadable origin must
-# refuse as the probe failure, not claim "no release was started".
+# A missing local tag may be one origin holds: the fetch is what would restore
+# it. An unreadable origin must refuse as the fetch failure, not claim "no
+# release was started".
 new_sandbox
 git -C "$repo" tag -d v0.1.0 >/dev/null
 git -C "$repo" remote set-url origin "$sandbox/does-not-exist.git"
 run --resume
 assert_eq "$rc" 1 "dead origin, no local tag: exit status"
-assert_contains "$out" "git ls-remote origin refs/tags/v0.1.0 failed" "dead origin, no local tag: names the probe failure"
+assert_contains "$out" "git fetch origin failed" "dead origin, no local tag: names the fetch failure"
 assert_not_contains "$out" "no release was started" "dead origin, no local tag: no guessed hint"
 
 if [ "$failures" -eq 0 ]; then

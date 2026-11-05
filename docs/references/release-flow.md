@@ -288,14 +288,21 @@ naming `prerelease`. Verified against just 1.46.0.
 
 ## Default branch detection via `origin/HEAD`
 
-The release recipe doesn't hardcode `main` — it reads the default branch from
+Neither release flow hardcodes `main`: each reads the default branch from
 `git symbolic-ref --short refs/remotes/origin/HEAD` and falls back to `"main"`
 if unset. Lets the recipe work on `master`, `trunk`, fork-default branches,
 etc., with no behaviour change in the common case.
+
+What the name is used for differs by flow. The consumer flow in `toolkit/`
+requires the checkout to be on that branch and refuses anywhere else. This
+repo's own flow, `scripts/self-release.sh`, accepts it or the literal `dev`,
+refuses every other branch naming both, and publishes the tag's commit to the
+default branch from either; the reasoning is in
+[self-release.md](self-release.md).
 
 `symbolic-ref` rather than `rev-parse --abbrev-ref` because the latter exits
 non-zero *and* prints `"origin/HEAD"` to stdout when the ref is unset. Combined
 with `pipefail` and a `|| echo "main"` fallback, the substitution captured both,
 producing a two-line `main_branch` and the nonsensical error "must be on HEAD
 (currently main)". `symbolic-ref` is silent on stdout when the ref is unset, so
-the fallback fires cleanly.
+the fallback fires cleanly. Both flows read it this way.
