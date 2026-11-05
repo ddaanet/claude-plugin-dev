@@ -235,14 +235,17 @@ branch_preflight() {
     # version would meet bump_commit_tag only once the release commit exists.
     git fetch --no-tags -q origin \
         || die "could not fetch origin — nothing was done"
-    if ! git merge-base --is-ancestor "$main_branch" HEAD; then
+    # Refs named in full: a bare name resolves a tag of the same name first. A
+    # clone with no local main skips its check, since move_main creates it.
+    if git rev-parse -q --verify "refs/heads/$main_branch" >/dev/null \
+        && ! is_ancestor "refs/heads/$main_branch" HEAD; then
         printf 'hint: local %s has commits %s lacks. Merge it first:\n' "$main_branch" "$branch" >&2
         printf '      git merge %s\n' "$main_branch" >&2
         printf '      then run the same command again.\n' >&2
         die "local $main_branch is not an ancestor of $branch — nothing was done"
     fi
     if git rev-parse -q --verify "refs/remotes/origin/$main_branch" >/dev/null; then
-        if ! git merge-base --is-ancestor "origin/$main_branch" HEAD; then
+        if ! is_ancestor "refs/remotes/origin/$main_branch" HEAD; then
             printf 'hint: origin/%s has commits %s lacks. Merge it first:\n' "$main_branch" "$branch" >&2
             printf '      git merge origin/%s\n' "$main_branch" >&2
             printf '      then run the same command again.\n' >&2
@@ -251,4 +254,14 @@ branch_preflight() {
     else
         note "origin has no $main_branch branch, so there is nothing on origin to compare $branch with"
     fi
+}
+
+is_ancestor() {
+    # $1 $2: `git merge-base --is-ancestor`, but only its exit 1 means "not an
+    # ancestor"; any other failure (an unreadable ref, a corrupt object) dies
+    # rather than reading as a refusal with a hint that cannot clear it.
+    local rc=0
+    git merge-base --is-ancestor "$1" "$2" || rc=$?
+    [ "$rc" -le 1 ] || die "could not compare $1 with $2 (git exit $rc) — nothing was done"
+    return "$rc"
 }

@@ -90,8 +90,9 @@ resume_preflight() {
     # and origin's main must reach it by fast-forward. No ancestry check on main or
     # origin/main here: those guard a commit and tag about to be cut, and a release
     # already on origin's main has nothing left they would protect.
-    if ! git merge-base --is-ancestor "$tag^{commit}" HEAD; then
-        if git merge-base --is-ancestor "$tag^{commit}" "$main_branch"; then
+    if ! is_ancestor "refs/tags/$tag^{commit}" HEAD; then
+        if git rev-parse -q --verify "refs/heads/$main_branch" >/dev/null \
+            && is_ancestor "refs/tags/$tag^{commit}" "refs/heads/$main_branch"; then
             printf 'hint: %s names a commit that %s lacks, and local %s has it. Merge it:\n' \
                 "$tag" "$branch" "$main_branch" >&2
             printf '      git merge %s\n' "$main_branch" >&2
