@@ -156,9 +156,9 @@ the pending commit as its second parent, and a push of `live` publishes every
 ancestor. So the moment the push succeeds the gitlink is public, whether or not
 the tagged commit names the merge. Against that, the amend would force a tag the
 script is about to publish and sequence a scripted rewrite behind a human merge
-review. `push_branch` re-pushes on resume instead, and says so when it fails:
-clear what the hook reported, run `just resume-release`, repeat if refused
-again.
+review. `push_branch` re-pushes the release commit to origin's default branch on
+resume instead, and says so when it fails: clear what the hook reported, run
+`just resume-release`, repeat if refused again.
 
 A tag that exists on the remote at a *different* sha is an error, never a
 force-push. A reused tag means something published under that version already,
@@ -244,20 +244,20 @@ local list: a network round trip on the common path where the local tags are
 complete, and a listing whose failure could not refuse the way the empty-list
 probe's does — that would put every release behind a working network — so its
 status would have to be absorbed instead. The bound is accepted on those terms,
-as the fourth push route below is.
+as the `pushInsteadOf` route below is.
 
 ### The push route has to agree with the probe
 
-`git ls-remote origin` reads origin's *fetch* URL, while several settings can
-redirect a push elsewhere. `common_preflight` checks three:
-`remote.origin.pushurl`, `branch.<name>.pushRemote` and `remote.pushDefault`.
-They do not even reach the same commands — `push_branch`'s unqualified
-`git push` follows all three in that precedence, while `push_tag`'s
-`git push origin "$tag"` names its remote and is redirected only by `pushurl` —
-so the branch and the tag can land in different repositories, and both the
-origin probe and `push_tag`'s published-tag check would be reading somewhere the
-release does not publish to. `common_preflight` refuses when any of the three is
-set, before any side effect, on `release` and `--resume` alike.
+`git ls-remote origin` reads origin's *fetch* URL, while `remote.origin.pushurl`
+redirects every `git push origin ...` the release runs (`push_branch`,
+`push_tag`, `push_dist`) to a repository the origin probes never inspect, so the
+published-tag check would read somewhere the release does not publish to.
+`common_preflight` refuses when it is set, before any side effect, on `release`
+and `--resume` alike.
+
+`branch.<name>.pushRemote` and `remote.pushDefault` are not checked. Each
+selects the remote for an unqualified `git push`, and the release runs none:
+every push names origin and a refspec, which ignores both (measured).
 
 Refusing when a key is *set*, rather than when it "diverges" from origin:
 deciding whether two URLs name the same repository (`git@host:o/p.git`,
@@ -266,28 +266,25 @@ repository) is not decidable in shell without a network round trip on the common
 path. The recovery, unset it or point it at origin, covers a same-repo `pushurl`
 on a different protocol too.
 
-`--get-all` and not `--get`, because `remote.<name>.pushurl` is genuinely
-multi-valued — pushing to several mirrors is a supported arrangement — and
-`--get` on such a key prints only the *last* value and still exits 0 (measured,
-git 2.47.3). The refusal would then name one of two URLs and advise a `--unset`
-that refuses a multi-valued key with status 5: a correct refusal handing back a
-recovery that does not work. The other two keys are last-one-wins for git, but a
-config file can still hold several lines of them and `--unset` refuses those
-identically, so all three are read the same way.
+`--get-all` and not `--get`, because `pushurl` is genuinely multi-valued
+(pushing to several mirrors is a supported arrangement) and `--get` prints only
+the *last* value and still exits 0 (measured, git 2.47.3). The refusal would
+then name one of two URLs and advise a `--unset` that refuses a multi-valued key
+with status 5: a correct refusal handing back a recovery that does not work.
 
-The fourth route, `url.<base>.pushInsteadOf`, is a stated bound rather than an
-oversight. Measured: with it set and none of the three keys,
-`git push origin main` lands in the rewritten repository while
-`git ls-remote origin` still reads the original — precisely the split this check
-exists to prevent. What does not carry over is "refuse when set". The rewrite
-fires only when its base is a prefix of origin's URL, and a base that does not
-match is inert (measured), so refusing on presence would reject the global
-`insteadOf`/`pushInsteadOf` rewrites that are ordinary in corporate setups —
-where the three repo-scoped keys are anomalous by their very presence, which is
-what makes refusing on presence honest for them. Deciding whether a given base
-matches is the same URL-identity problem this section already declines to solve.
-Plain `url.<base>.insteadOf` needs no check at all: it rewrites fetch and push
-alike, so the probe reads the repository the release publishes to.
+A further route, `url.<base>.pushInsteadOf`, is a stated bound rather than an
+oversight. Measured: with it set and no `pushurl`, `git push origin main` lands
+in the rewritten repository while `git ls-remote origin` still reads the
+original — precisely the split this check exists to prevent. What does not carry
+over is "refuse when set". The rewrite fires only when its base is a prefix of
+origin's URL, and a base that does not match is inert (measured), so refusing on
+presence would reject the global `insteadOf`/`pushInsteadOf` rewrites that are
+ordinary in corporate setups — where the repo-scoped `pushurl` is anomalous by
+its very presence, which is what makes refusing on presence honest for them.
+Deciding whether a given base matches is the same URL-identity problem this
+section already declines to solve. Plain `url.<base>.insteadOf` needs no check
+at all: it rewrites fetch and push alike, so the probe reads the repository the
+release publishes to.
 
 Two constraints shape the wording. No message offers a way to skip a check — the
 same rule the version-guard hook's deny message follows, for the same reason: an
@@ -302,6 +299,9 @@ Paths printed from a diff are read NUL-delimited: a spaced path reported as two
 words names two files that do not exist. A path containing a newline still
 prints across two lines, which no git quoting mode survives `-z` to fix, and the
 comment states that bound rather than implying full coverage.
+
+A release that origin's default branch has moved past, and a resume whose tag is
+off `HEAD`'s history, are in [failed-release.md](failed-release.md).
 
 ## The clean-tree check exempts only the memory gitlink
 

@@ -4,10 +4,11 @@ The suites `just precommit` runs under `tests/` (every `*-test.sh`, by glob;
 this file only describes them), and what each covers.
 
 `version-guard-{decision,wording,git}-test.sh`, `check-version-test.sh`, the
-eleven `release-*-test.sh` suites that split `release.sh`'s consumer flow by
+fifteen `release-*-test.sh` suites that split `release.sh`'s consumer flow by
 scenario group (`release-core`, `-resume-push`, `-resume-hint`, `-tree`,
 `-first`, `-lost-tag`, `-push-route`, `-tags`, `-rollback`, `-pipefail`,
-`-hint-size`), `release-core-root-skip-test.sh` (which runs the `release-core`
+`-hint-size`, and the four that release from `dev`: `-branch`, `-branch-resume`,
+`-branch-moved`, `-branch-moved-dev`), `release-core-root-skip-test.sh` (which runs the `release-core`
 suite under a stub `id` printing 0, to pin its root guard),
 `release-dist-{publish,resume,refusal,optin}-test.sh` (`release.sh` publishing
 the `dist` branch), `self-release-{publish,refusal,branch}-test.sh` (the last:

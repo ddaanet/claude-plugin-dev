@@ -116,15 +116,19 @@ present tense.
 - No interactive confirmation.
 - The consumer's commit gate is named `precommit`.
 - `release` depends on `prerelease`, never on `precommit` directly.
-- The default branch is read from `origin/HEAD`.
+- The default branch is read from `origin/HEAD`. A release runs from it or from
+  `dev` without changing branch and pushes the tag's commit to it, never `dev`.
 
-### Recovery and the pre-flight state checks — [references/recovery.md](references/recovery.md), [references/clean-tree.md](references/clean-tree.md)
+### Recovery and the pre-flight state checks — [references/recovery.md](references/recovery.md), [references/failed-release.md](references/failed-release.md), [references/clean-tree.md](references/clean-tree.md)
 
 - `check-version.sh` detects a half-landed release.
 - An empty local tag list is checked against origin first.
-- **A push redirected away from origin is refused** when the config key is set
-  at all rather than when it "diverges"; `pushInsteadOf` is a stated bound, not
-  refused.
+- **A push redirected away from origin is refused** when `remote.origin.pushurl`
+  is set at all rather than when it "diverges"; `pushInsteadOf` is a stated
+  bound, not refused.
+- **A release origin has moved past is refused with nothing public** and an undo
+  the script prints and does not run; the release is redone, not resumed. A
+  resume refuses a tag off `HEAD`'s history.
 - **`resume-release` completes one** — the last steps, `push_dist` included for
   an opted-in plugin, are an idempotent block that probes remote state before
   acting.

@@ -56,7 +56,7 @@ bump_commit_tag() {
     if [ "$first_release" = 1 ]; then
         # The manifest already holds $V — a first release publishes it as-is, so
         # there is nothing to rewrite and nothing to commit. Tag HEAD, which
-        # common_preflight has already established is clean and on the main branch.
+        # common_preflight has already established is clean and on main or dev.
         git tag -a "$tag" -m "Release $V"
         acted=1
         note "tag: $tag created locally (manifest already at $V)"
@@ -113,12 +113,44 @@ ls_remote_sha() {
     printf '%s' "${line%%$'\t'*}"
 }
 
-push_branch() {
-    local remote_head
-    remote_head=$(ls_remote_sha . "refs/heads/$branch")
-    if [ -n "$remote_head" ] && [ "$remote_head" = "$(git rev-parse HEAD)" ]; then
-        note "branch $branch: already pushed"
+move_main() {
+    # Both modes, after the release commit exists and before push_branch. Brings
+    # local main to the release commit when it lacks it, as a fast-forward: a
+    # non-fast-forward fetch is refused, so main is never rewound. Nothing is
+    # pushed here.
+    if git merge-base --is-ancestor "$release_commit" "refs/heads/$main_branch"; then
         return
+    fi
+    # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
+    git fetch -q . "$release_commit:refs/heads/$main_branch" || {
+        printf 'hint: local %s cannot fast-forward to %s; nothing was pushed.\n' "$main_branch" "$tag" >&2
+        printf '      clear what git reported above, then run `just resume-release`.\n' >&2
+        die "could not move $main_branch to $tag — nothing was pushed"
+    }
+    acted=1
+    note "branch $main_branch: moved to $tag"
+}
+
+push_branch() {
+    # Probed before anything is pushed. origin's main already containing the
+    # release commit is "already pushed". A head the release lacks is refused
+    # here, with the undo printed, so no pre-push hook runs on a push that cannot
+    # land. The push names the release commit, so later dev commits are never
+    # published.
+    local remote_head
+    remote_head=$(ls_remote_sha . "refs/heads/$main_branch")
+    if [ -n "$remote_head" ]; then
+        git cat-file -e "$remote_head" 2>/dev/null \
+            || git fetch -q --no-tags origin "$main_branch" \
+            || die "could not fetch origin's $main_branch to check it — nothing was pushed"
+        if git merge-base --is-ancestor "$release_commit" "$remote_head"; then
+            note "branch $main_branch: already pushed"
+            return
+        fi
+        if ! git merge-base --is-ancestor "$remote_head" "$release_commit"; then
+            print_undo
+            die "release $tag refused: origin's $main_branch has commits $tag lacks — nothing was pushed"
+        fi
     fi
     # A consumer's pre-push hook can refuse this. gitlore's publishes every
     # memory store before the parent push and refuses when one diverged, and the
@@ -130,15 +162,73 @@ push_branch() {
     # parent), and a push of `live` publishes every ancestor — so nothing needs
     # the tagged commit to name the merge, and the tag is never rewritten.
     # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
-    git push || {
+    git push origin "$release_commit:refs/heads/$main_branch" || {
         printf 'hint: the release commit and tag %s are local; nothing was pushed.\n' "$tag" >&2
         printf '      clear what the push reported above, then run `just resume-release`.\n' >&2
         printf '      gitlore refuses the push while a memory store is diverged: `/gitlore:resolve`\n' >&2
         printf '      in Claude Code clears it. Repeat the pair if the push is refused again.\n' >&2
-        die "push of $branch failed"
+        die "push of $main_branch failed"
     }
     acted=1
-    note "branch $branch: pushed"
+    note "branch $main_branch: pushed"
+}
+
+print_undo() {
+    # Prints the undo for a release origin moved past, to stderr: one numbered step
+    # per command, every value substituted from the state read here, and the script
+    # runs none of it. The bump is dropped only when the release commit changed the
+    # manifest's version, which a first release does not. With HEAD at the release
+    # commit that is a reset; with later commits on top, a new commit restores the
+    # previous version, so history is not rewritten and the gitlink is untouched.
+    local prev="" new="" bump="" rerun="just release" step=1 cmd manifest_tmp="$manifest.tmp" earlier=""
+    prev=$(git show "$release_commit^:$manifest" 2>/dev/null | jq -r .version 2>/dev/null) || prev=""
+    new=$(git show "$release_commit:$manifest" 2>/dev/null | jq -r .version 2>/dev/null) || new=""
+    # A first release has no bump even when the commit it tags changed the
+    # version by hand: only a release with an earlier release tag made one. A
+    # failed listing reads as none, since a reset printed in error drops a commit
+    # the operator wrote, while a bump left in place loses nothing.
+    earlier=$(release_tags | grep -vxF -- "$tag") || earlier=""
+    if [ -n "$earlier" ] && [ -n "$prev" ] && [ -n "$new" ] && [ "$prev" != "$new" ]; then
+        bump=$(bump_between "$prev" "$new")
+        rerun="just release $bump"
+    fi
+    printf 'hint: the release failed and nothing is public: %s has commits that %s lacks.\n' "$main_branch" "$tag" >&2
+    # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
+    printf 'hint: undo it in this order, from the plugin root, then run `%s` again:\n' "$rerun" >&2
+    printf '      %d. git fetch --no-tags origin\n' "$step" >&2
+    step=$((step + 1))
+    printf '      %d. git tag -d %s\n' "$step" "$tag" >&2
+    step=$((step + 1))
+    if [ -n "$bump" ]; then
+        if [ "$(git rev-parse HEAD)" = "$release_commit" ]; then
+            printf '      %d. git reset --hard HEAD~1\n' "$step" >&2
+        else
+            cmd="jq '.version = \"$prev\"' $manifest > $manifest_tmp && mv $manifest_tmp $manifest"
+            printf '      %d. %s\n' "$step" "$cmd" >&2
+            printf '         git add %s\n' "$manifest" >&2
+            printf '         git commit -qm "undo release %s"\n' "$V" >&2
+        fi
+        step=$((step + 1))
+    fi
+    if [ "$branch" != "$main_branch" ]; then
+        printf '      %d. git branch -f %s origin/%s\n' "$step" "$main_branch" "$main_branch" >&2
+        step=$((step + 1))
+    fi
+    printf '      %d. git merge --no-edit origin/%s\n' "$step" "$main_branch" >&2
+}
+
+bump_between() {
+    # $1=previous version, $2=new version. Prints the bump that takes one to the other.
+    local pmaj pmin nmaj nmin
+    IFS=. read -r pmaj pmin _ <<<"$1"
+    IFS=. read -r nmaj nmin _ <<<"$2"
+    if [ "$nmaj" != "$pmaj" ]; then
+        printf 'major\n'
+    elif [ "$nmin" != "$pmin" ]; then
+        printf 'minor\n'
+    else
+        printf 'patch\n'
+    fi
 }
 
 push_tag() {
