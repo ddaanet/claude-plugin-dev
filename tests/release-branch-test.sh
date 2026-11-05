@@ -339,6 +339,7 @@ rel="$(rev 'refs/tags/v1.2.4^{commit}')"
 [ -n "$rel" ] || fail "no local main: tag v1.2.4 does not resolve to a commit"
 assert_eq "$(rev refs/heads/main)" "$rel" "no local main: local main created at the release"
 assert_eq "$(origin_rev refs/heads/main)" "$rel" "no local main: origin main at the release"
+assert_not_contains "$out" "fatal:" "no local main: no git fatal in the output"
 after_release "no local main"
 
 if (( failures > 0 )); then
