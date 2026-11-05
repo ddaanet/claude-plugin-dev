@@ -98,10 +98,13 @@ were cut, which is the stranded state `resume-release` exists to absorb;
 refusing first costs nothing to undo. This applies on `main` too: a `main` that
 trails `origin/main` is refused up front. The fetch is a plain one, which also
 brings back a release tag on origin's history, so a resume from a clone missing
-the tag finds it and finishes. An unreachable origin was already fatal to the
-probes, so the fetch adds no new way to fail. A tag that origin holds off the
-history of the branches fetched is not brought back, and resume then refuses
-with its no-release-started hint.
+the tag finds it and finishes.
+
+A resume publishes only a tag whose commit is on `HEAD`'s history, however the
+tag arrived, and refuses any other before writing anything. A tag off that
+history names a commit the branch does not carry: fast-forwarding `main` to it
+would publish that commit and leave `main` off the branch the next release is
+cut from, and a resume cannot take published tags back.
 
 **`main` moves without a checkout.** After the tags, `main` is fast-forwarded to
 the tag's commit with `git fetch . <sha>:refs/heads/main`, before any push.

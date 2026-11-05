@@ -166,6 +166,26 @@ block_push() {
 }
 unblock_push() { rm -f "$repo/.git/hooks/pre-push"; }
 
+block_ls_remote() {
+    # A git on PATH that fails `ls-remote` and execs the real git for the rest,
+    # so the script's fetch succeeds and its probes are what fail. Must be undone
+    # before the next new_sandbox: PATH keeps every earlier sandbox's bin.
+    local real_git
+    real_git=$(command -v git)
+    {
+        printf '#!/usr/bin/env bash\n'
+        # shellcheck disable=SC2016  # expanded by the stub when it runs, not here
+        printf 'if [ "${1-}" = ls-remote ]; then\n'
+        printf '    echo "git stub: ls-remote refused by fixture" >&2\n'
+        printf '    exit 1\n'
+        printf 'fi\n'
+        # shellcheck disable=SC2016  # expanded by the stub when it runs, not here
+        printf 'exec %q "$@"\n' "$real_git"
+    } > "$sandbox/bin/git"
+    chmod +x "$sandbox/bin/git"
+}
+unblock_ls_remote() { rm -f "$sandbox/bin/git"; }
+
 stage_claude_frame() {
     # $1=repo path. Reproduces what the handoff skills leave behind: a task
     # frame under .claude/, committed once and then rewritten and staged for
@@ -345,14 +365,16 @@ assert_gh_untouched "extra argument"
 
 echo "=== an unreadable origin refuses rather than proceeds ==="
 new_sandbox
-git -C "$repo" remote set-url origin "$sandbox/does-not-exist.git"
+block_ls_remote
 run minor
+unblock_ls_remote
 assert_eq "$rc" 1 "dead origin: exit status"
-# The refusal is the probe failure itself. A failed ls-remote is not evidence
-# that the tags are absent, so neither the missing-list hint nor the "unfinished"
-# verdict may appear -- they would name v0.1.0, dist-v0.1.0 and the GitHub
-# release as unpublished when all three are.
-assert_contains "$out" "git fetch origin failed" "dead origin: names the fetch failure"
+# The fetch succeeds through the stub, so the refusal is the probe failure
+# itself. A failed ls-remote is not evidence that the tags are absent, so neither
+# the missing-list hint nor the "unfinished" verdict may appear -- they would
+# name v0.1.0, dist-v0.1.0 and the GitHub release as unpublished when all three
+# are.
+assert_contains "$out" "git ls-remote origin refs/tags/v0.1.0 failed" "dead origin: names the probe failure"
 assert_not_contains "$out" "not fully published. Missing:" "dead origin: no missing-list hint"
 assert_not_contains "$out" "is unfinished" "dead origin: no unfinished verdict"
 refute_tag v0.2.0 "dead origin"
@@ -365,9 +387,11 @@ block_push
 run minor
 unblock_push
 git -C "$repo" tag -d dist-v0.2.0 >/dev/null
-git -C "$repo" remote set-url origin "$sandbox/does-not-exist.git"
+block_ls_remote
 run --resume
+unblock_ls_remote
 assert_eq "$rc" 1 "dead origin on resume: exit status"
+assert_contains "$out" "git ls-remote origin refs/tags/dist-v0.2.0 failed" "dead origin on resume: names the probe failure"
 refute_tag dist-v0.2.0 "dead origin on resume"
 # A missing local tag may be one origin holds: the fetch is what would restore
 # it. An unreadable origin must refuse as the fetch failure, not claim "no

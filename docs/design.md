@@ -202,6 +202,7 @@ present tense.
 - **It runs from `main` or `dev` and publishes the tag's commit to `main`**:
   both mains are checked as ancestors of `HEAD` after a fetch, before anything
   is written, and local `main` is fast-forwarded without a checkout.
+- A resume publishes only a tag whose commit is on `HEAD`'s history.
 - **It borrows the shape, not the code**: the same idempotent tail.
 - A bump is refused while the current `toolkit/VERSION` is tagged but not fully
   published.

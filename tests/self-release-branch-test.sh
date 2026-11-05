@@ -295,6 +295,27 @@ assert_eq "$rc" 1 "resume, origin main ahead: exit status"
 assert_contains "$out" "origin/main is not an ancestor of HEAD" "resume, origin main ahead"
 assert_eq "$(rev refs/heads/main)" "$main_before" "resume, origin main ahead: local main"
 
+echo "=== a resume refuses a tag whose commit is off HEAD's history ==="
+new_sandbox
+hand_release
+git -C "$repo" reset -q --hard HEAD~1
+printf '0.2.0\n' > "$repo/toolkit/VERSION"
+git -C "$repo" add toolkit/VERSION
+git -C "$repo" commit -qm "a separate commit at the same version"
+git -C "$repo" merge-base --is-ancestor refs/heads/main v0.2.0 \
+    || fail "fixture: main cannot fast-forward to the tag, so git would refuse the move anyway"
+if git -C "$repo" merge-base --is-ancestor v0.2.0 HEAD; then
+    fail "fixture: the tag is on HEAD's history"
+fi
+main_before=$(rev refs/heads/main)
+origin_before=$(git -C "$repo" ls-remote origin)
+run --resume
+assert_eq "$rc" 1 "resume, tag off HEAD: exit status"
+assert_contains "$out" "v0.2.0 is not on the history of dev" "resume, tag off HEAD"
+assert_eq "$(rev refs/heads/main)" "$main_before" "resume, tag off HEAD: local main"
+assert_eq "$(git -C "$repo" ls-remote origin)" "$origin_before" "resume, tag off HEAD: origin refs"
+assert_eq "$(rev refs/tags/dist-v0.2.0)" "" "resume, tag off HEAD: no dist tag cut"
+
 echo "=== a resume leaves main past the tag where it is ==="
 new_sandbox
 complete_release

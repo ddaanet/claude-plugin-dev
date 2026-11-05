@@ -76,8 +76,9 @@ common_preflight() {
     # instead of refusing here.
     [[ "$file_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] \
         || die "toolkit/VERSION is not X.Y.Z: '$file_version'"
-    # A plain fetch: origin's main is read below, and a tag on its history that
-    # this clone lacks comes back with it.
+    # A plain fetch: origin's main is read below, and git's tag following can
+    # bring back a tag this clone lacks. resume_preflight judges a tag by its
+    # commit, not by how it arrived.
     git fetch origin || die "git fetch origin failed"
     # Refused before anything is written: with either main holding commits HEAD
     # lacks, the move or the push would refuse only after the tag was cut.
@@ -184,15 +185,17 @@ resume_preflight() {
     tag="v$V"
     dist_tag="dist-$tag"
     # Resume only ever finishes a release whose commit and tag already landed.
-    # common_preflight's fetch has restored a release tag on origin's history, so
-    # no tag here means no release was started at this version, and tagging HEAD
-    # on a guess would tag whatever work landed since.
+    # With no tag after common_preflight's fetch there is nothing to finish, and
+    # tagging HEAD on a guess would tag whatever work landed since.
     git rev-parse -q --verify "refs/tags/$tag" >/dev/null || {
         printf 'hint: no release was started at %s.\n' "$V" >&2
         # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
         printf '      run `just release <bump>` instead.\n' >&2
         die "no tag $tag for toolkit/VERSION $V"
     }
+    # A tag off HEAD's history would move main, and publish, off the branch the next release is cut from.
+    git merge-base --is-ancestor "$tag^{commit}" HEAD \
+        || die "$tag is not on the history of $branch"
 }
 
 bump_commit_tag() {
