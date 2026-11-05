@@ -86,4 +86,39 @@ resume_preflight() {
         fi
         die "no tag $tag for plugin.json version $V"
     }
+    # The tag's commit must be one HEAD contains: the resume publishes that commit,
+    # and origin's main must reach it by fast-forward. No ancestry check on main or
+    # origin/main here: those guard a commit and tag about to be cut, and a release
+    # already on origin's main has nothing left they would protect.
+    if ! git merge-base --is-ancestor "$tag^{commit}" HEAD; then
+        if git merge-base --is-ancestor "$tag^{commit}" "$main_branch"; then
+            printf 'hint: %s names a commit that %s lacks, and local %s has it. Merge it:\n' \
+                "$tag" "$branch" "$main_branch" >&2
+            printf '      git merge %s\n' "$main_branch" >&2
+            # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
+            printf '      then run `just resume-release`.\n' >&2
+            die "$tag is not an ancestor of $branch — nothing was done"
+        fi
+        local remote_tag bump_sha
+        remote_tag=$(git ls-remote --tags origin "refs/tags/$tag") \
+            || die "could not read origin's tags — nothing was done"
+        if [ -n "$remote_tag" ]; then
+            printf 'hint: %s is already on origin and names a commit that %s lacks.\n' "$tag" "$branch" >&2
+            printf '      A published tag is not moved, so reconcile %s with it by hand.\n' "$branch" >&2
+            die "$tag is not an ancestor of $branch — nothing was done"
+        fi
+        # The last commit that changed the manifest's version line: the commit the
+        # release was cut to publish.
+        bump_sha=$(git log -1 --format=%h -G'^[[:space:]]*"version"[[:space:]]*:' HEAD -- "$manifest") \
+            || bump_sha=""
+        printf 'hint: %s names a commit that %s lacks, and origin does not have %s.\n' "$tag" "$branch" "$tag" >&2
+        if [ -n "$bump_sha" ]; then
+            printf '      Re-tag the commit that last changed the version, %s:\n' "$bump_sha" >&2
+            printf '      git tag -d %s\n' "$tag" >&2
+            printf '      git tag -a %s -m "Release %s" %s\n' "$tag" "$V" "$bump_sha" >&2
+        fi
+        # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
+        printf '      then run `just resume-release`.\n' >&2
+        die "$tag is not an ancestor of $branch — nothing was done"
+    fi
 }

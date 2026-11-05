@@ -57,6 +57,9 @@ acted=0
 first_release=0
 # 1 when the commit being released carries dist.include (dist_opted_in).
 dist_on=0
+# The commit the tag names, in both modes: set once the tag exists, before
+# move_main and push_branch read it.
+release_commit=""
 
 # shellcheck source=release-preflight.sh
 source "$here/release-preflight.sh"
@@ -72,12 +75,15 @@ source "$here/release-marketplace.sh"
 common_preflight
 if [ "$mode" = "release" ]; then
     release_preflight
+    branch_preflight
     dist_preflight
     bump_commit_tag
 else
     resume_preflight
     dist_opted_in "$tag^{commit}"
 fi
+release_commit=$(git rev-parse "$tag^{commit}")
+move_main
 push_branch
 push_tag
 if [ "$dist_on" = 1 ]; then

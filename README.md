@@ -320,7 +320,8 @@ the launcher shipped takes the steps in `plugin-dev/migrations/v0.9.0.md`.
   stays sandboxed, and under auto mode the `dangerouslyDisableSandbox` flag gets
   the call denied.
 - Default branch is auto-detected from `origin/HEAD`; recipes don't hardcode
-  `main`.
+  `main`. A release runs from that branch or from `dev`, never changes branch,
+  publishes the release commit to the default branch, and never pushes `dev`.
 - The version-guard hook fires on Write/Edit events targeting
   `.claude-plugin/plugin.json` and is a no-op outside plugin repositories (no
   manifest, no fire).
