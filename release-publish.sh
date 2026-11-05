@@ -117,9 +117,15 @@ move_main() {
     # Both modes, after the release commit exists and before push_branch. Brings
     # local main to the release commit when it lacks it, as a fast-forward: a
     # non-fast-forward fetch is refused, so main is never rewound. Nothing is
-    # pushed here.
-    if git merge-base --is-ancestor "$release_commit" "refs/heads/$main_branch"; then
-        return
+    # pushed here. A clone with no local main gets it created by the same fetch;
+    # probing an absent ref with merge-base would print a git `fatal:`.
+    local verb="moved to"
+    if git show-ref --verify --quiet "refs/heads/$main_branch"; then
+        if git merge-base --is-ancestor "$release_commit" "refs/heads/$main_branch"; then
+            return
+        fi
+    else
+        verb="created at"
     fi
     # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
     git fetch -q . "$release_commit:refs/heads/$main_branch" || {
@@ -128,7 +134,7 @@ move_main() {
         die "could not move $main_branch to $tag — nothing was pushed"
     }
     acted=1
-    note "branch $main_branch: moved to $tag"
+    note "branch $main_branch: $verb $tag"
 }
 
 push_branch() {
