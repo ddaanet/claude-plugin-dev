@@ -6,7 +6,8 @@
 # Scope: releasing a consumer plugin from `dev` as well as `main`. The release
 # moves main to the release commit and leaves dev checked out and unpublished;
 # a first release from dev; the branch refusals; local `main` or `origin/main`
-# holding a commit HEAD lacks; an origin with no `main`.
+# holding a commit HEAD lacks; an origin with no `main`; a clone with no local
+# `main`.
 # Siblings: the other tests/release-*-test.sh suites, one per scenario group
 # (release-core, -resume-push, -resume-hint, -tree, -first, -lost-tag,
 # -push-route, -tags, -rollback, -pipefail, -hint-size), and
@@ -327,6 +328,18 @@ if ! grep -qiE 'origin.*(no|without|lacks|missing|has not|does not have).*main|(
     printf '  --- output ---\n%s\n  --------------\n' "$out" >&2
 fi
 after_release "origin without main"
+
+echo "=== a clone with no local main releases from dev, and main is created ==="
+new_sandbox "1.2.3"
+to_dev
+git -C "$plugin" branch -q -D main
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "0" "no local main: exit status"
+rel="$(rev 'refs/tags/v1.2.4^{commit}')"
+[ -n "$rel" ] || fail "no local main: tag v1.2.4 does not resolve to a commit"
+assert_eq "$(rev refs/heads/main)" "$rel" "no local main: local main created at the release"
+assert_eq "$(origin_rev refs/heads/main)" "$rel" "no local main: origin main at the release"
+after_release "no local main"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2

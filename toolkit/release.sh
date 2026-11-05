@@ -16,6 +16,11 @@ set -euo pipefail
 # `^v[0-9]+\.[0-9]+\.[0-9]+$` exists yet, and the plugin's marketplace entry
 # plays no part in that decision.
 #
+# It runs from the default branch (main) or from dev, and never changes branch.
+# The tag's commit is pushed to main by refspec, so dev is never pushed and its
+# later commits stay local; local main is moved to the release commit by a
+# fast-forward, never a checkout.
+#
 # A plugin that carries dist.include (see dist.sh) also publishes its shipped
 # paths as the `dist` branch and a `dist-vX.Y.Z` tag, and its marketplace entry
 # follows that branch. Such a release needs `claude` on PATH for validation.

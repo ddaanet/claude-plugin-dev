@@ -299,7 +299,9 @@ detached `HEAD`, and never changes branch. This repo's own flow,
 `scripts/self-release.sh`, accepts the same two; the reasoning is in
 [self-release.md](self-release.md). Both publish the tag's commit to the default
 branch from either, and never push `dev`: later `dev` commits are not part of
-the release, so the push names the release commit, not the branch.
+the release, so the push names the release commit, not the branch. A resume from
+`main` pushes only the release commit too, so commits made on `main` after it
+stay local.
 
 Local `main` is moved to the release commit by a fast-forward fetch into the
 ref, never a checkout, and never a rewind; a refusal dies with nothing pushed
