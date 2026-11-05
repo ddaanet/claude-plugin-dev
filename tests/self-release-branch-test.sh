@@ -312,9 +312,32 @@ origin_before=$(git -C "$repo" ls-remote origin)
 run --resume
 assert_eq "$rc" 1 "resume, tag off HEAD: exit status"
 assert_contains "$out" "v0.2.0 is not on the history of dev" "resume, tag off HEAD"
+assert_contains "$out" "git tag -d v0.2.0 dist-v0.2.0" "resume, tag off HEAD: hint re-tags"
 assert_eq "$(rev refs/heads/main)" "$main_before" "resume, tag off HEAD: local main"
 assert_eq "$(git -C "$repo" ls-remote origin)" "$origin_before" "resume, tag off HEAD: origin refs"
 assert_eq "$(rev refs/tags/dist-v0.2.0)" "" "resume, tag off HEAD: no dist tag cut"
+
+echo "=== following the off-history hint finishes the release from the amended tree ==="
+new_sandbox
+git -C "$repo" worktree add -q "$sandbox/wt" main
+run minor
+assert_eq "$rc" 1 "hint followed: the release dies at the move"
+git -C "$repo" worktree remove --force "$sandbox/wt"
+old_dist_tree=$(rev "dist-v0.2.0^{tree}")
+printf '# amended manual\n' > "$repo/toolkit/README.md"
+git -C "$repo" add toolkit/README.md
+git -C "$repo" commit -q --amend --no-edit
+[ "$(rev HEAD:toolkit)" != "$old_dist_tree" ] \
+    || fail "fixture: the amend left toolkit/ as it was, so a stale dist tag would go unseen"
+run --resume
+assert_eq "$rc" 1 "hint followed: the amended tree refuses"
+hint_commands=$(grep -E '^ +git tag -d ' <<<"$out" || true)
+(cd "$repo" && bash -c "$hint_commands") >/dev/null || fail "hint followed: the printed commands failed: $hint_commands"
+run --resume
+assert_eq "$rc" 0 "hint followed: exit status"
+git -C "$repo" merge-base --is-ancestor v0.2.0 HEAD \
+    || fail "hint followed: v0.2.0 is not on HEAD's history"
+assert_eq "$(rev "dist-v0.2.0^{tree}")" "$(rev v0.2.0:toolkit)" "hint followed: dist tree is the tag's toolkit"
 
 echo "=== a resume leaves main past the tag where it is ==="
 new_sandbox

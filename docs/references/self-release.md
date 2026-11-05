@@ -104,7 +104,9 @@ A resume publishes only a tag whose commit is on `HEAD`'s history, however the
 tag arrived, and refuses any other before writing anything. A tag off that
 history names a commit the branch does not carry: fast-forwarding `main` to it
 would publish that commit and leave `main` off the branch the next release is
-cut from, and a resume cannot take published tags back.
+cut from, and a resume cannot take published tags back. The refusal's hint
+re-tags the commit and drops the dist tag too, because `ensure_dist_tag` would
+otherwise keep the tree split from the old commit.
 
 **`main` moves without a checkout.** After the tags, `main` is fast-forwarded to
 the tag's commit with `git fetch . <sha>:refs/heads/main`, before any push.

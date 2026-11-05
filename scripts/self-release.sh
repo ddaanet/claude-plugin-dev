@@ -194,8 +194,17 @@ resume_preflight() {
         die "no tag $tag for toolkit/VERSION $V"
     }
     # A tag off HEAD's history would move main, and publish, off the branch the next release is cut from.
-    git merge-base --is-ancestor "$tag^{commit}" HEAD \
-        || die "$tag is not on the history of $branch"
+    git merge-base --is-ancestor "$tag^{commit}" HEAD || {
+        local release_sha
+        # Only a release changes toolkit/VERSION, so this is the release commit as the branch now has it.
+        release_sha=$(git log -1 --format=%H -- toolkit/VERSION)
+        printf 'hint: %s names a commit %s does not carry, as after an amend or rebase of the release commit.\n' "$tag" "$branch" >&2
+        printf '      if %s is not on origin, these commands re-tag it:\n' "$tag" >&2
+        printf '        git tag -d %s %s; git tag -a %s -m "Release %s" %s\n' "$tag" "$dist_tag" "$tag" "$V" "$release_sha" >&2
+        # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
+        printf '      then run `just resume-release`.\n' >&2
+        die "$tag is not on the history of $branch"
+    }
 }
 
 bump_commit_tag() {
