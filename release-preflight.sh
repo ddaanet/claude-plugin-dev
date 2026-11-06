@@ -117,8 +117,9 @@ common_preflight() {
     # runs in both).
     #
     # branch.<b>.pushRemote and remote.pushDefault are not checked: each picks the
-    # remote for an unqualified `git push`, and nothing here runs one. A push that
-    # names its remote ignores both (measured), so they cannot move a release.
+    # remote for an unqualified `git push`, and the release runs none: every push,
+    # the marketplace bump's included, names origin and a refspec, which ignores
+    # both (measured), so they cannot move a release.
     #
     # Refuse when the key is SET, not when it diverges from origin: comparing URLs
     # for repository identity (scp-style, https and ssh spellings of one repository)
