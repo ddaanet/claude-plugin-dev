@@ -251,6 +251,10 @@ assert_eq "$(origin_rev 'refs/tags/v1.2.4^{commit}')" "$rel" "resume past later 
 assert_contains "$(cat "$GH_LOG")" "release create v1.2.4" "resume past later commit: GitHub release created"
 assert_eq "$(market_version)" "1.2.4" "resume past later commit: marketplace bumped"
 assert_contains "$out" "Release v1.2.4 complete" "resume past later commit: summary"
+# The push names the revision it uploaded, so a later commit left local is
+# visible: the release commit, not HEAD.
+assert_contains "$out" "branch main: pushed ${rel:0:7} release: 1.2.4" "resume past later commit: names the pushed revision"
+assert_not_contains "$out" "${later:0:7}" "resume past later commit: the later commit is not named as pushed"
 after_release "resume past later commit"
 
 echo "=== a resume of a complete release with a later dev commit pushes nothing ==="
@@ -274,6 +278,7 @@ assert_contains "$out" "already complete (nothing to do)" "complete release, lat
 assert_eq "$(origin_rev refs/heads/main)" "$rel" "complete release, later commit: origin main unchanged"
 assert_eq "$(origin_rev 'refs/tags/v1.2.4^{commit}')" "$rel" "complete release, later commit: tag unchanged"
 assert_eq "$(rev HEAD)" "$later" "complete release, later commit: HEAD untouched"
+assert_not_contains "$out" "main: pushed" "complete release, later commit: no push reported"
 assert_not_contains "$(cat "$GH_LOG")" "release create" "complete release, later commit: no GitHub release made"
 assert_eq "$(git -C "$marketplace-origin.git" rev-parse refs/heads/main)" "$market_before" "complete release, later commit: marketplace untouched"
 if git -C "$plugin-origin.git" cat-file -e "$later^{commit}" 2>/dev/null; then
@@ -297,6 +302,7 @@ assert_eq "$(rev refs/heads/main)" "$rel" "origin moved after push: local main a
 assert_contains "$(cat "$GH_LOG")" "release create v1.2.4" "origin moved after push: GitHub release created"
 assert_eq "$(market_version)" "1.2.4" "origin moved after push: marketplace bumped"
 assert_contains "$out" "Release v1.2.4 complete" "origin moved after push: summary"
+assert_not_contains "$out" "main: pushed" "origin moved after push: nothing uploaded, no push reported"
 after_release "origin moved after push"
 
 refused_resume() {

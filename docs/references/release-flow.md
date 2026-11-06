@@ -301,7 +301,9 @@ detached `HEAD`, and never changes branch. This repo's own flow,
 branch from either, and never push `dev`: later `dev` commits are not part of
 the release, so the push names the release commit, not the branch. A resume from
 `main` pushes only the release commit too, so commits made on `main` after it
-stay local.
+stay local. The consumer flow's push note therefore names the revision it
+uploaded (short sha, subject, age) rather than only the branch, and prints
+nothing of the kind when the branch was already there.
 
 Local `main` is moved to the release commit by a fast-forward fetch into the
 ref, never a checkout, and never a rewind; a refusal dies with nothing pushed
