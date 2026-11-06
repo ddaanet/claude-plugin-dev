@@ -176,7 +176,13 @@ push_branch() {
         die "push of $main_branch failed"
     }
     acted=1
-    note "branch $main_branch: pushed"
+    # Name the revision uploaded, not just the branch: the push carries the
+    # release commit only, so a commit made after it stays local, and a bare
+    # "pushed" reads as if it went too.
+    local subject
+    subject=$(git log -1 --format=%s "$release_commit")
+    [ "${#subject}" -le 60 ] || subject="${subject:0:59}…"
+    note "branch $main_branch: pushed $(git rev-parse --short "$release_commit") $subject ($(git log -1 --format=%cr "$release_commit"))"
 }
 
 print_undo() {
