@@ -222,6 +222,8 @@ present tense.
 - **It borrows the shape, not the code**: the same idempotent tail.
 - A bump is refused while the current `toolkit/VERSION` is tagged but not fully
   published.
+- No guard ties the bump to a migration note waiting above `toolkit/VERSION`;
+  one is added if a release ever lands below its note.
 - `resume-release` re-cuts `dist-vX.Y.Z` from the `vX.Y.Z` tag, never `HEAD`.
 - The clean-tree exclusion is a literal pathspec here.
 

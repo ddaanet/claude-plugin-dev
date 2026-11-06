@@ -63,6 +63,15 @@ what is missing. A probe that cannot read origin is not an absence: each
 `ls-remote` is captured into a variable and a failure ends the run as itself, so
 the missing-list hint never names a tag that was only unreachable.
 
+No guard ties the bump to the migration notes. A note's file name is its
+release's version, so a note written ahead of its release,
+`migrations/vX.Y.Z.md` while `toolkit/VERSION` is still below it, needs the bump
+that reaches that version; a smaller one publishes the change while
+`update.sh`'s crossed range stops short of the note. The bump is chosen by hand
+at release time, and a refusal is added if a release ever lands below a waiting
+note, not before: no release has produced that state, and every refusal is one
+more check each release has to pass.
+
 The consumer script has no equivalent guard because it does not need one:
 `release_preflight` reads the version from `plugin.json`, and a half-landed
 consumer release is caught by `check-version.sh` comparing the manifest against
