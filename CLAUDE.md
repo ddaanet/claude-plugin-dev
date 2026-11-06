@@ -66,7 +66,7 @@ just precommit
 ```
 
 Runs `bash -n` and `shellcheck` on the shell scripts, `check-refs.sh
---shipped toolkit` over this repo's own Markdown, `check-size.sh` over every file, a private
+--shipped toolkit` over this repo's own Markdown, `check-size.sh` over every file, `check-modes.sh` over `toolkit/`, a private
 `_import-check` that imports `release.just` into a stub consumer to
 catch justfile syntax errors (it imports `gates.just` beside it too), and then
 **every test under `tests/`**,

@@ -4,8 +4,8 @@ Why `check-modes.sh` runs in the consumer's own gate and not in this repo's
 tests or in `update.sh`, why it applies a rule over file contents and not a
 list, why it reads disk with `[ -x ]` and not the index, and why it checks only
 the directory it is vendored into. The sibling it is wired beside is argued in
-[size-check.md](size-check.md), including why a shipped check runs uncached and
-is wired by hand. The conclusions these arguments support are listed in
+[size-check.md](size-check.md), including why a shipped check is wired by hand.
+The conclusions these arguments support are listed in
 [../design.md](../design.md).
 
 ## Why it is consumer-side
@@ -61,17 +61,20 @@ not its concern, since the toolkit has no claim on how a consumer modes them,
 and a path argument would invite the call that checks the wrong tree. Symlinks
 and anything that is not a regular file are skipped.
 
-**Uncached.** The check runs on every call, for the reason `check-size` does:
-the set it reads is not one the consumer's sentinel hashes. Its cost is one
-listing and a two-byte read per file.
+**Uncached.** It is a `precommit` dependency, so it runs before any guarded
+body, at the cost of one listing and a two-byte read per file.
 
 ## Report
 
 Each file is one stderr line, `mode-lost: <path from the repo root>`, then a
-hint: the `chmod +x` command over those paths, each single-quoted so a path with
-a space or a quote runs as written, and a line to commit. A pass prints one line
-naming how many `#!` files it checked, so a check that read nothing is visible.
-Outside a work tree it prints one line and exits 1.
+hint: a `chmod +x` command over the same files by absolute path, each
+single-quoted so a path with a space or a quote runs as written, and a line to
+commit. The paths are absolute so the command runs from wherever the user's
+shell is when it is printed: the script runs from anywhere in the work tree, and
+`just` runs a recipe from the justfile's directory while the shell stays where
+it was. A pass prints one line naming how many `#!` files it checked, so a check
+that read nothing is visible. Outside a work tree it prints one line and exits
+1.
 
 **Residual bound.** A path holding a newline is reported as split lines.
 

@@ -8,7 +8,8 @@
 #
 # Usage: bash <dir>/check-modes.sh   (no arguments, from anywhere in the tree)
 # Exit 0 prints one sign-off line on stdout. Exit 1 prints one `mode-lost:`
-# stderr line per file, then a `chmod +x` line and a commit line.
+# stderr line per file, its path from the repo root, then a `chmod +x` line over
+# the absolute paths, runnable from anywhere, and a commit line.
 
 unset CDPATH
 
@@ -19,18 +20,22 @@ main() {
     judge
 }
 
-# locate: the script's own directory, absolute, and the work tree holding it.
+# locate: the script's own directory, absolute, and the work tree the caller
+# runs in, which must hold it. The root is asked from the caller's cwd, as
+# check-size.sh does, not from the script's directory: a linked worktree's
+# pre-commit hook exports GIT_DIR, and with no GIT_WORK_TREE git takes the cwd
+# as the top of the work tree, which the hook sets to the root.
 locate() {
     if ! self_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)"; then
         fail_run "cannot resolve the script's directory"
     fi
-    if ! root="$(git -C "$self_dir" rev-parse --show-toplevel 2>/dev/null)"; then
+    if ! root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
         fail_run "not inside a git work tree"
     fi
     case $self_dir in
         "$root") prefix="" ;;
         "$root"/*) prefix=${self_dir#"$root"/} ;;
-        *) fail_run "$self_dir is outside its work tree $root" ;;
+        *) fail_run "$self_dir is outside the work tree $root, the one the current directory is in" ;;
     esac
 }
 
@@ -69,6 +74,8 @@ scan() {
 }
 
 # judge: the sign-off on success; otherwise one line per file, then the hint.
+# The refusal names the path from the repo root; the hint's paths are absolute,
+# so the command runs from wherever the user's shell is when it is printed.
 judge() {
     local p hint=""
     if [ "${#lost[@]}" -eq 0 ]; then
@@ -77,7 +84,7 @@ judge() {
     fi
     for p in "${lost[@]}"; do
         printf 'mode-lost: %s\n' "$p" >&2
-        quote_path "$p"
+        quote_path "$root/$p"
         hint+=" $REPLY"
     done
     printf 'chmod +x%s\n' "$hint" >&2

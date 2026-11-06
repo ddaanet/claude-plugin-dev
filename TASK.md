@@ -1,3 +1,0 @@
-## Current task
-
-The consumer release-from-dev slice in `toolkit/` has an approved contract plan, `plans/2026-11-05-consumer-release-from-dev.md`: it pushes the tag's commit, refuses a release that origin's `main` moved past with a printed undo for a fresh release, runs ancestry checks in release mode only after `release_preflight` with `git fetch --no-tags`, and narrows the push-route refusal to `remote.origin.pushurl`. Its Probed section records what a throwaway prototype measured, including the rebase undo conflicting on the memory gitlink. First action: dispatch step 1, the red suite `tests/release-branch-test.sh` with the consumer fixture and the scenarios the plan lists, to a Sonnet author, then have a different agent review the red per step 2.

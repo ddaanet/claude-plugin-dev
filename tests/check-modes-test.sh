@@ -8,13 +8,15 @@
 # run verbatim, clears it; a file not starting `#!` passes at 644; an untracked
 # `#!` file is checked and an ignored one is not; a path with a space; files
 # outside the script's directory are not checked; a run from a subdirectory; a
-# run outside a work tree; a nested, differently named vendored directory.
+# run outside a work tree; a nested, differently named vendored directory; a
+# run with GIT_DIR exported, as a linked worktree's pre-commit hook has it.
 # Scripts are invoked by the relative path a consumer's recipe uses.
 #
 # Hint format the scenarios pin: stderr carries one `mode-lost: <path>` line
-# per file, then the `chmod +x` command standing alone on its own line, every
-# path single-quoted, runnable verbatim with bash from the repo root (so no
-# `hint:` prefix on that line), and the commit advice on a separate line.
+# per file, the path from the repo root, then the `chmod +x` command standing
+# alone on its own line, every path absolute and single-quoted, runnable
+# verbatim with bash from the repo root or any subdirectory (so no `hint:`
+# prefix on that line), and the commit advice on a separate line.
 #
 # Usage: bash tests/check-modes-test.sh   (run from repo root)
 set -euo pipefail
@@ -132,16 +134,22 @@ expect_pass() {
 # mode_lost_lines: the stderr lines starting with the refusal tag.
 mode_lost_lines() { grep '^mode-lost: ' <<<"$err" || true; }
 
-# run_hint: extract the chmod line printed on stderr and run it verbatim from
-# the repo root. A missing or doubled line is a failure, not a skipped step.
+# run_hint: extract the chmod line printed on stderr and run it verbatim, first
+# from a subdirectory the user's shell may sit in, then from the repo root. A
+# missing or doubled line is a failure, not a skipped step.
 run_hint() {
-    local hint n hint_rc=0
+    local hint n hint_rc
     hint="$(grep 'chmod +x' <<<"$err" || true)"
     n="$(printf '%s' "$hint" | grep -c '' || true)"
     assert_eq "$n" "1" "$1: exactly one chmod hint line"
     if [ -n "$hint" ]; then
+        mkdir -p "$repo/sub dir"
+        hint_rc=0
+        (cd "$repo/sub dir" && bash -c "$hint") >/dev/null 2>&1 || hint_rc=$?
+        assert_eq "$hint_rc" "0" "$1: the hint command runs verbatim from a subdirectory"
+        hint_rc=0
         (cd "$repo" && bash -c "$hint") >/dev/null 2>&1 || hint_rc=$?
-        assert_eq "$hint_rc" "0" "$1: the hint command runs verbatim"
+        assert_eq "$hint_rc" "0" "$1: the hint command runs verbatim from the root"
     fi
 }
 
@@ -260,6 +268,26 @@ assert_not_contains "$err" "decoy.sh" "nested prefix: a plugin-dev/ beside it is
 run_hint "nested prefix"
 run_check
 expect_pass "nested prefix: rerun after the hint"
+
+# A linked worktree's pre-commit hook exports GIT_DIR, and with no
+# GIT_WORK_TREE git takes the cwd as the top of the work tree. GIT_DIR alone,
+# pointing at a plain fixture's .git, reproduces that, with the cwd at the root
+# as a hook has it.
+begin "GIT_DIR exported as a hook has it: paths from the repo root"
+mk_repo
+printf 'plugin-dev/ignored.sh\n' > "$repo/.gitignore"
+put 644 plugin-dev/lost.sh '#!/bin/sh'
+put 644 plugin-dev/ignored.sh '#!/bin/sh'
+git -C "$repo" add .gitignore plugin-dev/check-modes.sh plugin-dev/lost.sh
+export GIT_DIR="$repo/.git"
+run_check
+assert_eq "$rc" "1" "git-dir: exit code"
+assert_contains "$err" "mode-lost: plugin-dev/lost.sh" "git-dir: path from the repo root"
+assert_not_contains "$err" "ignored.sh" "git-dir: the root .gitignore still applies"
+run_hint "git-dir"
+run_check
+expect_pass "git-dir: rerun after the hint"
+unset GIT_DIR
 
 begin "outside a work tree: one stderr line, exit 1"
 sandbox="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/check-modes.XXXXXX")" && pwd -P)"
