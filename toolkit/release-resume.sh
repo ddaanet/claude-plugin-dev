@@ -108,15 +108,27 @@ resume_preflight() {
             printf '      A published tag is not moved, so reconcile %s with it by hand.\n' "$branch" >&2
             die "$tag is not an ancestor of $branch — nothing was done"
         fi
-        # The last commit that changed the manifest's version line: the commit the
-        # release was cut to publish.
-        bump_sha=$(git log -1 --format=%h -G'^[[:space:]]*"version"[[:space:]]*:' HEAD -- "$manifest") \
-            || bump_sha=""
+        # A release with an earlier release tag cut a bump commit, the last one to
+        # change the manifest's version line; a first release tags HEAD as it was,
+        # so that line names an older commit it never published. Same guard as
+        # print_undo in release-publish.sh.
+        local earlier
+        earlier=$(release_tags | grep -vxF -- "$tag") || earlier=""
+        bump_sha=""
+        if [ -n "$earlier" ]; then
+            bump_sha=$(git log -1 --format=%h -G'^[[:space:]]*"version"[[:space:]]*:' HEAD -- "$manifest") \
+                || bump_sha=""
+        fi
         printf 'hint: %s names a commit that %s lacks, and origin does not have %s.\n' "$tag" "$branch" "$tag" >&2
         if [ -n "$bump_sha" ]; then
             printf '      Re-tag the commit that last changed the version, %s:\n' "$bump_sha" >&2
             printf '      git tag -d %s\n' "$tag" >&2
             printf '      git tag -a %s -m "Release %s" %s\n' "$tag" "$V" "$bump_sha" >&2
+        elif [ -z "$earlier" ]; then
+            printf '      This is a first release, so no bump commit names it. Re-tag the commit it was meant to publish,\n' >&2
+            printf '      substituting its sha for <commit>:\n' >&2
+            printf '      git tag -d %s\n' "$tag" >&2
+            printf '      git tag -a %s -m "Release %s" <commit>\n' "$tag" "$V" >&2
         fi
         # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
         printf '      then run `just resume-release`.\n' >&2

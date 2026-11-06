@@ -352,6 +352,28 @@ assert_contains "$out" "${bump_sha:0:7}" "tag off history, main lacks it: hint n
 assert_not_contains "$out" "git merge main" "tag off history, main lacks it: no merge hint"
 assert_eq "$(rev 'refs/tags/v1.2.4^{commit}')" "$rel" "tag off history, main lacks it: tag not moved"
 
+echo "=== a first release's tag amended off history: the hint names no older commit ==="
+new_sandbox "1.2.3"
+# No earlier release tag: drop the fixture's v1.2.3 everywhere. The manifest's
+# version line was last changed by the init commit, an older commit than the
+# one the first release tagged as-is.
+init_sha="$(rev HEAD)"
+git -C "$plugin" push -q origin :refs/tags/v1.2.3
+git -C "$plugin" tag -d v1.2.3 >/dev/null
+to_dev
+git -C "$plugin" tag -a v1.2.3 -m "Release 1.2.3"
+git -C "$plugin" commit -q --amend -m "work: dev-work.md, amended"
+main_before="$(origin_rev refs/heads/main)"
+head_before="$(rev HEAD)"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "1" "first release amended: exit status"
+assert_eq "$(rev HEAD)" "$head_before" "first release amended: HEAD untouched"
+assert_eq "$(origin_rev refs/tags/v1.2.3)" "" "first release amended: no tag on origin"
+assert_eq "$(origin_rev refs/heads/main)" "$main_before" "first release amended: origin main untouched"
+assert_not_contains "$(cat "$GH_LOG")" "release create" "first release amended: no GitHub release"
+assert_contains "$out" "git tag -a v1.2.3" "first release amended: hint re-tags"
+assert_not_contains "$out" "${init_sha:0:7}" "first release amended: hint does not name the older commit"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
