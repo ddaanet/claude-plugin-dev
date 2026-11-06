@@ -47,6 +47,10 @@ alternatives that were rejected.
   a shipped file's link out of `dist.include`; a plugin adds it to its own
   `precommit` (nothing in `release.just` depends on it), see
   [Reference check](toolkit/README.md#reference-check).
+- **`just check-size`** — refuses a file over 20000 bytes, or 10000 for a
+  `SKILL.md`, minus the entries of a root `size.exempt`; a plugin adds it to its
+  own `precommit` (nothing in `release.just` depends on it), see
+  [Size check](toolkit/README.md#size-check).
 - **`just check-frontmatter`** — refuses a skill, agent or command whose
   frontmatter is missing, not YAML, or breaks the toolkit's field rules; a
   plugin adds it to its own `precommit` (nothing in `release.just` depends on
