@@ -66,8 +66,8 @@ dotfiles).
   `precommit: check-refs check-size check-frontmatter`. Refuses a skill, agent
   or command whose frontmatter is missing, not YAML, or breaks the toolkit's
   field rules. See [Frontmatter check](#frontmatter-check).
-- **`run-bats.sh`** — opt-in quiet runner for `bats`: failures and a pass count
-  instead of the TAP stream.
+- **`run-bats.sh`** — opt-in quiet runner for `bats`: failures and a pass, fail
+  and skip count instead of the TAP stream.
 - **`install.sh`** — one-shot install script: vendors the toolkit (resolving the
   newest `dist-` tag when no ref is given), inserts the justfile import line,
   and wires the version-guard hook and the two dogfood hooks into
