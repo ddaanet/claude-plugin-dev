@@ -371,7 +371,9 @@ assert_eq "$(rev HEAD)" "$head_before" "first release amended: HEAD untouched"
 assert_eq "$(origin_rev refs/tags/v1.2.3)" "" "first release amended: no tag on origin"
 assert_eq "$(origin_rev refs/heads/main)" "$main_before" "first release amended: origin main untouched"
 assert_not_contains "$(cat "$GH_LOG")" "release create" "first release amended: no GitHub release"
-assert_contains "$out" "git tag -a v1.2.3" "first release amended: hint re-tags"
+assert_contains "$out" "first release made no bump commit" "first release amended: first-release wording"
+assert_not_contains "$out" "git tag -d" "first release amended: no command deleting the tag"
+assert_not_contains "$out" "<commit>" "first release amended: no placeholder"
 assert_not_contains "$out" "${init_sha:0:7}" "first release amended: hint does not name the older commit"
 
 if (( failures > 0 )); then

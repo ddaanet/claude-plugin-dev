@@ -44,6 +44,7 @@ on origin's `main` has nothing left they protect. When local main has it, the
 hint is `git merge main`. Otherwise, while the tag is not on origin, the hint
 re-tags the last commit that changed the manifest's `version` line when an
 earlier release tag exists, since only such a release cut a bump commit; a first
-release tags `HEAD` as it was, so the hint names no sha and leaves a `<commit>`
-placeholder for the commit the release was meant to publish. A tag already on
-origin is never moved, and the hint says to reconcile the branch by hand.
+release tags `HEAD` as it was, so the hint names no sha and prints no command:
+it says to move the tag to the commit the release was meant to publish. A tag
+already on origin is never moved, and the hint says to reconcile the branch by
+hand.

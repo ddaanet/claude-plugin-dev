@@ -125,10 +125,8 @@ resume_preflight() {
             printf '      git tag -d %s\n' "$tag" >&2
             printf '      git tag -a %s -m "Release %s" %s\n' "$tag" "$V" "$bump_sha" >&2
         elif [ -z "$earlier" ]; then
-            printf '      This is a first release, so no bump commit names it. Re-tag the commit it was meant to publish,\n' >&2
-            printf '      substituting its sha for <commit>:\n' >&2
-            printf '      git tag -d %s\n' "$tag" >&2
-            printf '      git tag -a %s -m "Release %s" <commit>\n' "$tag" "$V" >&2
+            printf '      A first release made no bump commit to name. Move %s to the commit the release\n' "$tag" >&2
+            printf '      was meant to publish,\n' >&2
         fi
         # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
         printf '      then run `just resume-release`.\n' >&2
