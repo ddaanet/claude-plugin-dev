@@ -214,6 +214,23 @@ for setting in branch.main.pushRemote remote.pushDefault; do
     assert_eq "$(market_version)" "1.2.4" "set $setting: marketplace bumped"
 done
 
+echo "=== release: the marketplace bump lands on the marketplace's origin despite remote.pushDefault ==="
+# The marketplace clone has its own config; an unqualified push there would follow
+# pushDefault to the second remote while the probe reads origin.
+new_sandbox "1.2.3"
+mp_other="$sandbox/mp-target repo.git"
+git init -q --bare -b main "$mp_other"
+git -C "$marketplace" remote add pushtarget "$mp_other"
+git -C "$marketplace" config remote.pushDefault pushtarget
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "0" "marketplace pushDefault: exit code"
+assert_eq "$(market_version)" "1.2.4" "marketplace pushDefault: marketplace bumped"
+mp_local="$(git -C "$marketplace" rev-parse HEAD)"
+mp_origin="$(git -C "$marketplace-origin.git" rev-parse -q --verify refs/heads/main || true)"
+assert_eq "$mp_origin" "$mp_local" "marketplace pushDefault: bump reached the marketplace origin"
+mp_target_refs="$(git -C "$mp_other" for-each-ref --format='%(refname)')"
+assert_eq "$mp_target_refs" "" "marketplace pushDefault: nothing reached the other remote"
+
 echo "=== resume: common_preflight refuses a diverged remote.origin.pushurl ==="
 # The setup release must succeed, or the refusal below would be the only thing
 # this scenario observes: nothing downstream would notice a broken fixture.

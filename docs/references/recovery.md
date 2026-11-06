@@ -257,7 +257,8 @@ and `--resume` alike.
 
 `branch.<name>.pushRemote` and `remote.pushDefault` are not checked. Each
 selects the remote for an unqualified `git push`, and the release runs none:
-every push names origin and a refspec, which ignores both (measured).
+every push, the marketplace bump's included, names origin and a refspec, which
+ignores both (measured).
 
 Refusing when a key is *set*, rather than when it "diverges" from origin:
 deciding whether two URLs name the same repository (`git@host:o/p.git`,
