@@ -43,7 +43,7 @@ Before adding, moving or editing a shipped file, open
   toolkit *is*. Read it first and open only the node you need.
 - `docs/references/*.md` — one node per group of decisions (a large group may take more than one)
   (`distribution`, `dist-branch`, `check-refs`, `dogfood`, `dogfood-sync`,
-  `gates`, `release-flow`, `recovery`, `failed-release`, `clean-tree`, `self-release`, `size-check`, `frontmatter-check`, `version-guard`, and
+  `gates`, `release-flow`, `recovery`, `failed-release`, `clean-tree`, `self-release`, `size-check`, `frontmatter-check`, `mode-check`, `version-guard`, and
   `limitations`, which argues the hub's one-line limitations), each holding the argument behind
   the hub's conclusions: alternatives weighed, what it costs. A decision
   that changes is rewritten in both places.

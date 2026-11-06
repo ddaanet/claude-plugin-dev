@@ -18,7 +18,7 @@ _default:
 precommit:
     #!{{ plugin_dev_gate_prolog }}
     # The inputs are every non-ignored file, since the checks read essentially
-    # all of them (citation, doc-sync, check-refs, check-size), all from disk.
+    # all of them (citation, doc-sync, check-refs, check-size, check-modes), all from disk.
     # `memory` is excluded because it is a submodule gitlink, which hashes by
     # name only: no edit inside it would move the hash. No check here reads it.
     sentinel-guard precommit :/ ':(top,exclude)memory'
@@ -30,6 +30,7 @@ precommit:
     shellcheck -x toolkit/*.sh toolkit/bin/claude scripts/*.sh
     bash toolkit/check-refs.sh --shipped toolkit
     bash toolkit/check-size.sh
+    bash toolkit/check-modes.sh
     # Every suite under tests/ is syntax-checked and run by glob, so a suite
     # added there is gated without a second list to edit. `bash -n` takes one
     # script, hence the loop.
@@ -225,6 +226,9 @@ _import-check:
     # `check-frontmatter` likewise runs the script alone, with no gate.
     dry_is check-frontmatter 'bash "plugin-dev/check-frontmatter.sh"'
 
+    # `check-modes` likewise runs the script alone, with no gate.
+    dry_is check-modes 'bash "plugin-dev/check-modes.sh"'
+
     # Missing `prerelease` must be a hard error naming the missing recipe --
     # this is the contract consumers are told about, so test it, don't assume.
     stub missing ""
@@ -244,4 +248,4 @@ _import-check:
     grep -q '^sentinel-guard () {' <<< "$out" \
         || { echo "error: gates.just did not expose the prolog beside release.just" >&2; exit 1; }
 
-    echo "release.just import: ok (plain + widened + missing gate, resume-release, dogfood, check-refs, check-size, check-frontmatter, gates.just beside it)"
+    echo "release.just import: ok (plain + widened + missing gate, resume-release, dogfood, check-refs, check-size, check-frontmatter, check-modes, gates.just beside it)"

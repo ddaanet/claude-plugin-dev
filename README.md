@@ -51,6 +51,9 @@ alternatives that were rejected.
   frontmatter is missing, not YAML, or breaks the toolkit's field rules; a
   plugin adds it to its own `precommit` (nothing in `release.just` depends on
   it), see [Frontmatter check](toolkit/README.md#frontmatter-check).
+- **`just check-modes`** — refuses a vendored script that starts with `#!` but
+  is not executable; a plugin adds it to its own `precommit` (nothing in
+  `release.just` depends on it), see [Mode check](toolkit/README.md#mode-check).
 - **`just update-plugin-dev [dist-vX.Y.Z]`** — pulls a newer toolkit version in
   and prints the migration notes for the range crossed.
 - **An opt-in `dist` branch** — a plugin that lists its shipped paths in

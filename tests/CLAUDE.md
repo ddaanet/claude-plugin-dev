@@ -26,6 +26,9 @@ is, which files are read and exempt, `plans/` always skipped, and the shipped
 check), `check-size-{scope,exempt,report}-test.sh` (`check-size.sh`: which files
 are counted (including `linguist-generated` files), the `size.exempt` refusals,
 and the report, caps and counts),
+`check-modes-test.sh` (`check-modes.sh`, run from a copy in a fixture
+`plugin-dev/`: a `#!` file at 644 is refused with `mode-lost`, the hint's
+chmod clears it, which files are read, and the sign-off count),
 `check-frontmatter-{block,fields,scope,interpreter}-test.sh`
 (`check-frontmatter.sh`, against fixture plugin repos and the venv's real
 PyYAML: the block refusals, the `description` and `name` refusals (a skill's

@@ -200,6 +200,18 @@ present tense.
   needs a venv the consumer adds.
 - Runtime loading was not probed.
 
+### The mode check — [references/mode-check.md](references/mode-check.md)
+
+- A vendored script flipped to 644 by a later consumer commit passes every gate
+  that calls it as `bash <script>`, so only a check in the consumer's own gate
+  sees it; a producer test and an `update.sh` warning never do.
+- The rule is by content, not a list: a file starting with `#!` must be
+  executable, and every shipped `#!` script is, including those only run via
+  `bash` or sourced.
+- Modes are read from disk with `[ -x ]`, not the index.
+- It checks only the directory it lives in.
+- `check-modes.sh` is a shipped script run uncached, wired by hand.
+
 ### This repo's own release — [references/self-release.md](references/self-release.md)
 
 - The toolkit releases itself with a separate script.

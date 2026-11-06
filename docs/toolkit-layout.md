@@ -6,8 +6,9 @@ when a bullet and the tree disagree.
 
 - `toolkit/release.just` — the recipes imported into consumer plugins'
   justfiles: `release`, `resume-release`, `check-version`, `check-refs`,
-  `check-frontmatter`, `update-plugin-dev`, `dogfood`. Thin wrappers over the
-  scripts beside it; not run from this repo directly.
+  `check-size`, `check-frontmatter`, `check-modes`, `update-plugin-dev`,
+  `dogfood`. Thin wrappers over the scripts beside it; not run from this repo
+  directly.
 - `toolkit/release.sh` — the release flow itself. Validates state, bumps
   `.claude-plugin/plugin.json`, commits, tags, pushes, creates the GitHub
   release, and bumps the marketplace entry. `--resume` probes what already
@@ -61,10 +62,20 @@ when a bullet and the tree disagree.
   `precommit: check-refs check-size check-frontmatter`. Executable on disk,
   which `tests/dist-tree-test.sh` pins. This repo has no skills, so its
   `precommit` does not run it.
+- `toolkit/check-modes.sh` — refuses a script that starts with `#!` and lacks
+  the execute bit. Checks the directory it lives in, the vendored copy in a
+  consumer and `toolkit/` here, from anywhere in the work tree and with no
+  arguments. Reads the files git does not ignore from disk and tests each with
+  `[ -x ]`, so a file flipped to 644 by a consumer commit after vendoring is
+  caught. Uncached; consumers wire
+  `precommit: check-refs check-size check-frontmatter check-modes`. Executable
+  on disk, which `tests/dist-tree-test.sh` pins by the same rule over every
+  shipped file.
 - `toolkit/exempt-list.sh` — sourced by `check-size.sh` and `check-refs.sh` from
-  their own directory, not executable: the one reader of `size.exempt` and
-  `refs.exempt`, and the scope rule both apply (`plugin-dev/` and root `plans/`
-  as whole leading components). `dist.sh`'s `dist.include` reader stays its own.
+  their own directory, executable like every shipped file that starts with `#!`:
+  the one reader of `size.exempt` and `refs.exempt`, and the scope rule both
+  apply (`plugin-dev/` and root `plans/` as whole leading components).
+  `dist.sh`'s `dist.include` reader stays its own.
 - `toolkit/dogfood.sh` — the dogfood launcher's one script, with three
   subcommands. `sync` mirrors the plugin tree, minus git-ignored paths and every
   `.git`, into `dist/plugin/`, the copy the session loads; `pre-tool` is the

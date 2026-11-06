@@ -1,6 +1,5 @@
 ## Remaining
 
-- `inbox/2026-11-05-run-bats-counts-skips-as-passed.md`: its skip-count finding is fixed; its exec-bits finding waits on my human partner's choice of where a check runs. Delete the brief once that lands.
 - Cut the first toolkit release from `dev` when my human partner asks: it is the live check that gitlore's pre-push hook ignores the refspec, so far verified only by reading the hook.
 - Revise the release sequence in `memory/ddaanet/shared-claude.md`, which still has every repo check out `main` and fast-forward it around a release, though both the toolkit and consumer flows now release from `dev`.
 - The root `README.md` list "What a consumer plugin gets" omits `just check-size`; it predates 0.15.0, so that release's preflight left it.
