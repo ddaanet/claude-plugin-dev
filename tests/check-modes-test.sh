@@ -252,7 +252,7 @@ assert_not_contains "$err" "other/tool.sh" "subdir: still only its own directory
 run_check plugin-dev/bin ../check-modes.sh
 assert_eq "$rc" "1" "inside the checked dir: exit code"
 assert_contains "$err" "mode-lost: plugin-dev/bin/lost.sh" "inside the checked dir: path from the repo root"
-chmod 755 "$repo/plugin-dev/bin/lost.sh"
+run_hint "subdir"
 run_check docs ../plugin-dev/check-modes.sh
 expect_pass "subdir: clean"
 
