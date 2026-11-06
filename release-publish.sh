@@ -120,12 +120,10 @@ move_main() {
     # pushed here. A clone with no local main gets it created by the same fetch;
     # probing an absent ref with merge-base would print a git `fatal:`.
     local verb="moved to"
-    if git show-ref --verify --quiet "refs/heads/$main_branch"; then
-        if git merge-base --is-ancestor "$release_commit" "refs/heads/$main_branch"; then
-            return
-        fi
-    else
+    if ! git rev-parse -q --verify "refs/heads/$main_branch" >/dev/null; then
         verb="created at"
+    elif git merge-base --is-ancestor "$release_commit" "refs/heads/$main_branch"; then
+        return
     fi
     # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
     git fetch -q . "$release_commit:refs/heads/$main_branch" || {
@@ -265,8 +263,7 @@ push_dist() {
     # before create_github_release, so the marketplace never names a ref that is
     # not on origin. The branch and the tag are separate pushes, and the tag push
     # names dist-v$V: the release-dist suite's kill points match on both.
-    local src tip dist_sha="" landed=0 dist_tag dist_tree parent remote_dist local_dist
-    src=$(git rev-parse "$tag^{commit}")
+    local tip dist_sha="" landed=0 dist_tag dist_tree parent remote_dist local_dist
     dist_tag="dist-v$V"
     tip=$(ls_remote_sha . refs/heads/dist)
     if [ -n "$tip" ]; then
@@ -275,13 +272,13 @@ push_dist() {
             || die "could not fetch origin's dist branch to check it — nothing was pushed to dist"
         # The message is the record of which release commit the branch was built
         # from, so a match means this release's dist already landed.
-        if [ "$(git log -1 --format=%s "$tip")" = "dist v$V from $src" ]; then
+        if [ "$(git log -1 --format=%s "$tip")" = "dist v$V from $release_commit" ]; then
             landed=1
             dist_sha="$tip"
         fi
     fi
     if [ "$landed" = 0 ]; then
-        dist_tree=$(bash "$here/dist.sh" tree "$src") \
+        dist_tree=$(bash "$here/dist.sh" tree "$release_commit") \
             || die "the dist tree for $tag was refused (see dist: lines above) — nothing was pushed to dist"
         # The pre-flight validated HEAD before the bump. A resume has no such
         # check on this tree, so it validates the tree it is about to publish.
@@ -289,14 +286,14 @@ push_dist() {
             bash "$here/dist.sh" validate "$dist_tree" \
                 || die "the dist tree for $tag failed claude plugin validate --strict — nothing was pushed to dist"
         fi
-        # The commit is reproducible: dates come from $src and the parent is the
+        # The commit is reproducible: dates come from $release_commit and the parent is the
         # branch tip, so the same inputs rebuild the same sha on a resume.
         if [ -n "$tip" ]; then
             parent="$tip"
-            dist_sha=$(bash "$here/dist.sh" commit "$src" "$dist_tree" "$V" "$parent") \
+            dist_sha=$(bash "$here/dist.sh" commit "$release_commit" "$dist_tree" "$V" "$parent") \
                 || die "dist.sh could not build the dist commit for $tag — nothing was pushed to dist"
         else
-            dist_sha=$(bash "$here/dist.sh" commit "$src" "$dist_tree" "$V") \
+            dist_sha=$(bash "$here/dist.sh" commit "$release_commit" "$dist_tree" "$V") \
                 || die "dist.sh could not build the dist commit for $tag — nothing was pushed to dist"
         fi
     fi
