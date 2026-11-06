@@ -161,13 +161,13 @@ hand_release() {
     git -C "$repo" add toolkit/VERSION
     git -C "$repo" commit -qm "release: 0.2.0"
     git -C "$repo" tag -a v0.2.0 -m "Release 0.2.0"
+    release_sha=$(rev HEAD)
 }
 
 complete_release() {
     # A finished release, built by hand on dev: release commit, both tags, main
     # at the release commit, all pushed, and the GitHub release present.
     hand_release
-    release_sha=$(rev HEAD)
     local dist_sha
     dist_sha=$(git -C "$repo" subtree split -q --prefix=toolkit v0.2.0)
     git -C "$repo" tag -a dist-v0.2.0 -m "Dist 0.2.0" "$dist_sha"
@@ -246,15 +246,12 @@ assert_eq "$(tr -d '[:space:]' < "$repo/toolkit/VERSION")" 0.1.0 "origin main ah
 echo "=== a resume after a later dev commit publishes the tag, not HEAD ==="
 new_sandbox
 hand_release
-release_sha=$(rev HEAD)
 commit_in_repo later.md "after the release"
 later_sha=$(rev HEAD)
 run --resume
 assert_eq "$rc" 0 "resume past later commit: exit status"
 assert_eq "$(rev refs/heads/main)" "$release_sha" "resume past later commit: local main"
 assert_eq "$(origin_sha refs/heads/main)" "$release_sha" "resume past later commit: origin main"
-[ "$(origin_sha refs/heads/main)" != "$later_sha" ] \
-    || fail "resume past later commit: origin main is the later commit"
 assert_tag v0.2.0 origin "resume past later commit"
 assert_tag dist-v0.2.0 origin "resume past later commit"
 assert_eq "$(rev HEAD)" "$later_sha" "resume past later commit: HEAD"
@@ -299,9 +296,7 @@ echo "=== a resume refuses a tag whose commit is off HEAD's history ==="
 new_sandbox
 hand_release
 git -C "$repo" reset -q --hard HEAD~1
-printf '0.2.0\n' > "$repo/toolkit/VERSION"
-git -C "$repo" add toolkit/VERSION
-git -C "$repo" commit -qm "a separate commit at the same version"
+commit_in_repo toolkit/VERSION 0.2.0
 git -C "$repo" merge-base --is-ancestor refs/heads/main v0.2.0 \
     || fail "fixture: main cannot fast-forward to the tag, so git would refuse the move anyway"
 if git -C "$repo" merge-base --is-ancestor v0.2.0 HEAD; then
@@ -359,20 +354,16 @@ echo "=== a resume from main publishes the tag, not HEAD ==="
 new_sandbox
 git -C "$repo" checkout -q main
 hand_release
-release_sha=$(rev HEAD)
 commit_in_repo later.md "after the release"
 later_sha=$(rev HEAD)
 run --resume
 assert_eq "$rc" 0 "resume on main past tag: exit status"
 assert_eq "$(origin_sha refs/heads/main)" "$release_sha" "resume on main past tag: origin main"
-[ "$(origin_sha refs/heads/main)" != "$later_sha" ] \
-    || fail "resume on main past tag: origin main is the later commit"
 assert_eq "$(rev refs/heads/main)" "$later_sha" "resume on main past tag: local main"
 
 echo "=== a resume after a failed push, main already at the tag ==="
 new_sandbox
 hand_release
-release_sha=$(rev HEAD)
 git -C "$repo" branch -f main HEAD
 run --resume
 assert_eq "$rc" 0 "resume, main at tag: exit status"
@@ -382,7 +373,6 @@ assert_tag dist-v0.2.0 origin "resume, main at tag"
 assert_on_dev "resume, main at tag"
 new_sandbox
 hand_release
-release_sha=$(rev HEAD)
 git -C "$repo" branch -f main HEAD
 commit_in_repo later.md "after the release"
 run --resume

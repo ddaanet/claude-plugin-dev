@@ -207,15 +207,19 @@ writer_push() {
     other_sha="$(git -C "$other" rev-parse HEAD)"
 }
 
-hand_release() {
-    # $1=version. The release commit and tag release.sh would cut, built by hand
-    # on the current branch, so the resume scenarios depend on no script under
-    # test to set up. Sets $rel to the release commit.
+commit_version() {
+    # $1=version $2=commit subject. Sets the manifest's version and commits it.
     jq --arg v "$1" '.version = $v' "$plugin/.claude-plugin/plugin.json" \
         > "$plugin/.claude-plugin/plugin.json.tmp"
     mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
     git -C "$plugin" add .claude-plugin/plugin.json
-    git -C "$plugin" commit -qm "release: $1"
+    git -C "$plugin" commit -qm "$2"
+}
+hand_release() {
+    # $1=version. The release commit and tag release.sh would cut, built by hand
+    # on the current branch, so the resume scenarios depend on no script under
+    # test to set up. Sets $rel to the release commit.
+    commit_version "$1" "release: $1"
     git -C "$plugin" tag -a "v$1" -m "Release $1"
     rel="$(rev HEAD)"
 }
@@ -238,15 +242,12 @@ new_sandbox "1.2.3"
 to_dev
 hand_release "1.2.4"
 later_commit
-main_before="$(origin_rev refs/heads/main)"
 run_in "$plugin" bash plugin-dev/release.sh --resume
 assert_eq "$rc" "0" "resume past later commit: exit status"
 assert_eq "$(origin_rev refs/heads/main)" "$rel" "resume past later commit: origin main at the tag's commit"
 assert_eq "$(rev refs/heads/main)" "$rel" "resume past later commit: local main at the tag's commit"
 assert_eq "$(rev HEAD)" "$later" "resume past later commit: HEAD untouched"
-if git -C "$plugin-origin.git" cat-file -e "$later^{commit}" 2>/dev/null; then
-    fail "resume past later commit: the later dev commit reached origin"
-fi
+assert_eq "$(origin_rev "$later^{commit}")" "" "resume past later commit: the later dev commit did not reach origin"
 assert_eq "$(origin_rev 'refs/tags/v1.2.4^{commit}')" "$rel" "resume past later commit: tag on origin"
 assert_contains "$(cat "$GH_LOG")" "release create v1.2.4" "resume past later commit: GitHub release created"
 assert_eq "$(market_version)" "1.2.4" "resume past later commit: marketplace bumped"
@@ -281,9 +282,7 @@ assert_eq "$(rev HEAD)" "$later" "complete release, later commit: HEAD untouched
 assert_not_contains "$out" "main: pushed" "complete release, later commit: no push reported"
 assert_not_contains "$(cat "$GH_LOG")" "release create" "complete release, later commit: no GitHub release made"
 assert_eq "$(git -C "$marketplace-origin.git" rev-parse refs/heads/main)" "$market_before" "complete release, later commit: marketplace untouched"
-if git -C "$plugin-origin.git" cat-file -e "$later^{commit}" 2>/dev/null; then
-    fail "complete release, later commit: the later dev commit reached origin"
-fi
+assert_eq "$(origin_rev "$later^{commit}")" "" "complete release, later commit: the later dev commit did not reach origin"
 after_release "complete release, later commit"
 
 echo "=== origin moved after the push: the resume finishes with no merge ==="
@@ -316,10 +315,7 @@ refused_resume() {
 bump_on_head() {
     # The same version edit as hand_release, committed without a tag: a bump on
     # this branch that the tag does not point at.
-    jq '.version = "1.2.4"' "$plugin/.claude-plugin/plugin.json" > "$plugin/m.tmp"
-    mv "$plugin/m.tmp" "$plugin/.claude-plugin/plugin.json"
-    git -C "$plugin" add .claude-plugin/plugin.json
-    git -C "$plugin" commit -qm "bump to 1.2.4 on dev"
+    commit_version 1.2.4 "bump to 1.2.4 on dev"
     bump_sha="$(rev HEAD)"
 }
 

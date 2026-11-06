@@ -322,11 +322,7 @@ rel="$(rev 'refs/tags/v1.2.4^{commit}')"
 [ -n "$rel" ] || fail "origin without main: tag v1.2.4 does not resolve to a commit"
 assert_eq "$(origin_rev refs/heads/main)" "$rel" "origin without main: main created at the release"
 assert_eq "$(rev refs/heads/main)" "$rel" "origin without main: local main at the release"
-# The wording is the green phase's; the note must say origin has no main.
-if ! grep -qiE 'origin.*(no|without|lacks|missing|has not|does not have).*main|(no|without|missing).*main.*origin' <<<"$out"; then
-    fail "origin without main: no note saying origin has no main branch"
-    printf '  --- output ---\n%s\n  --------------\n' "$out" >&2
-fi
+assert_contains "$out" "origin has no main branch" "origin without main: says so"
 after_release "origin without main"
 
 echo "=== a clone with no local main releases from dev, and main is created ==="

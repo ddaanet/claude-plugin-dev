@@ -155,6 +155,25 @@ market_version() {
         "$marketplace/.claude-plugin/marketplace.json"
 }
 
+local_only_release() {
+    # $1=label. A fresh sandbox whose release committed and tagged locally but
+    # pushed nothing (a refusing pre-push hook), then the hook removed, the gh
+    # log emptied and a bare redirect repo made at $other.
+    new_sandbox "1.2.3"
+    cat > "$plugin/.git/hooks/pre-push" <<'HOOK'
+#!/bin/sh
+echo "pre-push: refusing" >&2
+exit 1
+HOOK
+    chmod +x "$plugin/.git/hooks/pre-push"
+    run_in "$plugin" bash plugin-dev/release.sh patch
+    assert_eq "$rc" "1" "resume-with-work ($1) setup release exit code"
+    rm -f "$plugin/.git/hooks/pre-push"
+    : > "$GH_LOG"
+    other="$sandbox/push-target repo.git"
+    git init -q --bare -b main "$other"
+}
+
 echo "=== release: common_preflight refuses a diverged remote.origin.pushurl ==="
 # The redirect target's path carries a space deliberately: `pushurl` stores a
 # filesystem path as its value, and the value is asserted verbatim against
@@ -176,15 +195,12 @@ echo "=== release: a set pushRemote or pushDefault no longer refuses, and the pu
 # Each names the remote an unqualified `git push` would use. The release's pushes
 # name origin, so the set key changes nothing: the release lands on origin, and
 # the redirect target receives no ref.
-for setting in pushRemote pushDefault; do
+for setting in branch.main.pushRemote remote.pushDefault; do
     new_sandbox "1.2.3"
     other="$sandbox/push-target repo.git"
     git init -q --bare -b main "$other"
     git -C "$plugin" remote add pushtarget "$other"
-    case "$setting" in
-        pushRemote)  git -C "$plugin" config branch.main.pushRemote pushtarget ;;
-        pushDefault) git -C "$plugin" config remote.pushDefault pushtarget ;;
-    esac
+    git -C "$plugin" config "$setting" pushtarget
     run_in "$plugin" bash plugin-dev/release.sh patch
     assert_eq "$rc" "0" "set $setting: exit code"
     rel="$(git -C "$plugin" rev-parse -q --verify 'refs/tags/v1.2.4^{commit}')"
@@ -221,21 +237,9 @@ echo "=== resume: a diverged pushurl is refused before a resume that HAS work to
 # Here the resume has real work: the commit and tag landed locally and nothing
 # was pushed. With the check deleted, push_branch would push main straight into
 # the redirect target, so the assertion is on that target's ref list.
-new_sandbox "1.2.3"
-cat > "$plugin/.git/hooks/pre-push" <<'HOOK'
-#!/bin/sh
-echo "pre-push: refusing" >&2
-exit 1
-HOOK
-chmod +x "$plugin/.git/hooks/pre-push"
-run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "1" "resume-with-work (pushurl) setup release exit code"
+local_only_release "pushurl"
 assert_eq "$(git -C "$plugin" rev-parse --verify -q refs/tags/v1.2.4 >/dev/null && echo yes || echo no)" \
     "yes" "resume-with-work (pushurl) setup left the tag local"
-rm -f "$plugin/.git/hooks/pre-push"
-: > "$GH_LOG"
-other="$sandbox/push-target repo.git"
-git init -q --bare -b main "$other"
 git -C "$plugin" config remote.origin.pushurl "$other"
 run_in "$plugin" bash plugin-dev/release.sh --resume
 assert_eq "$rc" "1" "resume-with-work (pushurl) exit code"
@@ -247,25 +251,10 @@ assert_eq "$(market_version)" "1.2.3" "resume-with-work (pushurl) marketplace un
 
 echo "=== resume: a set pushRemote or pushDefault does not stop a resume with work to do ==="
 # The same local-only tag, then the key is set and the resume finishes on origin.
-for setting in pushRemote pushDefault; do
-    new_sandbox "1.2.3"
-    cat > "$plugin/.git/hooks/pre-push" <<'HOOK'
-#!/bin/sh
-echo "pre-push: refusing" >&2
-exit 1
-HOOK
-    chmod +x "$plugin/.git/hooks/pre-push"
-    run_in "$plugin" bash plugin-dev/release.sh patch
-    assert_eq "$rc" "1" "resume-with-work ($setting) setup release exit code"
-    rm -f "$plugin/.git/hooks/pre-push"
-    : > "$GH_LOG"
-    other="$sandbox/push-target repo.git"
-    git init -q --bare -b main "$other"
+for setting in branch.main.pushRemote remote.pushDefault; do
+    local_only_release "$setting"
     git -C "$plugin" remote add pushtarget "$other"
-    case "$setting" in
-        pushRemote)  git -C "$plugin" config branch.main.pushRemote pushtarget ;;
-        pushDefault) git -C "$plugin" config remote.pushDefault pushtarget ;;
-    esac
+    git -C "$plugin" config "$setting" pushtarget
     run_in "$plugin" bash plugin-dev/release.sh --resume
     assert_eq "$rc" "0" "resume-with-work ($setting) exit code"
     rel="$(git -C "$plugin" rev-parse -q --verify 'refs/tags/v1.2.4^{commit}')"

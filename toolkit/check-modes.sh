@@ -48,19 +48,16 @@ scan() {
     checked=0
     lost=()
     tmp="$(mktemp "${TMPDIR:-/tmp}/check-modes.XXXXXX")" || fail_run "cannot create a temporary file"
-    if [ -n "$prefix" ]; then
-        git -C "$root" ls-files -z -co --exclude-standard -- ":(literal)$prefix" >"$tmp" \
-            || fail_run "git ls-files exited with an error"
-    else
-        git -C "$root" ls-files -z -co --exclude-standard >"$tmp" \
-            || fail_run "git ls-files exited with an error"
-    fi
+    local spec=()
+    [ -z "$prefix" ] || spec=(-- ":(literal)$prefix")
+    git -C "$root" ls-files -z -co --exclude-standard "${spec[@]}" >"$tmp" \
+        || fail_run "git ls-files exited with an error"
     while IFS= read -r -d '' rel; do
         full="$root/$rel"
         if [ ! -f "$full" ] || [ -L "$full" ]; then
             continue
         fi
-        magic="$(head -c 2 -- "$full")" || fail_run "cannot read $rel"
+        { IFS= read -r -n 2 -d '' magic || :; } <"$full" || fail_run "cannot read $rel"
         if [ "$magic" != '#!' ]; then
             continue
         fi

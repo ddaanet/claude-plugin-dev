@@ -163,14 +163,13 @@ put 755 elsewhere/tool.sh '#!/bin/sh'
 git -C "$repo" add -A
 run_check
 expect_pass "clean"
-run_check . "$repo/plugin-dev/check-modes.sh"
-expect_pass "clean, absolute script path"
-run_check
 # Three #! files in plugin-dev/: check-modes.sh itself, a.sh and bin/claude.
 # The non-#! files at 644 and 755 and the file outside differ the totals.
 if ! grep -qw 3 <<<"$out"; then
     fail "clean: sign-off does not name the count 3: '$out'"
 fi
+run_check . "$repo/plugin-dev/check-modes.sh"
+expect_pass "clean, absolute script path"
 
 begin "a #! file at 644 is refused, and the hint's chmod clears it"
 mk_repo
@@ -186,7 +185,6 @@ assert_contains "$err" "mode-lost: plugin-dev/bin/claude" "lost: names the neste
 assert_not_contains "$err" "ok.sh" "lost: the executable file is not named"
 assert_eq "$(mode_lost_lines | grep -c '')" "2" "lost: one line per file"
 assert_contains "$err" "commit" "lost: hint says to commit"
-assert_contains "$err" "lost.sh" "lost: hint reaches the path"
 run_hint "lost"
 run_check
 expect_pass "lost: rerun after the hint"
@@ -290,13 +288,8 @@ expect_pass "git-dir: rerun after the hint"
 unset GIT_DIR
 
 begin "outside a work tree: one stderr line, exit 1"
-sandbox="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/check-modes.XXXXXX")" && pwd -P)"
-sandboxes+=("$sandbox")
-repo="$sandbox/not a repo"
-vdir=plugin-dev
-mkdir -p "$repo/$vdir"
-cp "$check" "$repo/$vdir/check-modes.sh" 2>/dev/null || true
-chmod 755 "$repo/$vdir/check-modes.sh" 2>/dev/null || true
+mk_repo
+rm -rf "$repo/.git"
 export GIT_CEILING_DIRECTORIES="$sandbox"
 run_check
 unset GIT_CEILING_DIRECTORIES

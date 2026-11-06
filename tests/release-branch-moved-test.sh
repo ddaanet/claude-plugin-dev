@@ -160,11 +160,6 @@ JSON
     export MARKETPLACE_DIR="$marketplace"
 }
 
-market_version() {
-    jq -r '.plugins[] | select(.name=="fixture") | .version' \
-        "$marketplace/.claude-plugin/marketplace.json"
-}
-
 rev() {
     # $1=a revision in the plugin repo. Prints its sha, empty when it does not
     # resolve. Never fails: a missing ref is a value for an assertion to judge,
@@ -187,13 +182,6 @@ to_dev() {
     printf 'work on dev\n' > "$plugin/dev-work.md"
     git -C "$plugin" add -A
     git -C "$plugin" commit -qm "work: dev-work.md"
-}
-
-after_release() {
-    # $1=label. What every successful release from dev leaves: the branch it
-    # started on checked out, dev never published.
-    assert_eq "$(branch_now)" "dev" "$1: HEAD branch unchanged"
-    assert_eq "$(origin_rev refs/heads/dev)" "" "$1: dev not on origin"
 }
 
 make_virgin() {
@@ -263,25 +251,16 @@ moved_sha() {
     other_sha="$(cat "$sandbox/other-sha" 2>/dev/null || true)"
 }
 
-# Format the green phase must print: one command per line, each starting `git `
-# or `jq `; the jq step a single line ending `&& mv <tmp> <manifest>`; the commit
-# of it on separate `git` lines. A line may carry a `hint:` prefix, indentation,
-# list numbering, a `$ ` prompt or wrapping backticks; all are stripped.
 extract_undo() {
     # Sets $undo_cmds to the printed undo, one command per line: from the line
     # `git fetch --no-tags origin` to the line `git merge --no-edit origin/...`,
-    # keeping those starting with `git ` or `jq ` once a leading `hint:`,
-    # indentation and list numbering are stripped. Empty when none was printed.
+    # keeping those starting with `git ` or `jq ` once indentation and the
+    # `N. ` numbering are stripped. Empty when none was printed.
     local line s started=0
     undo_cmds=""
     while IFS= read -r line; do
-        s="${line#hint:}"
-        s="${s#"${s%%[![:space:]]*}"}"
-        if [[ "$s" =~ ^[0-9]+[.\)][[:space:]]+(.*)$ ]]; then
-            s="${BASH_REMATCH[1]}"
-        fi
-        s="${s#\$ }"
-        if [[ "$s" =~ ^\`(.*)\`$ ]]; then
+        s="${line#"${line%%[![:space:]]*}"}"
+        if [[ "$s" =~ ^[0-9]+\.[[:space:]]+(.*)$ ]]; then
             s="${BASH_REMATCH[1]}"
         fi
         if [ "$started" = 0 ]; then
@@ -299,7 +278,7 @@ check_refused() {
     # $1=label $2=tag $3=bump ("" for none). The release failed with nothing public: origin's main is
     # still the other writer's head, no tag on origin, no GitHub release.
     assert_eq "$rc" "1" "$1: exit status"
-    [ -e "$sandbox/moved" ] || [ "$mode_resume" = 1 ] || fail "$1: the other writer never moved origin"
+    [ -e "$sandbox/moved" ] || fail "$1: the other writer never moved origin"
     assert_eq "$(origin_rev refs/heads/main)" "$other_sha" "$1: origin main still the other writer's"
     assert_eq "$(origin_rev "refs/tags/$2")" "" "$1: no tag on origin"
     assert_not_contains "$(cat "$GH_LOG")" "release create" "$1: no GitHub release"
@@ -347,8 +326,6 @@ check_rerun() {
     assert_eq "$(branch_now)" "$3" "$1: checkout branch unchanged"
     assert_eq "$(origin_rev refs/heads/dev)" "" "$1: dev not on origin"
 }
-
-mode_resume=0
 
 echo "=== origin moved before the push, release from main ==="
 new_sandbox "1.2.3"

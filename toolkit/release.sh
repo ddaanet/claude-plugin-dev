@@ -83,11 +83,12 @@ if [ "$mode" = "release" ]; then
     branch_preflight
     dist_preflight
     bump_commit_tag
+    release_commit=$(git rev-parse "$tag^{commit}")
 else
     resume_preflight
-    dist_opted_in "$tag^{commit}"
+    release_commit=$(git rev-parse "$tag^{commit}")
+    dist_opted_in "$release_commit"
 fi
-release_commit=$(git rev-parse "$tag^{commit}")
 move_main
 push_branch
 push_tag
