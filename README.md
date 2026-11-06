@@ -9,10 +9,10 @@ dotfiles).
 
 - **`release.just`** — the recipes imported into the consumer's `justfile`:
   `release`, `resume-release`, `check-version`, `check-refs`, `check-size`,
-  `check-frontmatter`, `update-plugin-dev` and `dogfood`. All are one-line
-  wrappers: `release` and `resume-release` around `release.sh`, `check-refs`
-  around `check-refs.sh`, `update-plugin-dev` around `update.sh`, `dogfood`
-  around `dogfood.sh sync`.
+  `check-frontmatter`, `check-modes`, `update-plugin-dev` and `dogfood`. All are
+  one-line wrappers: `release` and `resume-release` around `release.sh`,
+  `check-refs` around `check-refs.sh`, `update-plugin-dev` around `update.sh`,
+  `dogfood` around `dogfood.sh sync`.
 - **`update.sh`** — pulls a newer toolkit version into the consumer. With no ref
   it resolves the newest `dist-` tag from the remote. After the pull it prints
   the migration notes for every version crossed — guidance to apply by hand; an
@@ -66,6 +66,10 @@ dotfiles).
   `precommit: check-refs check-size check-frontmatter`. Refuses a skill, agent
   or command whose frontmatter is missing, not YAML, or breaks the toolkit's
   field rules. See [Frontmatter check](#frontmatter-check).
+- **`check-modes.sh`** — opt-in, wired as
+  `precommit: check-refs check-size check-frontmatter check-modes`. Refuses a
+  vendored script that starts with `#!` but lacks the execute bit. See
+  [Mode check](#mode-check).
 - **`run-bats.sh`** — opt-in quiet runner for `bats`: failures and a pass, fail
   and skip count instead of the TAP stream.
 - **`install.sh`** — one-shot install script: vendors the toolkit (resolving the
@@ -282,6 +286,19 @@ as `precommit: check-refs check-size check-frontmatter`; it runs uncached and
 needs PyYAML in the dev group of `pyproject.toml`. What is read, each refusal,
 what is not refused and the setup are in
 [manual/frontmatter-check.md](manual/frontmatter-check.md).
+
+## Mode check
+
+Optional. `just check-modes` refuses a file under the vendored `plugin-dev/`
+that starts with `#!` but is not executable on disk. A recipe that runs a script
+as `bash <script>` passes whatever its mode, while `bin/claude` leaves PATH and
+a direct call fails, so a commit that flips a vendored script to 644 goes
+unseen. Wire it as
+`precommit: check-refs check-size check-frontmatter check-modes`; it runs
+uncached. It takes no arguments and checks only its own directory. Each refusal
+is one line, `mode-lost: <path>`, followed by the `chmod +x` command over those
+paths and a reminder to commit the mode change. A pass prints how many `#!`
+files it checked. Migration steps are in `plugin-dev/migrations/v0.16.0.md`.
 
 ## Dogfooding
 
