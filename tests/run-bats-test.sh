@@ -138,6 +138,26 @@ if [[ ! -f "$log" ]]; then
     fail "zero tests: the named log '$log' does not exist"
 fi
 
+# bats reports a skip as an `ok` line with a `# skip` directive, so a count of
+# `^ok ` lines alone reads it as a pass.
+echo "=== a skipped test is counted as skipped, not passed ==="
+run_runner "1..2
+ok 1 passes
+ok 2 skipped # skip why
+" 0 tests/a.bats
+assert_eq "$rc" "0" "partial skip: exit status"
+assert_eq "$out" "bats: 1 passed, 0 failed, 1 skipped" "partial skip: summary counts the skip apart"
+
+echo "=== a run whose every test skipped ran no test ==="
+run_runner "1..1
+ok 1 only skip # skip
+" 0 tests/a.bats
+if [[ "$rc" == "0" ]]; then
+    fail "all skipped: exited 0"
+fi
+assert_contains "$out" "no tests ran" "all skipped: the summary says so"
+assert_contains "$out" "bats: 0 passed, 0 failed, 1 skipped — full log: " "all skipped: summary line names the log"
+
 echo "=== arguments reach bats unchanged ==="
 run_runner "1..1
 ok 1 x
@@ -181,4 +201,4 @@ if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\nrun-bats ok (green, red, ok-only failure, no-TAP, zero tests, args, log collision, no bats)\n'
+printf '\nrun-bats ok (green, red, ok-only failure, no-TAP, zero tests, partial skip, all skipped, args, log collision, no bats)\n'

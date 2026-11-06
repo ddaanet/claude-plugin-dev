@@ -235,13 +235,16 @@ supported: it prints no `ok` line and the run counts as a run of no test. The
 whole log is shown whenever bats failed with no `not ok` block to show (a
 `teardown_file` crash, a test count that does not add up, an abort mid-run),
 since it is then the only account of the failure. A run that exits 0 having run
-no test (a `--filter` that matches nothing, an empty `.bats` file) is a failure,
-since a gate that records it has vouched for nothing: it prints
-`bats: no tests ran`, the log, and exits 1. A green run removes the log, because
-`$TMPDIR` can be a small tmpfs and a passing log is never read; a failed run
-keeps it, and only then does the summary line name it. The log template ends in
-its `X`s because BSD `mktemp` randomises only a trailing run of them. It does
-not depend on the sentinels, and a consumer may take either alone.
+no test (a `--filter` that matches nothing, an empty `.bats` file, a file whose
+every test calls `skip`) is a failure, since a gate that records it has vouched
+for nothing: it prints `bats: no tests ran`, the log, and exits 1. A skip is
+TAP's `ok` line with a `# skip` directive, so the summary counts it apart from
+the passes and names it only when there is one: a skip in a passing run is
+visible without failing it. A green run removes the log, because `$TMPDIR` can
+be a small tmpfs and a passing log is never read; a failed run keeps it, and
+only then does the summary line name it. The log template ends in its `X`s
+because BSD `mktemp` randomises only a trailing run of them. It does not depend
+on the sentinels, and a consumer may take either alone.
 
 ## Out of scope
 
