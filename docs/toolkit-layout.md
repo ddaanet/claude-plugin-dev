@@ -96,8 +96,8 @@ when a bullet and the tree disagree.
   `PLUGIN_DEV_GATE_TOOLS`; it defines no other variable, so it imports beside
   `release.just` without a name clash.
 - `toolkit/run-bats.sh` — the quiet bats runner, opt-in and independent of the
-  sentinels: failures and a pass count in place of the TAP stream. Executable on
-  disk, which `tests/dist-tree-test.sh` pins.
+  sentinels: failures and a pass, fail and skip count in place of the TAP
+  stream. Executable on disk, which `tests/dist-tree-test.sh` pins.
 - `toolkit/README.md` — the consumer-facing manual, shipped in the dist tree.
   The place a plugin maintainer reads; keep it in step with the scripts above.
   Its chapters live in the `manual` directory, which holds user documentation
