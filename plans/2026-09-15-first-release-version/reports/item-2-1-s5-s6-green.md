@@ -9,19 +9,25 @@ Scope: `toolkit/version-guard.sh` only. `tests/hook-test.sh` was not touched
 order:
 
 1. **Clears leaked `GIT_*` before the listing** (`:82-91`), via a hardcoded
-   `unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_GRAFT_FILE GIT_SHALLOW_FILE`,
+   ```
+   unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_GRAFT_FILE GIT_SHALLOW_FILE
+   ```
    not `unset $(git rev-parse --local-env-vars)`. The dispatch flagged exactly
    this: slice 6 stubs `git` to exit 127, so the discovery call would fail right
    along with the listing it's meant to protect, clearing nothing precisely when
    the listing is also unreliable. `unset` on names that were never set is a
    no-op (exit 0), so this never interacts with `set -e`.
 2. **Reads the listing's own status inside an `if`** (`:118-122`):
-   `if listing="$(git -C "$project" tag --list 'v*' --sort=-v:refname 2>/dev/null)"; then listing_failed=0; else listing_failed=1; fi`.
+   ```
+   if listing="$(git -C "$project" tag --list 'v*' --sort=-v:refname 2>/dev/null)"; then listing_failed=0; else listing_failed=1; fi
+   ```
    No pipe, so pipefail plays no part — the whole question the slice-1 code
    review worked through for the old piped form doesn't arise for this one.
 3. **Reads the filter's status the same way** (`:124-134`), only when the
    listing itself succeeded:
-   `if release_tags="$(grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' <<<"$listing")"; then …; else grep_status=$?; [[ "$grep_status" -eq 1 ]] || listing_failed=1; release_tags=""; fi`.
+   ```
+   if release_tags="$(grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' <<<"$listing")"; then …; else grep_status=$?; [[ "$grep_status" -eq 1 ]] || listing_failed=1; release_tags=""; fi
+   ```
    Status 1 (no match) is a value — an empty, successful listing. Anything else
    (grep's own error, status 2) is folded into `listing_failed=1` rather than
    left to propagate.

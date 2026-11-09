@@ -181,11 +181,17 @@ mechanism as M1). A release that left an untracked scratch file behind passes.
   `to publish v%s` so the *bump refusal* also names `v1.2.3`, which is exactly
   what the negative separates. Item 1.4 slice 1's "does not contain
   `just release <bump>`": `release-test.sh:392`, paired with the positive
-  `'just release`'` needle at `:391` whose backtick-immediately- after-`release` anchor cannot collide with the bump form (`release.sh:602` vs `:610` — confirmed by reading both). Item 2.1 slice 2's `$proposed` absence: `version-guard-test.sh:333-335`, implemented as an excision of the one legitimate `1.2.3
-  -> 9.9.9` mention rather than a first-line drop — strictly better than the
-  runbook's positional formulation, and the comment says why (a positional read
-  "*fires on a legitimate refusal whose opening merely wraps, and misses a route
-  that lands on line 1*").
+  ```
+  'just release`'
+  ```
+  needle at `:391` whose backtick-immediately- after-`release` anchor cannot
+  collide with the bump form (`release.sh:602` vs `:610` — confirmed by reading
+  both). Item 2.1 slice 2's `$proposed` absence:
+  `version-guard-test.sh:333-335`, implemented as an excision of the one
+  legitimate `1.2.3 -> 9.9.9` mention rather than a first-line drop — strictly
+  better than the runbook's positional formulation, and the comment says why (a
+  positional read "*fires on a legitimate refusal whose opening merely wraps,
+  and misses a route that lands on line 1*").
 
 - **Brief item 3 — the ordering fixture is correct.** `release-test.sh:938` uses
   `v1.9.0 v1.10.0 v1.11.0` (not a `v1.2.3`/`v1.10.0` pair), pushed and dropped

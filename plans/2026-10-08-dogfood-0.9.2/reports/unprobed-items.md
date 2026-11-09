@@ -31,11 +31,15 @@ Scratch root `/tmp/claude/unprobed/p1/`:
     the resolved path into the source tree (`.../p1/src/hook.sh ...`).
   - `Stop` (case C, control): plugin only.
 - Run 1:
-  `cc.sh proj -p --model haiku --output-format stream-json --verbose "Reply with the single word ok."`
+  ```
+  cc.sh proj -p --model haiku --output-format stream-json --verbose "Reply with the single word ok."
+  ```
   with the variable set.
 - Run 2: the same without the variable (control: settings alone).
 - Run 3: the same as run 1 with
-  `--setting-sources project --permission-mode bypassPermissions --output-format json`,
+  ```
+  --setting-sources project --permission-mode bypassPermissions --output-format json
+  ```
   the flags of gitlore's `claude-runner.sh`.
 
 ### Evidence
@@ -78,7 +82,9 @@ Established by reading `/Users/david/code/gitlore` (read-only):
   eval repo's `.claude/settings.json` with `${CLAUDE_PLUGIN_ROOT}` replaced by
   the gitlore source root. That is case B.
 - `tests/evals/lib/claude-runner.sh` runs
-  `(cd "$CWD" && claude -p ... --output-format json --setting-sources project --permission-mode bypassPermissions ...)`,
+  ```
+  (cd "$CWD" && claude -p ... --output-format json --setting-sources project --permission-mode bypassPermissions ...)
+  ```
   the `claude` found on PATH, with `GITLORE_LAUNCHED=1` exported (so gitlore's
   own `.gitlore/bin/claude` shim passes through without `--plugin-dir .`).
 - Nothing in the evals passes `--plugin-dir` or sets the variable.
@@ -120,7 +126,9 @@ absent, zero bytes, `{}`, `{` and
 `{"mcpServers":{"probesrv":{"command":"/bin/false"}}}` (positive control). Each
 loaded with `CLAUDE_CODE_PLUGIN_DIRS=<its plug>`, cwd `<its>/proj`:
 
-- `claude -p --model haiku --output-format stream-json --verbose "Reply with the single word ok."`
+- ```
+  claude -p --model haiku --output-format stream-json --verbose "Reply with the single word ok."
+  ```
   for none, empty, braces, malformed; read the init event (`mcp_servers`,
   `plugins`, `plugin_errors`), the result and stderr.
 - `claude plugin list` and `claude mcp list` for empty, braces, malformed,

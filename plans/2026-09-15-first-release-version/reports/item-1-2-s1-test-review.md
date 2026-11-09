@@ -74,9 +74,11 @@ clean.
 Seven throwaway implementations were written into `toolkit/release.sh`, the full
 suite run under each, and the file restored from a pre-run copy immediately
 after (verified: `git diff --stat toolkit/release.sh` empty). Each carries the
-same `origin_release_tags()` the runbook specifies
-(`git ls-remote --tags --sort=-v:refname origin | cut -f2 | sed 's|^refs/tags/||' | semver_tags`);
-they differ only in where and how the refusal is taken.
+same `origin_release_tags()` the runbook specifies (
+```
+git ls-remote --tags --sort=-v:refname origin | cut -f2 | sed 's|^refs/tags/||' | semver_tags
+```
+); they differ only in where and how the refusal is taken.
 
 | # | Mutation | Scen. 1 (`patch`) | Scen. 2 (no arg) | Rest of suite | Caught by slice 1? |
 |---|---|---|---|---|---|

@@ -29,9 +29,11 @@ would take `sed`'s exit status under `set -o pipefail`, not `release_tags`'s, so
 a failed listing inside that pipeline could pass silently. I avoided the
 pipeline call site entirely rather than reason about it — `latest_tag` is built
 from `$release_tag_list`, a plain variable already captured with its own
-`|| die` a few lines above
-(`release_tag_list=$(release_tags) || die "could not list this plugin's release tags — nothing was done"`).
-The `printf '%s\n' "$release_tag_list" | sed -n '1s/^v//p'` pipeline that
+`|| die` a few lines above (
+```
+release_tag_list=$(release_tags) || die "could not list this plugin's release tags — nothing was done"
+```
+). The `printf '%s\n' "$release_tag_list" | sed -n '1s/^v//p'` pipeline that
 follows operates only on that in-memory string: `printf` cannot fail here and
 `sed -n` with no match exits 0, so there is no second git call and no second
 status to lose. I confirmed there is exactly one `release_tags` invocation left

@@ -9,7 +9,9 @@ in the three new tests; every pre-existing test passes.
 ## Per-test failures (unchanged SUT)
 
 - pre-tool follows a symlink at the leaf into the copy (3 failures):
-  - `hookEventName: .hookSpecificOutput.hookEventName == "PreToolUse" is not true over stdout ''`
+  - ```
+    hookEventName: .hookSpecificOutput.hookEventName == "PreToolUse" is not true over stdout ''
+    ```
   - `permissionDecision: ... == "deny" is not true over stdout ''`
   - `additionalContext names the source path: ... is not true over stdout ''`
 - pre-tool follows a chain of leaf symlinks into the copy (same 3 failures,

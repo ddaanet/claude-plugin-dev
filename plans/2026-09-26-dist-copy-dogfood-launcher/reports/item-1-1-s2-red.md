@@ -26,13 +26,17 @@ Mutation (one exact-string replacement in `toolkit/dogfood.sh`, applied via
 Suite then ran red, the only failures:
 
 - `a committed deletion propagates` reds on its own assertion:
-  `FAIL: a committed deletion propagates: '.../my consumer/dist/plugin/skills/demo/extra.md' exists`
+  ```
+  FAIL: a committed deletion propagates: '.../my consumer/dist/plugin/skills/demo/extra.md' exists
+  ```
   (the first-sync presence and exit-code assertions passed).
 - `a tracked file deleted in the worktree does not fail sync` reds on its own
   assertions:
   - `exit code: expected '0', got '23'`
   - stderr:
-    `rsync: [sender] link_stat ".../skills/demo/extra.md" failed: No such file or directory (2)`,
+    ```
+    rsync: [sender] link_stat ".../skills/demo/extra.md" failed: No such file or directory (2)
+    ```
     code 23
   - `the copy lacks it: '.../extra.md' exists`
 

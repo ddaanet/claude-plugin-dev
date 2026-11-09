@@ -15,6 +15,8 @@ with the real jq before the PATH narrows, since `run_pre_tool` calls jq.
   committed SUT.
   - Precondition (`command -v jq` fails under the jq-less PATH): passes.
   - `FAIL: pre-tool is silent without jq exit code: expected '0', got '127'`
-  - `FAIL: pre-tool is silent without jq prints nothing on stderr: expected '', got '.../my consumer/plugin-dev/dogfood.sh: line 86: jq: command not found'`
+  - ```
+    FAIL: pre-tool is silent without jq prints nothing on stderr: expected '', got '.../my consumer/plugin-dev/dogfood.sh: line 86: jq: command not found'
+    ```
   - The stdout assertion passes (empty), as expected.
 - All other scenarios pass; suite total: 2 failures, both from this test.

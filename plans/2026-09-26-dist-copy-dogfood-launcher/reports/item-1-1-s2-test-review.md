@@ -24,18 +24,26 @@ reuses the RED report's `--files-from` mutation.
 Failing assertions, verbatim:
 
 - m1 (for `a committed deletion propagates`):
-  `FAIL: a committed deletion propagates: '…/my consumer/dist/plugin/skills/demo/extra.md' exists`
+  ```
+  FAIL: a committed deletion propagates: '…/my consumer/dist/plugin/skills/demo/extra.md' exists
+  ```
   plus
-  `FAIL: a tracked file deleted in the worktree: the copy lacks it: '…/extra.md' exists`.
+  ```
+  FAIL: a tracked file deleted in the worktree: the copy lacks it: '…/extra.md' exists
+  ```
   2 failures.
 - m2 (for `a tracked file deleted in the worktree does not fail sync`, absence):
-  `FAIL: a tracked file deleted in the worktree: the copy lacks it: '…/extra.md' exists`.
+  ```
+  FAIL: a tracked file deleted in the worktree: the copy lacks it: '…/extra.md' exists
+  ```
   1 failure. A stays green, so the two tests are not redundant: B alone pins
   "the worktree, not the index, is the source".
 - m3 (same test, exit code and stderr):
   `FAIL: a tracked file deleted in the worktree exit code: expected '0', got '123'`
   and
-  `FAIL: a tracked file deleted in the worktree prints nothing on stderr: expected '', got 'cp: cannot stat 'skills/demo/extra.md': No such file or directory'`.
+  ```
+  FAIL: a tracked file deleted in the worktree prints nothing on stderr: expected '', got 'cp: cannot stat 'skills/demo/extra.md': No such file or directory'
+  ```
   2 failures.
 
 Each named test reds on its own assertions, no other test reds under m1–m3, and
@@ -64,7 +72,9 @@ of scope, not touched.
   `skipping non-regular file` warning.
 - **Minor asymmetry, fixed:** B did not assert the first sync's exit code, while
   A does. Added
-  `assert_eq "$rc" "0" "a tracked file deleted in the worktree: first sync exit code"`.
+  ```
+  assert_eq "$rc" "0" "a tracked file deleted in the worktree: first sync exit code"
+  ```
 
 ## Check 3 — after the fix
 
@@ -110,7 +120,9 @@ Mutation proof (m4, `rsync -a --delete --delete-excluded` → `rsync -a --delete
 applied and inverted by `/tmp/claude/dogfood-build/review/mut.py`):
 
 - Suite exit 1, one failure, on the new test's own assertion:
-  `FAIL: a file that becomes ignored leaves the copy: '…/my consumer/dist/plugin/skills/demo/extra.md' exists`
+  ```
+  FAIL: a file that becomes ignored leaves the copy: '…/my consumer/dist/plugin/skills/demo/extra.md' exists
+  ```
   (its first-sync, guard, exit-code and sibling assertions all passed).
 - Restore by the inverse replacement: `git diff --quiet toolkit/dogfood.sh`
   passes, and the suite prints `all dogfood scenarios passed`.

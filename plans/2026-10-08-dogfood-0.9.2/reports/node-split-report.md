@@ -58,7 +58,9 @@ paragraph moved verbatim under a repeated "Bounds accepted" heading.
 - `docs/references/dogfood.md` (edited), `docs/references/dogfood-sync.md` (new,
   untracked; I did not `git add`).
 - `docs/design.md`: the dogfood group heading (line 209) now links both nodes:
-  `### The dogfood launcher — references/dogfood.md (as a link), references/dogfood-sync.md (as a link)`.
+  ```
+  ### The dogfood launcher — references/dogfood.md (as a link), references/dogfood-sync.md (as a link)
+  ```
   No conclusion was changed. The group's bullets map to both nodes and the
   heading is the only pointer.
 - `CLAUDE.md`: only the Layout bullet for `docs/references/*.md`; the list of

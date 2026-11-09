@@ -13,14 +13,18 @@ Exact replacements in toolkit/dogfood.sh, each restored by the swapped
 replacement; final `git diff --quiet toolkit/dogfood.sh` clean, suite green.
 
 - M1, drop the trailing slash (`"$root/$copy"*`):
-  `FAIL: pre-tool allows a prefix-sharing sibling prints nothing on stdout: expected '', got '{"hookSpecificOutput"...deny...dist/plugin-old/x...'`
+  ```
+  FAIL: pre-tool allows a prefix-sharing sibling prints nothing on stdout: expected '', got '{"hookSpecificOutput"...deny...dist/plugin-old/x...'
+  ```
   (1 failure, only that test).
 - M2, widen copy to `dist`:
   `FAIL: pre-tool allows a sibling of the copy prints nothing on stdout` and
   `... a prefix-sharing sibling ...` (dist/other and dist/plugin-old/x denied).
   The existing deny tests also red on their message assertions.
 - M3, unanchored (`*"/$copy/"*`):
-  `FAIL: pre-tool allows a path outside the repo prints nothing on stdout: expected '', got '{...deny...elsewhere/dist/plugin/x...'`
+  ```
+  FAIL: pre-tool allows a path outside the repo prints nothing on stdout: expected '', got '{...deny...elsewhere/dist/plugin/x...'
+  ```
   (1 failure, only that test).
 
 No mutation reds "a path outside the repo" except M3, and none reds "a sibling

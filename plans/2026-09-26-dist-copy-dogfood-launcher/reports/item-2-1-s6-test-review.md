@@ -22,9 +22,13 @@ precondition is now the `command -v` lookup the runbook asks for.
 
 The RED run was reproduced against the unchanged SUT. Before the fixes, it
 failed on the stderr assertion:
-`FAIL: no next claude exits 127: stderr does not say so: …/plugin-dev/bin/claude: line 22: exec: claude: not found`.
+```
+FAIL: no next claude exits 127: stderr does not say so: …/plugin-dev/bin/claude: line 22: exec: claude: not found
+```
 It also failed on that assertion after them:
-`FAIL: … stderr is the shim's one line: expected 'dogfood: no other claude on PATH', got '…/plugin-dev/bin/claude: line 22: exec: claude: not found'`.
+```
+FAIL: … stderr is the shim's one line: expected 'dogfood: no other claude on PATH', got '…/plugin-dev/bin/claude: line 22: exec: claude: not found'
+```
 Neither run was an ERROR, and the other 11 scenarios passed in both.
 `shellcheck` is clean.
 

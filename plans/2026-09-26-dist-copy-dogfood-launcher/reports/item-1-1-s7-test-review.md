@@ -19,11 +19,15 @@ restored by the inverse replacement, `git diff --quiet` true after each. Helper:
   `FAIL: an rsync failure: exit code is rsync's own: expected '23', got '0'`
 - **stderr**, tail `... <"$excludes" 2>&1` (stderr sent to stdout, not
   discarded):
-  `FAIL: an rsync failure: its stderr line appears exactly once: expected '1', got '0'`
+  ```
+  FAIL: an rsync failure: its stderr line appears exactly once: expected '1', got '0'
+  ```
 - **duplication**, a probe `rsync --version >/dev/null || true` inserted before
   the real call (the stub ignores args, so its line lands twice; status still
   23):
-  `FAIL: an rsync failure: its stderr line appears exactly once: expected '1', got '2'`
+  ```
+  FAIL: an rsync failure: its stderr line appears exactly once: expected '1', got '2'
+  ```
   - A first variant `rsync >/dev/null || true` also reddened this assertion, but
     real rsync's usage text additionally failed
     `a tracked file deleted in the worktree prints nothing on stderr`; the

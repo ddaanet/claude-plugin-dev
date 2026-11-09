@@ -122,10 +122,15 @@ bodies over hand-made candidate messages:
 
 The needles are the **right** contract, not a coincidence — but the weight sits
 on the positive one.
-`'just release`'` pins the closing backtick of the inline-code span, so it rejects every variant that puts anything at all after the word `release` inside the span: the bump form, `patch`, two spaces, a trailing word. That is the actual requirement ("the hint names `just
-release` with no bump argument"), stated as the shape of the span rather than as
-a ban on one phrase. The negative needle earns its place on exactly one case the
-positive one passes: a message naming **both** forms.
+```
+'just release`'
+```
+pins the closing backtick of the inline-code span, so it rejects every variant
+that puts anything at all after the word `release` inside the span: the bump
+form, `patch`, two spaces, a trailing word. That is the actual requirement ("the
+hint names `just release` with no bump argument"), stated as the shape of the
+span rather than as a ban on one phrase. The negative needle earns its place on
+exactly one case the positive one passes: a message naming **both** forms.
 
 Residual, bounded: where `assert_not_contains "$out" "just release <bump>"`
 stands without a positive no-arg needle beside it — slice 2 and the two added
@@ -147,7 +152,9 @@ failure across the whole suite, and that failure being 4a's:
   1, 2, 3, 4b all still pass.
 - **K** — the hint's header always names `git fetch --tags` (a plausible
   "mention the remedy up front" wording):
-  `FAIL: local-tag-survives resume hint must not advise a fetch — origin has no evidence to fetch`.
+  ```
+  FAIL: local-tag-survives resume hint must not advise a fetch — origin has no evidence to fetch
+  ```
   Everything else still passes; no other scenario asserts the *absence* of the
   fetch remedy.
 

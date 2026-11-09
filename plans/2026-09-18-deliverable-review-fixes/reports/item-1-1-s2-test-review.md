@@ -154,9 +154,11 @@ None.
      `make_virgin` and `lose_tag`. Extracting one requires rewriting slice 1's
      scenario, which is OUT of this review's scope.
    - **Status**: DEFERRED — slice 1's scenario is out of scope.
-     `REFACTOR-NEEDED: tests/release-test.sh — the pipefail-stripped-copy + failing-`git
+     ```
+     REFACTOR-NEEDED: tests/release-test.sh — the pipefail-stripped-copy + failing-`git
      tag
-     --list` wrapper setup is duplicated across the two slice scenarios; extract a harness helper.`
+     --list` wrapper setup is duplicated across the two slice scenarios; extract a harness helper.
+     ```
 
 ## Other checks, all clean
 
@@ -194,7 +196,9 @@ None.
   and die message are asserted alongside the three absences.
 - `tests/release-test.sh`, slice-2 scenario assertions — added
   `assert_eq "$rc" "1" "… exit code"` and
-  `assert_contains "$out" "could not list this plugin's release tags" "… refused at the tag read"`
+  ```
+  assert_contains "$out" "could not list this plugin's release tags" "… refused at the tag read"
+  ```
   immediately after the `PATH` restore, before the three absence assertions.
 
 ## Post-fix evidence

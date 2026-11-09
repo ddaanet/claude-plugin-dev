@@ -25,7 +25,9 @@ one: presence requires the entry's matcher to **equal** the one being installed.
 - from:
   `([.hooks[$event][]? | .hooks[]? | select(.command == $cmd)] | length > 0)`
 - to:
-  `([.hooks[$event][]? | select((.matcher // "") == $matcher) | .hooks[]? | select(.command == $cmd)] | length > 0)`
+  ```
+  ([.hooks[$event][]? | select((.matcher // "") == $matcher) | .hooks[]? | select(.command == $cmd)] | length > 0)
+  ```
 
 Landing proof: the source string occurred once, and the target string occurred
 once after the edit. Mutated run: 2 failures, both this slice's and nothing
@@ -102,7 +104,9 @@ None.
   `settings.before` copy; the `cmp` now compares against
   `$sandbox/settings.rematched`.
 - tests/update-plugin-dev-test.sh, slice 4 block: added
-  `assert_contains "$out" "already installed, nothing to do" "an entry under another matcher counts as present: report"`,
+  ```
+  assert_contains "$out" "already installed, nothing to do" "an entry under another matcher counts as present: report"
+  ```
   with a one-line comment on why the `cmp` alone does not prove step 3 ran.
 - Net: the file is 460 lines (it was 459 before the fixes). Moving the
   install.sh scenarios into their own suite is out of scope (phase boundary).

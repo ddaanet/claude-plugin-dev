@@ -13,7 +13,9 @@ before releasing. Nothing was released, tagged, pushed, committed or staged.
   nothing. Plain `git diff --quiet HEAD` also exits 0. The real guard will pass.
 - `git status --porcelain` shows only untracked sandbox masks and editor/env
   dotfiles:
-  `.bash_profile .bashrc .gitconfig .idea .mcp.json .profile .ripgreprc .vscode .zprofile .zshrc`
+  ```
+  .bash_profile .bashrc .gitconfig .idea .mcp.json .profile .ripgreprc .vscode .zprofile .zshrc
+  ```
   and
   `.claude/{agents,commands,hooks,launch.json,loop.md,output-styles,routines,scheduled_tasks.json,skills,workflows}`.
   None are tracked, none block.

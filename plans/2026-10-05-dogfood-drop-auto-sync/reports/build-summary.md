@@ -8,7 +8,9 @@ each overridable except the drop itself). Not released.
 - `toolkit/bin/claude` — the skip on `CLAUDE_CODE_PLUGIN_DIRS` equal to the copy
   and the sync-failure path are removed. After the physical root resolution, a
   missing `<root>/dist/plugin` directory refuses the launch with one line,
-  `dogfood: no copy at <root>/dist/plugin, so claude was not started; run just dogfood to create it`,
+  ```
+  dogfood: no copy at <root>/dist/plugin, so claude was not started; run just dogfood to create it
+  ```
   exit 1, before the PATH strip. Export, PATH strip, exit 127 and exec with argv
   unchanged are as before. The header comment is rewritten. The physical root is
   now justified as matching `dogfood.sh`'s own resolution, since the skip it

@@ -19,11 +19,17 @@ after all.
 - (a) status, `... || exit 1`:
   `FAIL: an rsync failure: exit code is rsync's own: expected '23', got '1'`
 - (b) stderr, `... 2>/dev/null`:
-  `FAIL: an rsync failure: its stderr line appears exactly once: expected '1', got '0'`
+  ```
+  FAIL: an rsync failure: its stderr line appears exactly once: expected '1', got '0'
+  ```
 - (c) once,
-  `... 2>"$excludes.err" || { s=$?; cat "$excludes.err" "$excludes.err" >&2; exit "$s"; }`
+  ```
+  ... 2>"$excludes.err" || { s=$?; cat "$excludes.err" "$excludes.err" >&2; exit "$s"; }
+  ```
   (status kept, line emitted twice):
-  `FAIL: an rsync failure: its stderr line appears exactly once: expected '1', got '2'`
+  ```
+  FAIL: an rsync failure: its stderr line appears exactly once: expected '1', got '2'
+  ```
 
 Only the named assertion failed in each. Note: a first (c) attempt with
 `2> >(tee /dev/stderr >&2)` stayed green, because tee reopening /dev/stderr

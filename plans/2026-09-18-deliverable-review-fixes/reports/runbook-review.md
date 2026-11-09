@@ -52,7 +52,9 @@ has exactly two call sites, both inside a command substitution, and both already
 handle a non-zero status:
 
 - `toolkit/release.sh`, `release_preflight`'s opening:
-  `release_tag_list=$(release_tags) || die "could not list this plugin's release tags — nothing was done"`.
+  ```
+  release_tag_list=$(release_tags) || die "could not list this plugin's release tags — nothing was done"
+  ```
   A `die` inside the callee makes that message dead code and emits two `error:`
   lines.
 - `toolkit/release.sh`, `resume_preflight`'s hint ladder:

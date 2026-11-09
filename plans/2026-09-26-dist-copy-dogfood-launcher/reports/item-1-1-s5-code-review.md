@@ -41,7 +41,9 @@ stderr line each stated something false.
    where a backslash is an escape only when a wildcard is present. The refusal
    of a lone backslash is the decision's uniform rule, not something rsync
    forces. The stderr line is now true for all five names:
-   `dogfood: ignored entry '<entry>' holds a pattern character (* ? [ ] or \); sync refused`.
+   ```
+   dogfood: ignored entry '<entry>' holds a pattern character (* ? [ ] or \); sync refused
+   ```
    The comment now gives the real reason: wildcards for the four, and an escape
    that depends on context for the backslash.
 3. **`echo` of data → `printf '%s'`** (`shell-gotchas` rule 5). The entry can

@@ -19,12 +19,18 @@ fixed, and every probed wrong GREEN now reds.
 ## Mechanical check
 
 - RED as delivered: `bash tests/dogfood-launcher-test.sh` gave 1 failure,
-  `a failed sync aborts the launch: one dogfood: line says claude was not started: expected '1', got '0'`.
+  ```
+  a failed sync aborts the launch: one dogfood: line says claude was not started: expected '1', got '0'
+  ```
   That is an assertion failure. No ERROR, and every other assertion passed.
 - After the fixes: 2 failures, both on assertions. Everything else passes and
   shellcheck is clean.
-  - `a failed sync aborts the launch: one dogfood: line says claude was not started: expected '1', got '0'`
-  - `a failed rsync keeps its status: one dogfood: line says claude was not started: expected '1', got '0'`
+  - ```
+    a failed sync aborts the launch: one dogfood: line says claude was not started: expected '1', got '0'
+    ```
+  - ```
+    a failed rsync keeps its status: one dogfood: line says claude was not started: expected '1', got '0'
+    ```
 
 ## Issues Found
 
@@ -59,10 +65,14 @@ fixed, and every probed wrong GREEN now reds.
      `$TMPDIR` (`/tmp/claude-1000` here). So a line like
      `dogfood: sync of $root failed, not started` would match through the path.
    - Fix:
-     `not_started_re="^dogfood: (.*[[:space:]\`'])?claude[[:space:]\`'].*not
-     started"` (`grep
-     -E`). `claude` must be a word, delimited by whitespace or a quote or backtick. It cannot be a substring of a path component. A comment above it says why. Probes G (no `claude`) and I (`claude` only through `$root`)
-     both red.
+     ```
+     not_started_re="^dogfood: (.*[[:space:]\`'])?claude[[:space:]\`'].*not
+     started"
+     ```
+     (`grep -E`). `claude` must be a word, delimited by whitespace or a quote or
+     backtick. It cannot be a substring of a path component. A comment above it
+     says why. Probes G (no `claude`) and I (`claude` only through `$root`) both
+     red.
    - **Status**: FIXED
 
 ### Minor Issues

@@ -28,7 +28,9 @@ Scripts under test unchanged (`git diff toolkit/` empty). Three suites changed.
 1. m10, `toolkit/dogfood.sh` `pre_tool`: replaced the `path="$(jq -j ...` line
    with `payload="$(cat)"; root="$(jq -j '.cwd' <<<"$payload")"` plus the path
    read from `$payload`. Pre-tool suite red: 69 FAIL lines, first
-   `pre-tool denies an Edit into the copy: stdout is one JSON object ... over stdout ''`.
+   ```
+   pre-tool denies an Edit into the copy: stdout is one JSON object ... over stdout ''
+   ```
    Restored by swapped Edit; `rg 'payload="\$\(cat\)"'` no hit,
    `git diff --stat toolkit/` empty.
 2. m11, `toolkit/bin/claude`: inserted `root="${CLAUDE_PROJECT_DIR:-$root}"`
@@ -40,11 +42,15 @@ Scripts under test unchanged (`git diff toolkit/` empty). Three suites changed.
    diff empty.
 3. Session-start scenario, `toolkit/dogfood.sh` `root_dir`: `cd -P --` changed
    to `cd -L --`. Session-start suite red, 1 failure:
-   `session-start invoked through a symlinked repo is silent on the physical copy prints nothing on stdout: expected '', got '{"systemMessage":"... does not load .../link/dist/plugin ..."`.
+   ```
+   session-start invoked through a symlinked repo is silent on the physical copy prints nothing on stdout: expected '', got '{"systemMessage":"... does not load .../link/dist/plugin ..."
+   ```
    Swapped back; grep for `cd -L` no hit, diff empty.
 4. Glob root, `toolkit/bin/claude`: `!= "$root/dist/plugin" ]]` changed to
    `!= $root/dist/plugin ]]`. Launcher suite red, 1 failure:
-   `a variable equal to a glob-named copy skips the sync: no copy made: '.../my [consumer]/dist' exists`.
+   ```
+   a variable equal to a glob-named copy skips the sync: no copy made: '.../my [consumer]/dist' exists
+   ```
    Swapped back; grep for `!= $root` in the shim no hit, diff empty.
 
 Final check after all restores: `git diff --stat toolkit/` empty.

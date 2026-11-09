@@ -56,7 +56,9 @@ Verdict: APPROVE
 
 1. Red re-run against unchanged toolkit/release.sh: `bash tests/release-test.sh`
    exits 1 with "1 failure(s)". The only line is
-   `FAIL: created entry source is a url source: expected '{"source":"url","url":"https://github.com/<tmp>/plugin-origin.git"}', got '{"source":"github","repo":"<tmp>/plugin-origin"}'`.
+   ```
+   FAIL: created entry source is a url source: expected '{"source":"url","url":"https://github.com/<tmp>/plugin-origin.git"}', got '{"source":"github","repo":"<tmp>/plugin-origin"}'
+   ```
    It is a failed assertion, not a crash, and no other assertion failed.
 2. The expected value is not tautological. It is built from the fixture
    (`basename "$sandbox"` plus the literal `plugin-origin`) with `jq -cn`, not
@@ -69,10 +71,13 @@ Verdict: APPROVE
    `existing entry source untouched by bump` with got
    `{"source":"url","url":"x"}`. That mutation also tripped the "marketplace
    HEAD unmoved" assertion in entry-agrees-no-tags, so the guard discriminates.
-4. Green by hand in a scratch copy in
-   $TMPDIR: line 763 became `source: { source: "url", url: ("https://github.com/" + $repo +
-   ".git") }`. The full suite then had 0 FAIL and exited 0. The real repo's
-   release.sh was not touched.
+4. Green by hand in a scratch copy in $TMPDIR: line 763 became
+   ```
+   source: { source: "url", url: ("https://github.com/" + $repo +
+   ".git") }
+   ```
+   The full suite then had 0 FAIL and exited 0. The real repo's release.sh was
+   not touched.
 5. The contract is covered. The creation shape is pinned whole, and
    existing-entry non-modification is pinned. The slug derivation and
    `repository` fallback are unchanged and untouched by the tests, which matches

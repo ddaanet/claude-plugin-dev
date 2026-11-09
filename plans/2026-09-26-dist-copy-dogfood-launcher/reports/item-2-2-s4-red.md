@@ -22,7 +22,9 @@ String pair in toolkit/install.sh `add_hook`:
 - from:
   `([.hooks[$event][]? | .hooks[]? | select(.command == $cmd)] | length > 0)`
 - to:
-  `([.hooks[$event][]? | select(.matcher == null or (.matcher | test("Write|Edit"))) | .hooks[]? | select(.command == $cmd)] | length > 0)`
+  ```
+  ([.hooks[$event][]? | select(.matcher == null or (.matcher | test("Write|Edit"))) | .hooks[]? | select(.command == $cmd)] | length > 0)
+  ```
 
 Mutated run:
 `FAIL: an entry under another matcher counts as present: settings.json changed`

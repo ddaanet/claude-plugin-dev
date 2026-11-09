@@ -11,9 +11,13 @@ was touched; no release was cut.
    After the entry loop, when `<root>/dist/plugin` is not a directory (the
    shim's own `-d` test, so a file in its place counts as no copy):
    - `systemMessage`:
-     `dogfood: no copy at <root>/dist/plugin, so this session does not load it; run just dogfood to create it, then relaunch`
+     ```
+     dogfood: no copy at <root>/dist/plugin, so this session does not load it; run just dogfood to create it, then relaunch
+     ```
    - `additionalContext`:
-     `No copy exists at <root>/dist/plugin, so this session loads none; plugin behaviour observed in it does not come from that path.`
+     ```
+     No copy exists at <root>/dist/plugin, so this session loads none; plugin behaviour observed in it does not come from that path.
+     ```
      It names no command and no sync or promotion (withheld per
      `craft:directive-writing`).
    - Copy present, session not loading it: text unchanged. `jq` missing:
@@ -92,7 +96,9 @@ no copy and looked for `does not load <copy>`. It now looks for
 ## Commits
 
 - `55cce9f`
-  `🐛 dogfood session-start names just dogfood with no copy, sync honours submodule ignores`
+  ```
+  🐛 dogfood session-start names just dogfood with no copy, sync honours submodule ignores
+  ```
   — script, the four test files, outline, red files. The gitlore pre-commit hook
   also staged the `memory` gitlink into it (the submodule had moved before this
   session; not staged by hand).

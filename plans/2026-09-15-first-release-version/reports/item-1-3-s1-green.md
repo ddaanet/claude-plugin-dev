@@ -45,7 +45,9 @@ this; it was a review-only requirement).
 
 ### Status-absorption form chosen, and why
 
-`if push_value=$(git config --get "$push_key"); then … elif [ "$?" -ne 1 ]; then die …; fi`
+```
+if push_value=$(git config --get "$push_key"); then … elif [ "$?" -ne 1 ]; then die …; fi
+```
 — the assignment is the `if` condition itself, not the left side of a
 `cmd || { … }` group.
 

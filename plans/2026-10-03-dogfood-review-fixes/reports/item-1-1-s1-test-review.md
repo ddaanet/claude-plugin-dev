@@ -24,8 +24,12 @@ whole suite green.
 The current shim (unchanged), with the suite as fixed, fails only on scenario
 2's two assertions:
 
-- `FAIL: a variable equal to this copy skips the sync: no copy made: '…/my consumer/dist' exists`
-- `FAIL: a variable equal to this copy skips the sync: no copy as the next claude started: expected 'absent', got 'present'`
+- ```
+  FAIL: a variable equal to this copy skips the sync: no copy made: '…/my consumer/dist' exists
+  ```
+- ```
+  FAIL: a variable equal to this copy skips the sync: no copy as the next claude started: expected 'absent', got 'present'
+  ```
 
 There were no ERRORs and no other FAILs. All 15 scenario headers printed, so no
 early exit happened.

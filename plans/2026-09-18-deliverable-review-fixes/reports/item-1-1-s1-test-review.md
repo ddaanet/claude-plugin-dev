@@ -83,18 +83,28 @@ broken-stub artifact.
 
 **The needle is `release_preflight`'s own `die`.** Read `toolkit/release.sh`:
 inside `release_preflight`,
-`release_tag_list=$(release_tags) || die "could not list this plugin's release tags — nothing was done"`.
+```
+release_tag_list=$(release_tags) || die "could not list this plugin's release tags — nothing was done"
+```
 That string occurs exactly once in the script and in no other symbol, so the
 assertion cannot be satisfied by another path. It is also long enough not to be
 a substring another line supplies.
 
 **`git fetch --tags` is the lost-tags remedy and nothing else on this path.**
 The script has four occurrences. One is in `release_preflight`'s lost-tags
-branch (`Run \`git fetch --tags\` to catch
-up`) — the one that appears in the RED output. Two are in `resume_preflight`'s hint ladder, unreachable in `patch` mode (`common_preflight;
-if [ "$mode" = "release" ]; then release_preflight; …`). The fourth is prose
-inside a comment and never printed. The negative assertion therefore
-discriminates exactly the branch it claims to.
+branch (
+```
+Run \`git fetch --tags\` to catch
+up
+```
+) — the one that appears in the RED output. Two are in `resume_preflight`'s hint
+ladder, unreachable in `patch` mode (
+```
+common_preflight;
+if [ "$mode" = "release" ]; then release_preflight; …
+```
+). The fourth is prose inside a comment and never printed. The negative
+assertion therefore discriminates exactly the branch it claims to.
 
 **The negative is paired with a positive.** `assert_not_contains` alone would
 pass before the feature existed; it is paired with

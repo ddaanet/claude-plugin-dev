@@ -13,8 +13,12 @@ harness error (the fixture-list assertion passes for all five):
 
 - `a pattern character (<name>) exit code: expected '1', got '0'`
 - `a pattern character (<name>): stderr does not name it: ''`
-- `a pattern character (<name>): the copy is untouched: '.../dist/plugin/sentinel' is not a regular file`
-- `a pattern character (<name>): rsync never ran: '.../dist/plugin/skills/demo/new.md' exists`
+- ```
+  a pattern character (<name>): the copy is untouched: '.../dist/plugin/sentinel' is not a regular file
+  ```
+- ```
+  a pattern character (<name>): rsync never ran: '.../dist/plugin/skills/demo/new.md' exists
+  ```
 
 Suite total: 20 failures, all from this slice; slices 1-4 and the rest pass.
 

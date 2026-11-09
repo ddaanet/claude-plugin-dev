@@ -34,7 +34,9 @@ specifies.
 
 ## Test 2 — inverted `:625` scenario, `patch` case
 
-`=== release: a marketplace entry does not exempt a first release from refusing a bump ===`
+```
+=== release: a marketplace entry does not exempt a first release from refusing a bump ===
+```
 (same fixture, `release.sh patch`).
 
 ```

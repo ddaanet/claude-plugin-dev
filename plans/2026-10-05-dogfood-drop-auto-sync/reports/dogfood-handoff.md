@@ -103,15 +103,21 @@ rc=0
 - `/elsewhere:<root>/dist/plugin/` (trailing slash, among others) → silent, rc
   0.
 - Variable unset → rc 0, prints
-  `{"systemMessage":"\u001b[0mdogfood: this session does not load /Users/david/code/handoff/dist/plugin — launch claude through plugin-dev/bin/claude from the repo root","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"This session does not load …/dist/plugin, so plugin behaviour observed in it is not that of the promoted copy."}}`
+  ```
+  {"systemMessage":"\u001b[0mdogfood: this session does not load /Users/david/code/handoff/dist/plugin — launch claude through plugin-dev/bin/claude from the repo root","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"This session does not load …/dist/plugin, so plugin behaviour observed in it is not that of the promoted copy."}}
+  ```
 - No `jq` on PATH → rc 0, prints the documented
-  `dogfood: jq is not on PATH, so the copy guard and this check are off until it is installed`.
+  ```
+  dogfood: jq is not on PATH, so the copy guard and this check are off until it is installed
+  ```
 
 `pre-tool` was run with JSON payloads on stdin:
 
 - Write to `<root>/dist/plugin/skills/handoff/SKILL.md` → `deny`. The reason
   names the copy, and `additionalContext` reads
-  `The source of … is /Users/david/code/handoff/skills/handoff/SKILL.md. Make the edit there.`
+  ```
+  The source of … is /Users/david/code/handoff/skills/handoff/SKILL.md. Make the edit there.
+  ```
   The `systemMessage` is
   `dogfood: blocked an edit into dist/plugin/ — the generated copy`. rc 0.
 - Write to `<root>/skills/handoff/SKILL.md` → empty stdout, rc 0 (allowed).
@@ -154,7 +160,9 @@ Two surprises, both patches to 0.9.1:
 1. **The session-start remedy is wrong when the copy is missing.** Observed:
    with `dist/plugin` moved aside and the variable unset (which is exactly what
    a shim launch with no copy produces), `session-start` printed
-   `dogfood: this session does not load /Users/david/code/handoff/dist/plugin — launch claude through plugin-dev/bin/claude from the repo root`.
+   ```
+   dogfood: this session does not load /Users/david/code/handoff/dist/plugin — launch claude through plugin-dev/bin/claude from the repo root
+   ```
    The session *was* launched through the shim, and the fix is `just dogfood`.
    `plugin-dev/README.md` describes this very case: "With no copy, the shim says
    so … That session does not load the copy, and the `SessionStart` check says

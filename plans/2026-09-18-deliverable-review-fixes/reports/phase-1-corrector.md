@@ -46,8 +46,13 @@ Nothing is UNFIXABLE. Nothing found required a design decision.
 2. **The filter folds a grep error into "no release tag yet"**
    - Location: `scripts/self-release.sh`, `release_preflight`,
      `latest_tag=$(grep -m1 -E … <<< "$tags") || latest_tag=""`.
-   - Problem: `||` absorbs every non-zero status, not only grep's clean no-match 1. A real filter error (status 2) left `$latest_tag` empty, which skips the
-     drift guard below and releases from whatever `toolkit/VERSION` holds over a
+   - Problem:
+     ```
+     ||
+     ```
+     absorbs every non-zero status, not only grep's clean no-match 1. A real
+     filter error (status 2) left `$latest_tag` empty, which skips the drift
+     guard below and releases from whatever `toolkit/VERSION` holds over a
      listing the function could not read — the same fail-open class Item 1.1
      exists to close, one stage further down the same function Item 1.3 rewrote.
      `toolkit/release.sh`'s `semver_tags` draws the distinction explicitly with

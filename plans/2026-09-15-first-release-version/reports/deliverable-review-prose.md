@@ -229,7 +229,9 @@ but is not the last line, so `--list` still shows the right string. Signatures
 unchanged.
 
 **8. `CLAUDE.md` Layout vs reality.** Accurate. `toolkit/` holds exactly
-`LICENSE README.md VERSION check-version.sh install.sh release.just release.sh update.sh version-guard.sh`;
+```
+LICENSE README.md VERSION check-version.sh install.sh release.just release.sh update.sh version-guard.sh
+```
 the Layout list names all but `LICENSE`, which `doc-sync-test.sh:80-88` exempts
 by name. `toolkit/migrations/` does not exist and the list describes it as
 optional — both `doc-sync-test.sh` and `dist-tree-test.sh` carry the `vX.Y.Z.md`

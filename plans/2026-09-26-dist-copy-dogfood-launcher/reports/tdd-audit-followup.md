@@ -184,7 +184,9 @@ The scenario asserts:
 2. stdout is empty;
 3. stderr contains `beyond a symbolic link`;
 4. `.git/HEAD` is a regular file;
-5. `git --git-dir="$consumer/.git" --work-tree="$consumer" diff-index --quiet HEAD --`
+5. ```
+   git --git-dir="$consumer/.git" --work-tree="$consumer" diff-index --quiet HEAD --
+   ```
    passes, so no tracked file changed.
 
 The explicit `--git-dir` stops git from finding a parent repo once `.git` is

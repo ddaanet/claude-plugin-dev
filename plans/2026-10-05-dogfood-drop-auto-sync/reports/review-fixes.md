@@ -28,7 +28,9 @@ reversed decision 5 (the fallback), made Major 2 moot and resolved minor 7.
   asserts rc 127, two stderr lines, the warning first and the 127 line second.
 - **New decision 2: warn and launch.** In `toolkit/bin/claude`, when
   `<root>/dist/plugin` is a directory the shim exports it. Otherwise it prints
-  `dogfood: no copy at <root>/dist/plugin, so claude starts without it; run just dogfood to create it`
+  ```
+  dogfood: no copy at <root>/dist/plugin, so claude starts without it; run just dogfood to create it
+  ```
   and leaves the variable untouched. The PATH strip, the 127 check and the exec
   are unchanged. Launcher scenarios:
   - "a missing copy warns and launches without it": rc 0, one warning line, argv

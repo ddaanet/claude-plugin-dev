@@ -46,7 +46,9 @@ to the wrong hint rather than crashing outright.
 ## Evidence: the post-filter guard passed (fixture clears the bound)
 
 No `FAIL:` line for
-`resume hint names the tag already on origin at 1MB fixture clears the post-filter 1MB bound (... bytes)`
+```
+resume hint names the tag already on origin at 1MB fixture clears the post-filter 1MB bound (... bytes)
+```
 in the run above — the guard assertion itself held. Measured directly,
 independent of the suite run, using the same generator (matching tag first, then
 `seq 4 100003` cycling one two-conversion `printf`, piped through

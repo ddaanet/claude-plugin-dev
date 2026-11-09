@@ -17,7 +17,9 @@ Test: `an inherited variable is overwritten`.
   `export CLAUDE_CODE_PLUGIN_DIRS="$root/dist/plugin"` with
   `export CLAUDE_CODE_PLUGIN_DIRS="${CLAUDE_CODE_PLUGIN_DIRS:+$CLAUDE_CODE_PLUGIN_DIRS:}$root/dist/plugin"`.
 - Suite output, red on the test's own assertion:
-  `FAIL: an inherited variable is overwritten: expected '<sandbox>/my consumer/dist/plugin', got '/elsewhere/dist/plugin:<sandbox>/my consumer/dist/plugin'`
+  ```
+  FAIL: an inherited variable is overwritten: expected '<sandbox>/my consumer/dist/plugin', got '/elsewhere/dist/plugin:<sandbox>/my consumer/dist/plugin'
+  ```
   then `1 failure(s)`.
 - Restore: the same replacement with the two strings swapped.
   `grep -c 'PLUGIN_DIRS:+' toolkit/bin/claude` gave 0 hits;

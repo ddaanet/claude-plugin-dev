@@ -17,7 +17,9 @@ as a side effect.
 
 ## Constraint — the brief's suggested source set fails twice
 
-`git ls-files -z -co --exclude-standard | rsync -a --delete --from0 --files-from=- src/ dst/`,
+```
+git ls-files -z -co --exclude-standard | rsync -a --delete --from0 --files-from=- src/ dst/
+```
 with and without `-r`, on a fixture:
 
 - **Deletions do not propagate.** After `rm a/y; rm -r b`, both `dst/a/y` and

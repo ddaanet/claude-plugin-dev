@@ -41,7 +41,9 @@ The assertion `stderr names the offender` requires the stderr to contain the
 needle, so it fails for each of the five, in both `tree` and `paths` mode: 10
 failures. The script's stderr is correct, for example:
 
-`dist: dist.include line 5 'glob-st*ar' has a glob or escape character (* ? [ ] or backslash); listed paths are literal`
+```
+dist: dist.include line 5 'glob-st*ar' has a glob or escape character (* ? [ ] or backslash); listed paths are literal
+```
 
 The needle should be the line itself (or a substring of it such as `st*ar`), not
 the label. The `dotdot`, blank, absolute and `..` entries use needles that are

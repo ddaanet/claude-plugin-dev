@@ -62,7 +62,9 @@ None.
    - Mutation proof: removed `'/dist/plugin/'` from the
      `printf '%s\0' '.git' '/dist/plugin/'` line in `toolkit/dogfood.sh`, and
      the suite failed with
-     `FAIL: sync never recurses into the copy: first sync: '…/my consumer/dist/plugin/dist/plugin' exists`
+     ```
+     FAIL: sync never recurses into the copy: first sync: '…/my consumer/dist/plugin/dist/plugin' exists
+     ```
      (1 failure). The line was restored by the inverse `sed`,
      `git diff --quiet toolkit/dogfood.sh` came back clean, and the suite was
      green again.

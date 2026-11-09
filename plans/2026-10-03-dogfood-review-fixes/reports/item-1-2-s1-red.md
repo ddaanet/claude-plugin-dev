@@ -7,14 +7,18 @@ no stub needed). Chosen status: 1.
 
 1. "pre-tool fails loudly on a payload jq cannot read" — the exit-code check
    tightened from `!= 0` to exactly `1`. Output:
-   `FAIL: pre-tool fails loudly on a payload jq cannot read exit code: expected '1', got '5'`
+   ```
+   FAIL: pre-tool fails loudly on a payload jq cannot read exit code: expected '1', got '5'
+   ```
    (jq 1.7 parse-error status). The stdout-empty and stderr `jq: ` assertions
    pass.
 2. New "pre-tool maps a jq exit of 2 to a non-blocking status" — a stub `jq` in
    `$sandbox/stub bin/` (space in the name) printing `jq: stub parse error` on
    stderr and exiting 2, put first on PATH for the run; the scenario first
    asserts `command -v jq` finds the stub (it does). Output:
-   `FAIL: pre-tool maps a jq exit of 2 to a non-blocking status exit code: expected '1', got '2'`
+   ```
+   FAIL: pre-tool maps a jq exit of 2 to a non-blocking status exit code: expected '1', got '2'
+   ```
    Stdout-empty and stderr-diagnostic assertions pass.
 
 Both fail on the exit-code assertion, not on a missing symbol. Suite: 2

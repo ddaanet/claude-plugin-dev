@@ -14,7 +14,9 @@ dispatch line, the header. Fixes applied in the working tree, uncommitted.
   That is a mid-session promotion, which decision 4 keeps deliberate (it runs
   half-edited hook scripts in the editing session). "The edit was refused" also
   read as narration after CC's `hook error:` prefix. Now:
-  `<path> is in dist/plugin/, the generated copy of this plugin. Edits to the copy are refused.`
+  ```
+  <path> is in dist/plugin/, the generated copy of this plugin. Edits to the copy are refused.
+  ```
   It reads correctly after `PreToolUse:Edit hook error:`, states the verdict as
   fact, and offers no action.
 - **`additionalContext` said "that file".** It arrives as a separate attachment,

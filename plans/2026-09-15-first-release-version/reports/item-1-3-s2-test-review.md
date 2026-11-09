@@ -246,7 +246,9 @@ the match looser, never split it.
 ## Changes applied to `tests/release-test.sh`
 
 - Added
-  `assert_contains "$out" "push route diverges from origin" "resume diverged-push-route names the refusal"`
+  ```
+  assert_contains "$out" "push route diverges from origin" "resume diverged-push-route names the refusal"
+  ```
   with a comment recording the `To <path>` measurement that motivates it.
 - Added a comment above the setup assertion recording the broken-setup probe
   that proves it load-bearing.

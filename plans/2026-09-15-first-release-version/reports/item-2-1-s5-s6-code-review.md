@@ -290,7 +290,9 @@ stripped is empty, so the executable text is byte-identical to `68f6007`.
 2. **Two references to this repo's internal plan documents removed from shipped
    code.** `toolkit/` is the dist boundary: a consumer vendors this file and
    reads `(see the hook-exit-status-contract report)` and
-   ``  `outline.md`'s "only the filter's no-match status is absorbed" is read loosely here on purpose ``
+   ```
+   `outline.md`'s "only the filter's no-match status is absorbed" is read loosely here on purpose
+   ```
    pointing at documents they do not have, and the second is a write-time note
    about deviating from a plan — changelog content, not source content. Replaced
    with the durable statement of the same fact: absorbing after the deny is

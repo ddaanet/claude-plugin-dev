@@ -23,7 +23,9 @@ Suite run in the foreground, before and after the fix. Both runs show the same 2
 failures, both from this test and both on assertions:
 
 - `FAIL: pre-tool is silent without jq exit code: expected '0', got '127'`
-- `FAIL: pre-tool is silent without jq prints nothing on stderr: expected '', got '…/my consumer/plugin-dev/dogfood.sh: line 86: jq: command not found'`
+- ```
+  FAIL: pre-tool is silent without jq prints nothing on stderr: expected '', got '…/my consumer/plugin-dev/dogfood.sh: line 86: jq: command not found'
+  ```
 
 The stdout assertion passes, which is expected because the SUT dies before it
 prints. The `command -v jq` precondition passes. The new control passes too

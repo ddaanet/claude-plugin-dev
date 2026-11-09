@@ -12,7 +12,9 @@ code and stderr assertions pass; only the stdout assertion reds.
 
 - session-start is silent on one entry of several
   (`/x/other:<root>/dist/plugin`):
-  `prints nothing on stdout: expected '', got '{"systemMessage":"\u001b[0mdogfood: this session does not load <root>/dist/plugin ...'`
+  ```
+  prints nothing on stdout: expected '', got '{"systemMessage":"\u001b[0mdogfood: this session does not load <root>/dist/plugin ...'
+  ```
 - session-start is silent on a trailing slash (`<root>/dist/plugin/`): same
   assertion, same warning object on stdout
 - session-start is silent on a symlinked spelling (`$sandbox/link/dist/plugin`):

@@ -21,7 +21,9 @@ Mutation: the `jq -j` capture in `pre_tool` became
 both from the new test:
 
 - `FAIL: pre-tool fails loudly on a payload jq cannot read: exit code was 0`
-- `FAIL: pre-tool fails loudly on a payload jq cannot read shows jq's error: output did not contain 'jq: '`
+- ```
+  FAIL: pre-tool fails loudly on a payload jq cannot read shows jq's error: output did not contain 'jq: '
+  ```
 
 Restored by the inverse replacement. `grep -c '2>/dev/null && printf x'` finds 0
 hits, and the suite prints `all dogfood scenarios passed`.

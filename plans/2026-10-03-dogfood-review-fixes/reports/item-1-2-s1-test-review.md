@@ -104,9 +104,15 @@ None.
 - `bash tests/dogfood-pre-tool-test.sh` was run in the foreground against the
   unchanged SUT and gave 3 failures. Every other scenario is green, including
   the new scenario's real-jq control:
-  - `pre-tool fails loudly on a payload jq cannot read exit code: expected '1', got '5'`
-  - `pre-tool maps a jq exit of 2 to a non-blocking status exit code: expected '1', got '2'`
-  - `pre-tool maps a jq failure building the deny to a non-blocking status exit code: expected '1', got '2'`
+  - ```
+    pre-tool fails loudly on a payload jq cannot read exit code: expected '1', got '5'
+    ```
+  - ```
+    pre-tool maps a jq exit of 2 to a non-blocking status exit code: expected '1', got '2'
+    ```
+  - ```
+    pre-tool maps a jq failure building the deny to a non-blocking status exit code: expected '1', got '2'
+    ```
 - Mutated-SUT probe: `|| exit 1` was appended to `dogfood.sh`'s
   `path="$(jq -j …)"` line, which is the plausible half-GREEN. The suite then
   showed tests 1 and 2 green and only the new scenario red

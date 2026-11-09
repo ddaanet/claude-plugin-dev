@@ -25,9 +25,13 @@ absent.
 
 - `(unset)`:
   - `FAIL: ... (unset) exit code: expected '0', got '127'`
-  - `FAIL: ... (unset) prints nothing on stderr: expected '', got '.../dogfood.sh: line 144: jq: command not found'`
+  - ```
+    FAIL: ... (unset) prints nothing on stderr: expected '', got '.../dogfood.sh: line 144: jq: command not found'
+    ```
   - `FAIL: ... (unset): stdout is one JSON object: ... is not true over stdout ''`
-  - `FAIL: ... (unset): systemMessage opens with an ANSI reset: ... over stdout ''`
+  - ```
+    FAIL: ... (unset): systemMessage opens with an ANSI reset: ... over stdout ''
+    ```
   - `FAIL: ... (unset): systemMessage names jq: ... over stdout ''`
   - `FAIL: ... (unset): hookSpecificOutput is absent: ... over stdout ''`
 - `(names-the-copy)`: the script exits 0 silently (the copy is named), so exit

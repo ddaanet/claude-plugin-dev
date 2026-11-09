@@ -25,7 +25,9 @@ I then mutated the candidate. The real SUT was touched only for check 1.
 - `a git failure stops sync before rsync`: I used a different mutation from
   RED's. In the real `toolkit/dogfood.sh` I replaced
   `git -C "$root" ls-files -z -o -i --exclude-standard --directory |` with
-  `{ git -C "$root" ls-files -z -o -i --exclude-standard --directory || true; } |`,
+  ```
+  { git -C "$root" ls-files -z -o -i --exclude-standard --directory || true; } |
+  ```
   which swallows the git failure. The revised test goes red:
 
   ```

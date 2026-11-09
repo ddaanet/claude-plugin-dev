@@ -83,7 +83,9 @@ None.
   became `|| exit $(( $? == 2 ? 1 : $? ))`. This is the plausible GREEN that
   maps only status 2 and passes every other jq status through.
 - Result: the suite redded.
-  `FAIL: pre-tool fails loudly on a payload jq cannot read exit code: expected '1', got '5'`
+  ```
+  FAIL: pre-tool fails loudly on a payload jq cannot read exit code: expected '1', got '5'
+  ```
   This was 1 failure. The stub-2 and deny-build scenarios stayed green, as
   expected, because that mutation maps their status correctly.
 - Restored by the inverse exact replacement. `git diff` afterwards shows only

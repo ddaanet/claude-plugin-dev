@@ -2,7 +2,9 @@
 
 - Change: `toolkit/dogfood.sh` `sync_copy` — inside the ignore-list loop, a
   `case` on each entry refuses `*`, `?`, `[`, `]` and backslash: one stderr line
-  `dogfood: ignored entry '<entry>' holds a pattern character; rsync would read it as a pattern`,
+  ```
+  dogfood: ignored entry '<entry>' holds a pattern character; rsync would read it as a pattern
+  ```
   `exit 1` from the loop. `pipefail` carries the status out of the pipeline, the
   EXIT trap removes the temp list, and the abort comes before `mkdir` and rsync,
   so `dist/plugin/` is untouched. Comment updated.

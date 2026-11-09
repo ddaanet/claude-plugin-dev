@@ -33,7 +33,9 @@ GitHub release)
 - `dist-v0.8.0` is an ancestor of `dist-v0.9.0`, so the dist lineage is
   continuous and `update.sh` accepts it.
 - Dist tree contents:
-  `LICENSE README.md VERSION bin/claude check-version.sh dogfood.sh install.sh migrations/v0.9.0.md release.just release.sh update.sh version-guard.sh`.
+  ```
+  LICENSE README.md VERSION bin/claude check-version.sh dogfood.sh install.sh migrations/v0.9.0.md release.just release.sh update.sh version-guard.sh
+  ```
   `VERSION` reads 0.9.0. `bin/claude` and `dogfood.sh` are 100755, as the shim
   and the hook commands need.
 - On origin: `main` = `389e8b0`, which is an ancestor of HEAD, so the push is a

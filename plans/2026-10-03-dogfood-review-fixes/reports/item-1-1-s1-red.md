@@ -18,8 +18,12 @@ File: tests/dogfood-launcher-test.sh (toolkit/bin/claude untouched;
 ## RED output (current shim, assertion failures only)
 
 - Scenario 2 (reds, as required):
-  - `FAIL: a variable equal to this copy skips the sync: no copy made: '.../my consumer/dist' exists`
-  - `FAIL: a variable equal to this copy skips the sync: no copy as the next claude started: expected 'absent', got 'present'`
+  - ```
+    FAIL: a variable equal to this copy skips the sync: no copy made: '.../my consumer/dist' exists
+    ```
+  - ```
+    FAIL: a variable equal to this copy skips the sync: no copy as the next claude started: expected 'absent', got 'present'
+    ```
   - the exit-code, variable and pid assertions pass on the current shim (they
     hold under both behaviours).
 - Scenarios 1 and 3: pass on the current shim (behaviour already present).
@@ -33,10 +37,14 @@ inverse exact replacement; after each, grep for the mutated text returned 0 hits
 and the line showed original at line 19.
 
 - Scenario 1 reds:
-  `FAIL: the shim syncs before exec: the copy existed as the next claude started: expected 'present', got 'absent'`
+  ```
+  FAIL: the shim syncs before exec: the copy existed as the next claude started: expected 'present', got 'absent'
+  ```
   and `...: '.../dist/plugin/.claude-plugin/plugin.json' is not a regular file`.
 - Scenario 3 reds:
-  `FAIL: an inherited variable naming another path still syncs: expected 'present', got 'absent'`
+  ```
+  FAIL: an inherited variable naming another path still syncs: expected 'present', got 'absent'
+  ```
   and `...: ...plugin.json' is not a regular file`.
 - (Same mutation also reds the pre-existing failed-sync and 127 scenarios, 9
   failures total.)

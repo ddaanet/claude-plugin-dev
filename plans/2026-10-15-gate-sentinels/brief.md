@@ -69,5 +69,7 @@ For orientation, `handoff`'s current gate is `just precommit` in
 `/Users/david/code/handoff/justfile`: jq, `claude plugin validate`,
 `claude plugin test`, shellcheck, ruff, docformatter, mypy, ty, three bats files
 and pytest, all serial, all uncached. Its likely input set:
-`.claude-plugin .claude/settings.json bin hooks scripts skills tests justfile pyproject.toml uv.lock plugin-dev`
+```
+.claude-plugin .claude/settings.json bin hooks scripts skills tests justfile pyproject.toml uv.lock plugin-dev
+```
 (`claude plugin validate`/`test` read `skills/` and `hooks/`).

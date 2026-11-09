@@ -27,7 +27,9 @@ them) already uses:
 
 One further needle, beyond the four named in the item, proved necessary for the
 first scenario to discriminate under the runbook's own mutation (see below):
-`assert_not_contains "$out" "never been released" "origin-sort must not read as a first release"`.
+```
+assert_not_contains "$out" "never been released" "origin-sort must not read as a first release"
+```
 Documented inline with a comment explaining why, and covered in "Newly added
 assertion that stayed green" below.
 
