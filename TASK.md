@@ -1,3 +1,5 @@
 ## Current task
 
-Running `/release-ritual` for the first toolkit release from `dev`, which must be `just release minor` (0.16.0): `toolkit/migrations/v0.16.0.md` is a breaking note while `toolkit/VERSION` is 0.15.0, and `update.sh` picks notes by version range, so a patch release would ship the `check-modes` recipe clash without its note. The release runs from `dev` without checking out `main`, since the flow fast-forwards local `main` and pushes the release commit by refspec, and it is the live check that gitlore's pre-push hook ignores the refspec, so far verified only by reading the hook. First action: invoke the `release-ritual` skill.
+None chosen: the release-sequence revision in `memory/ddaanet/shared-claude.md`
+and `/release-ritual` step 6 are done. Pick the next item from `TODO.md`'s
+Remaining with my human partner.

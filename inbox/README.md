@@ -3,8 +3,8 @@
 Where a session working in another repository drops a brief, note or finding
 that concerns claude-plugin-dev.
 
-Drop the file here, not at the repo root. A brief at the root is easy to
-mistake for a tracked project document.
+Drop the file here, not at the repo root. A brief at the root is easy to mistake
+for a tracked project document.
 
 `plans/` is for this repo's own prospective work — plans, specs, briefs a
 session here wrote for itself. `inbox/` is for what arrives from outside.

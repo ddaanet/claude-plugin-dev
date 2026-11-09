@@ -8,12 +8,12 @@ fifteen `release-*-test.sh` suites that split `release.sh`'s consumer flow by
 scenario group (`release-core`, `-resume-push`, `-resume-hint`, `-tree`,
 `-first`, `-lost-tag`, `-push-route`, `-tags`, `-rollback`, `-pipefail`,
 `-hint-size`, and the four that release from `dev`: `-branch`, `-branch-resume`,
-`-branch-moved`, `-branch-moved-dev`), `release-core-root-skip-test.sh` (which runs the `release-core`
-suite under a stub `id` printing 0, to pin its root guard),
-`release-dist-{publish,resume,refusal,optin}-test.sh` (`release.sh` publishing
-the `dist` branch), `self-release-{publish,refusal,branch}-test.sh` (the last:
-releasing from `dev`), `update-plugin-dev-test.sh`, `run-bats-test.sh` (the
-quiet runner, against a stub `bats`),
+`-branch-moved`, `-branch-moved-dev`), `release-core-root-skip-test.sh` (which
+runs the `release-core` suite under a stub `id` printing 0, to pin its root
+guard), `release-dist-{publish,resume,refusal,optin}-test.sh` (`release.sh`
+publishing the `dist` branch), `self-release-{publish,refusal,branch}-test.sh`
+(the last: releasing from `dev`), `update-plugin-dev-test.sh`,
+`run-bats-test.sh` (the quiet runner, against a stub `bats`),
 `gates-{sentinel,guards,inputs,hash}-test.sh` (`gates.just`'s cache, its guards,
 the files it hashes and the re-hash after a formatter, driven through real
 `just` recipes in a fixture consumer),
@@ -25,11 +25,10 @@ build, refusals, warnings and other subcommands),
 is, which files are read and exempt, `plans/` always skipped, and the shipped
 check), `check-size-{scope,exempt,report}-test.sh` (`check-size.sh`: which files
 are counted (including `linguist-generated` files), the `size.exempt` refusals,
-and the report, caps and counts),
-`check-modes-test.sh` (`check-modes.sh`, run from a copy in a fixture
-`plugin-dev/`: a `#!` file at 644 is refused with `mode-lost`, the hint's
-chmod clears it, which files are read, and the sign-off count),
-`check-frontmatter-{block,fields,scope,interpreter}-test.sh`
+and the report, caps and counts), `check-modes-test.sh` (`check-modes.sh`, run
+from a copy in a fixture `plugin-dev/`: a `#!` file at 644 is refused with
+`mode-lost`, the hint's chmod clears it, which files are read, and the sign-off
+count), `check-frontmatter-{block,fields,scope,interpreter}-test.sh`
 (`check-frontmatter.sh`, against fixture plugin repos and the venv's real
 PyYAML: the block refusals, the `description` and `name` refusals (a skill's
 `name` is its directory's, an agent's is required and need not match its file, a

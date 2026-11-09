@@ -111,7 +111,7 @@ whitespace:
         fi
     done < <(git ls-files -z --cached --others --exclude-standard)
 
-# Hard-wrap prose in docs/, plans/ and the shipped manual at 80 columns, for an 80-column read.
+# Hard-wrap prose in every Markdown file at 80 columns, for an 80-column read.
 format-docs:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -134,9 +134,16 @@ format-docs:
         echo "format-docs: $have at $bin, pyproject.toml pins $want — run 'uv sync'" >&2
         exit 1
     }
+    # Every `.md` file on disk that git does not ignore, tracked or not: the
+    # set the gate hashes. A file listed but gone from the worktree is skipped.
+    files=()
+    while IFS= read -r -d '' f; do
+        [ -f "$f" ] && files+=("$f")
+    done < <(git ls-files -z --cached --others --exclude-standard -- '*.md')
+    [ "${#files[@]}" -gt 0 ] || exit 0
     # `fmt` exits 0 with anything it cannot wrap left in place; `check --fix`
     # would exit 1 on the same tree and fail the gate over a long URL.
-    "$bin" fmt --no-cache docs plans toolkit/README.md toolkit/manual toolkit/migrations
+    "$bin" fmt --no-cache -- "${files[@]}"
 
 # Overridable so a test can stand in a stub: `just rumdl=/path/to/stub format-docs`.
 rumdl := "rumdl"

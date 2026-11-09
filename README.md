@@ -43,8 +43,8 @@ alternatives that were rejected.
 - **`just check-version`** — `plugin.json` against its marketplace entry; also
   runs as a `release` pre-flight, so a release refuses to start on top of an
   unfinished one.
-- **`just check-refs`** — refuses a Markdown link whose target is missing, and
-  a shipped file's link out of `dist.include`; a plugin adds it to its own
+- **`just check-refs`** — refuses a Markdown link whose target is missing, and a
+  shipped file's link out of `dist.include`; a plugin adds it to its own
   `precommit` (nothing in `release.just` depends on it), see
   [Reference check](toolkit/README.md#reference-check).
 - **`just check-size`** — refuses a file over 20000 bytes, or 10000 for a
@@ -68,12 +68,12 @@ alternatives that were rejected.
 - **A `claude` shim** that loads the plugin from a synced copy in
   `dist/plugin/`; see [Dogfooding](toolkit/README.md#dogfooding).
 - **`just dogfood`** — syncs the working tree (only the `dist.include` paths,
-  where the plugin has one) into that copy, the only step
-  that does; see [Dogfooding](toolkit/README.md#dogfooding).
+  where the plugin has one) into that copy, the only step that does; see
+  [Dogfooding](toolkit/README.md#dogfooding).
 - **Opt-in gate sentinels and a quiet bats runner** — `gates.just` lets a
   `precommit` skip itself while the files it reads are unchanged, and
-  `run-bats.sh` prints failures and a pass count in place of the TAP stream;
-  see [Gate sentinels](toolkit/README.md#gate-sentinels).
+  `run-bats.sh` prints failures and a pass count in place of the TAP stream; see
+  [Gate sentinels](toolkit/README.md#gate-sentinels).
 
 [toolkit/README.md](toolkit/README.md) is the manual for all of it, and ships
 with the vendored copy — that is the file a plugin maintainer reads day to day.
@@ -136,10 +136,11 @@ git commit -m "add claude-plugin-dev toolkit"
 ```
 
 Then follow the manual's [Dogfooding](toolkit/README.md#dogfooding) →
-[Setup](toolkit/manual/dogfood.md#setup), which ends with a first `just dogfood`.
-The `SessionStart` hook the install wired warns on every session until the shim
-is on PATH, the sync refuses to run until git ignores the copy, and a launch
-before `just dogfood` has created it starts without the plugin and says so.
+[Setup](toolkit/manual/dogfood.md#setup), which ends with a first
+`just dogfood`. The `SessionStart` hook the install wired warns on every session
+until the shim is on PATH, the sync refuses to run until git ignores the copy,
+and a launch before `just dogfood` has created it starts without the plugin and
+says so.
 
 ## Updating in a plugin
 
