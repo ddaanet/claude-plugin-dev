@@ -94,8 +94,7 @@ a substring another line supplies.
 The script has four occurrences. One is in `release_preflight`'s lost-tags
 branch (
 ```
-Run \`git fetch --tags\` to catch
-up
+Run \`git fetch --tags\` to catch up
 ```
 ) — the one that appears in the RED output. Two are in `resume_preflight`'s hint
 ladder, unreachable in `patch` mode (

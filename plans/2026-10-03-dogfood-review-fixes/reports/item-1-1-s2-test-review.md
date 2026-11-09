@@ -66,8 +66,7 @@ fixed, and every probed wrong GREEN now reds.
      `dogfood: sync of $root failed, not started` would match through the path.
    - Fix:
      ```
-     not_started_re="^dogfood: (.*[[:space:]\`'])?claude[[:space:]\`'].*not
-     started"
+     not_started_re="^dogfood: (.*[[:space:]\`'])?claude[[:space:]\`'].*not started"
      ```
      (`grep -E`). `claude` must be a word, delimited by whitespace or a quote or
      backtick. It cannot be a substring of a path component. A comment above it

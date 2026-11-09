@@ -155,9 +155,7 @@ None.
      scenario, which is OUT of this review's scope.
    - **Status**: DEFERRED — slice 1's scenario is out of scope.
      ```
-     REFACTOR-NEEDED: tests/release-test.sh — the pipefail-stripped-copy + failing-`git
-     tag
-     --list` wrapper setup is duplicated across the two slice scenarios; extract a harness helper.
+     REFACTOR-NEEDED: tests/release-test.sh — the pipefail-stripped-copy + failing-`git tag --list` wrapper setup is duplicated across the two slice scenarios; extract a harness helper.
      ```
 
 ## Other checks, all clean

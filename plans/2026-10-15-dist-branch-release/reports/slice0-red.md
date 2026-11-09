@@ -73,8 +73,7 @@ Verdict: APPROVE
    HEAD unmoved" assertion in entry-agrees-no-tags, so the guard discriminates.
 4. Green by hand in a scratch copy in $TMPDIR: line 763 became
    ```
-   source: { source: "url", url: ("https://github.com/" + $repo +
-   ".git") }
+   source: { source: "url", url: ("https://github.com/" + $repo + ".git") }
    ```
    The full suite then had 0 FAIL and exited 0. The real repo's release.sh was
    not touched.
