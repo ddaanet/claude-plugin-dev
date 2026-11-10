@@ -47,10 +47,8 @@ common_preflight() {
     git fetch origin || die "git fetch origin failed"
     # Refused before anything is written: with either main holding commits HEAD
     # lacks, the move or the push would refuse only after the tag was cut.
-    git merge-base --is-ancestor "refs/heads/$main_branch" HEAD || {
-        printf 'hint: see "Local main after an amended release commit" in docs/references/self-release.md.\n' >&2
-        die "local $main_branch is not an ancestor of HEAD"
-    }
+    git merge-base --is-ancestor "refs/heads/$main_branch" HEAD \
+        || die "local $main_branch is not an ancestor of HEAD"
     git merge-base --is-ancestor "refs/remotes/origin/$main_branch" HEAD \
         || die "origin/$main_branch is not an ancestor of HEAD"
 }

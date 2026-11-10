@@ -3,14 +3,10 @@
 # dir, for a release commit amended after its tags were cut. No network:
 # origins are local bare repos and `gh` is a stub on PATH.
 #
-# Scope: the two rough edges left once someone amends a release commit whose
-# push failed, against docs/references/recovery.md's advice not to. (a) A local
-# dist tag cut from the OLD toolkit/ tree must not be published for the amended
-# tag: the resume refuses and the hint deletes it. (b) Releasing from dev, the
-# failed push left local main fast-forwarded to the release commit; the refusal
-# at "local main is not an ancestor of HEAD" names a section of
-# docs/references/self-release.md, and that section's commands, followed by the
-# resume's own hints, finish the release.
+# Scope: a release commit amended after its push failed, against
+# docs/references/recovery.md's advice not to. A local dist tag cut from the OLD
+# toolkit/ tree must not be published for the amended tag: the resume refuses
+# and the hint deletes it.
 #
 # The failed push is real: origin's pre-receive hook rejects while a flag file
 # exists, so the fixture is what the script itself leaves behind.
@@ -86,10 +82,9 @@ run() {
 }
 
 new_sandbox() {
-    # $1=branch to release from (main|dev). A repo shaped like
-    # claude-plugin-dev, released at 0.1.0 from main (both tags pushed), on
-    # the named branch (dev is one unpublished commit ahead of main). Only
-    # main is on origin, and origin refuses pushes while $reject exists.
+    # A repo shaped like claude-plugin-dev, released at 0.1.0 from main (both
+    # tags pushed), on main. Only main is on origin, and origin refuses pushes
+    # while $reject exists.
     sandbox="$(mktemp -d "${TMPDIR:-/tmp}/self-release-amend.XXXXXX")"
     sandboxes+=("$sandbox")
     repo="$sandbox/repo"
@@ -134,11 +129,6 @@ STUB
     git -C "$repo" push -q -u origin main
     git -C "$repo" push -q origin v0.1.0 dist-v0.1.0
     : > "$GH_RELEASES/v0.1.0"
-
-    if [ "$1" = dev ]; then
-        git -C "$repo" checkout -q -b dev
-        commit_in_repo dev-work.md "work on dev"
-    fi
 }
 
 commit_in_repo() {
@@ -164,46 +154,24 @@ failed_release() {
     assert_eq "$(rev "dist-v0.2.0^{tree}")" "$(rev v0.2.0:toolkit)" "$1: a clean release's dist tree is the tag's toolkit"
 }
 
-amend_release_commit() {
+amend_release() {
     # Amends the release commit on the checked-out branch so toolkit/ differs,
-    # as recovery.md advises against. Never touches a tag or main, so v0.2.0
-    # still names the commit as it was: the state an amend alone leaves.
+    # and re-tags v0.2.0 on it by hand, as recovery.md advises against. Never
+    # touches dist-v0.2.0 or main.
+    local old_toolkit
+    old_toolkit=$(rev v0.2.0:toolkit)
     printf '# amended manual\n' > "$repo/toolkit/README.md"
     git -C "$repo" add toolkit/README.md
     git -C "$repo" commit -q --amend --no-edit
-    [ "$(rev HEAD:toolkit)" != "$(rev v0.2.0:toolkit)" ] \
-        || fail "fixture: the amend left toolkit/ as it was, so a stale dist tag would go unseen"
-}
-
-amend_release() {
-    # amend_release_commit, then re-tags v0.2.0 on the amended commit by hand.
-    # Never touches dist-v0.2.0 or main.
-    amend_release_commit
     git -C "$repo" tag -d v0.2.0 >/dev/null
     git -C "$repo" tag -a v0.2.0 -m "Release 0.2.0"
+    [ "$(rev HEAD:toolkit)" != "$old_toolkit" ] \
+        || fail "fixture: the amend left toolkit/ as it was, so a stale dist tag would go unseen"
     assert_eq "$(rev "refs/tags/v0.2.0^{commit}")" "$(rev HEAD)" "fixture: v0.2.0 re-tagged on the amended commit"
 }
 
-hint_lines() {
-    # $1=output. The command lines of a hint: indented, starting with `git `.
-    grep -E '^ +git ' <<<"$1" || true
-}
-
-section_commands() {
-    # $1=a level-2 heading of docs/references/self-release.md. Prints the lines
-    # of the section's sh fences, in order, so the suite runs the commands the
-    # doc gives rather than a copy of them.
-    awk -v h="## $1" '
-        $0 == h { in_section = 1; next }
-        in_section && /^## / { exit }
-        in_section && $0 == "```sh" { in_fence = 1; next }
-        in_fence && $0 == "```" { in_fence = 0; next }
-        in_fence { print }
-    ' "$repo_root/docs/references/self-release.md"
-}
-
-echo "=== (a) a stale local dist tag is refused, with a hint that deletes it ==="
-new_sandbox main
+echo "=== a stale local dist tag is refused, with a hint that deletes it ==="
+new_sandbox
 failed_release "stale local dist"
 amend_release
 origin_before=$(git -C "$repo" ls-remote origin)
@@ -214,8 +182,8 @@ assert_contains "$out" "git tag -d dist-v0.2.0" "stale local dist: hint deletes 
 assert_contains "$out" "just resume-release" "stale local dist: hint says to re-run"
 assert_eq "$(git -C "$repo" ls-remote origin)" "$origin_before" "stale local dist: nothing was pushed"
 
-echo "=== (a) following the hint finishes with a dist tag of the amended toolkit ==="
-new_sandbox main
+echo "=== following the hint finishes with a dist tag of the amended toolkit ==="
+new_sandbox
 failed_release "stale local dist, hint followed"
 amend_release
 run --resume
@@ -230,8 +198,8 @@ assert_eq "$(rev "dist-v0.2.0^{tree}")" "$(rev HEAD:toolkit)" "hint followed: di
 assert_eq "$(origin_sha refs/tags/dist-v0.2.0)" "$(rev refs/tags/dist-v0.2.0)" "hint followed: dist tag published"
 assert_eq "$(origin_sha refs/heads/main)" "$(rev HEAD)" "hint followed: origin main is the amended commit"
 
-echo "=== (a) a dist tag matching its tag is kept when HEAD's toolkit/ moved on ==="
-new_sandbox main
+echo "=== a dist tag matching its tag is kept when HEAD's toolkit/ moved on ==="
+new_sandbox
 failed_release "matching dist"
 dist_before=$(rev refs/tags/dist-v0.2.0)
 commit_in_repo toolkit/later.md "after the release, inside toolkit/"
@@ -239,41 +207,6 @@ run --resume
 assert_eq "$rc" 0 "matching dist, later toolkit work: exit status"
 assert_eq "$(rev refs/tags/dist-v0.2.0)" "$dist_before" "matching dist, later toolkit work: the dist tag is kept"
 assert_eq "$(origin_sha refs/tags/dist-v0.2.0)" "$dist_before" "matching dist, later toolkit work: published"
-
-echo "=== (b) an amend on dev leaves main on the old commit: the documented steps finish the release ==="
-new_sandbox dev
-failed_release "amend on dev"
-amend_release_commit
-commit_in_repo after-amend.md "dev work after the amend"
-amended=$(rev HEAD^)
-assert_eq "$(git -C "$repo" rev-list HEAD..main)" "$old_sha" "amend on dev: fixture: main holds only the pre-amend commit"
-section="Local main after an amended release commit"
-run --resume
-assert_eq "$rc" 1 "amend on dev: exit status"
-assert_contains "$out" "local main is not an ancestor of HEAD" "amend on dev: the refusal"
-assert_contains "$out" "\"$section\" in docs/references/self-release.md" "amend on dev: the hint names the section"
-steps=$(section_commands "$section")
-assert_eq "$(grep -c . <<<"$steps" || true)" 2 "amend on dev: the section gives a check and a command"
-check=$(sed -n 1p <<<"$steps")
-move=$(sed -n 2p <<<"$steps")
-listed=$(cd "$repo" && bash -c "$check") || fail "amend on dev: the section's check failed: $check"
-assert_eq "$(grep -c . <<<"$listed" || true)" 1 "amend on dev: the section's check lists one commit"
-assert_contains "$listed" "release: 0.2.0" "amend on dev: the section's check lists the release commit"
-(cd "$repo" && bash -c "$move") >/dev/null || fail "amend on dev: the section's command failed: $move"
-run --resume
-assert_eq "$rc" 1 "amend on dev, main moved back: the stale tag refuses"
-retag=$(hint_lines "$out")
-[ -n "$retag" ] || fail "amend on dev, main moved back: the refusal printed no command"
-(cd "$repo" && bash -c "$retag") >/dev/null \
-    || fail "amend on dev, main moved back: the printed commands failed: $retag"
-run --resume
-assert_eq "$rc" 0 "amend on dev, steps followed: exit status"
-assert_eq "$(rev "refs/tags/v0.2.0^{commit}")" "$amended" "amend on dev, steps followed: v0.2.0 names the amended commit"
-assert_eq "$(rev refs/heads/main)" "$amended" "amend on dev, steps followed: local main is the amended commit"
-assert_eq "$(origin_sha refs/heads/main)" "$amended" "amend on dev, steps followed: origin main is the amended commit"
-assert_eq "$(rev "dist-v0.2.0^{tree}")" "$(rev "$amended:toolkit")" "amend on dev, steps followed: dist tree is the amended toolkit"
-assert_eq "$(origin_sha refs/tags/dist-v0.2.0)" "$(rev refs/tags/dist-v0.2.0)" "amend on dev, steps followed: dist tag published"
-assert_eq "$(git -C "$repo" symbolic-ref -q --short HEAD || true)" dev "amend on dev, steps followed: still on dev"
 
 if [ "$failures" -eq 0 ]; then
     echo "self-release.sh amended-release handling: ok"

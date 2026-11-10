@@ -120,11 +120,9 @@ were cut, which is the stranded state `resume-release` exists to absorb;
 refusing first costs nothing to undo. This applies on `main` too: a `main` that
 trails `origin/main` is refused up front. The fetch is a plain one, which also
 brings back a release tag on origin's history, so a resume from a clone missing
-the tag finds it and finishes. The local-`main` refusal prints no command, since
-it covers a `main` holding real work as well as one left on an amended release
-commit, and a command that cures the second discards the first. Its hint names
-the section "Local main after an amended release commit" below, which gives the
-steps.
+the tag finds it and finishes. The local-`main` refusal names no command: the
+states that reach it need different remedies, and the refusal cannot tell them
+apart.
 
 A resume publishes only a tag whose commit is on `HEAD`'s history, however the
 tag arrived, and refuses any other before writing anything. A tag off that
@@ -162,28 +160,3 @@ after later commits publish none of them. The cost is that those commits reach
 origin by an ordinary push, outside the script. gitlore's pre-push hook ignores
 the refspec and pushes each memory store's `live`, so memory publishes as it
 does from `main`.
-
-## Local main after an amended release commit
-
-A release from `dev` moves local `main` to the release commit before it pushes.
-When that push fails and the release commit is then amended on `dev`, local
-`main` still holds the commit as it was before the amend, and every run refuses
-with `local main is not an ancestor of HEAD`. When this lists that one commit
-and nothing else:
-
-```sh
-git log --oneline HEAD..main
-```
-
-`main` is that commit and holds no other work, so this moves it back to the
-commit's parent, which `dev` carries:
-
-```sh
-git branch -f main main^
-```
-
-`just resume-release` then refuses at the tag, which still names the pre-amend
-commit, and prints the commands that re-tag the amended commit and delete the
-dist tag split from the old tree. Running them and `just resume-release` again
-finishes the release with the amended `toolkit/` tree. When `HEAD..main` lists
-anything else, `main` holds work of its own, and these steps do not apply.

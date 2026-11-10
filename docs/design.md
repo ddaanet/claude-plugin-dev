@@ -222,8 +222,6 @@ present tense.
 - **It runs from `main` or `dev` and publishes the tag's commit to `main`**:
   both mains are checked as ancestors of `HEAD` after a fetch, before anything
   is written, and local `main` is fast-forwarded without a checkout.
-- The local-`main` ancestor refusal prints no command; its hint names the
-  written steps for a `main` left on an amended release commit.
 - A resume publishes only a tag whose commit is on `HEAD`'s history.
 - **A local dist tag must match its tag's `toolkit/` tree**, else the run
   refuses before pushing and prints `git tag -d`; a published one in that state
