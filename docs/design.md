@@ -107,7 +107,7 @@ present tense.
   notes carry no marker, so an unmarked note before 0.15.0 says nothing.
 - `toolkit/VERSION` is the version source of truth, not the tags alone.
 
-### The release flow — [references/release-flow.md](references/release-flow.md)
+### The release flow — [references/release-flow.md](references/release-flow.md), [references/release-branch.md](references/release-branch.md)
 
 - The manifest holds the *last released* version, and `just release` bumps from
   there.
@@ -118,6 +118,9 @@ present tense.
 - `release` depends on `prerelease`, never on `precommit` directly.
 - The default branch is read from `origin/HEAD`. A release runs from it or from
   `dev` without changing branch and pushes the tag's commit to it, never `dev`.
+- **From `dev`, a `main` that git would refuse to move is refused before any
+  commit or tag**, by running git's own fetch as a no-op rather than parsing
+  `git worktree list`; a resume is unchanged.
 
 ### Recovery and the pre-flight state checks — [references/recovery.md](references/recovery.md), [references/failed-release.md](references/failed-release.md), [references/clean-tree.md](references/clean-tree.md)
 

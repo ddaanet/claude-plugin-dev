@@ -41,12 +41,12 @@ Before adding, moving or editing a shipped file, open
   it first and open only the node you need.
 - `docs/references/*.md` — one node per group of decisions (a large group may
   take more than one) (`distribution`, `dist-branch`, `check-refs`, `dogfood`,
-  `dogfood-sync`, `gates`, `release-flow`, `recovery`, `failed-release`,
-  `clean-tree`, `self-release`, `size-check`, `frontmatter-check`, `mode-check`,
-  `version-guard`, and `limitations`, which argues the hub's one-line
-  limitations), each holding the argument behind the hub's conclusions:
-  alternatives weighed, what it costs. A decision that changes is rewritten in
-  both places.
+  `dogfood-sync`, `gates`, `release-flow`, `release-branch`, `recovery`,
+  `failed-release`, `clean-tree`, `self-release`, `size-check`,
+  `frontmatter-check`, `mode-check`, `version-guard`, and `limitations`, which
+  argues the hub's one-line limitations), each holding the argument behind the
+  hub's conclusions: alternatives weighed, what it costs. A decision that
+  changes is rewritten in both places.
 - `plans/` — specs and implementation plans. Prospective content only; `docs/`
   holds what is true now.
 - `inbox/` — briefs, notes and findings that arrive from a session in *another*
