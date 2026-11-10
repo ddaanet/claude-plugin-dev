@@ -182,10 +182,7 @@ depend on.
 This repo's own release borrows the same tail without sharing the code — it is
 not consumer-shaped, and folding the two together would make the toolkit consume
 its own consumer-shaped code. That argument, and the one guard the self-release
-carries that no consumer needs, are in [self-release.md](self-release.md). Its
-dist-tag refusal follows the rule in the next section: a local dist tag split
-from a `toolkit/` tree the release tag no longer has is refused before any push,
-with the exact command that clears it.
+carries that no consumer needs, are in [self-release.md](self-release.md).
 
 ## The refusal is where the operational knowledge lives
 

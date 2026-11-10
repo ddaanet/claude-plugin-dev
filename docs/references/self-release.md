@@ -120,9 +120,7 @@ were cut, which is the stranded state `resume-release` exists to absorb;
 refusing first costs nothing to undo. This applies on `main` too: a `main` that
 trails `origin/main` is refused up front. The fetch is a plain one, which also
 brings back a release tag on origin's history, so a resume from a clone missing
-the tag finds it and finishes. The local-`main` refusal names no command: the
-states that reach it need different remedies, and the refusal cannot tell them
-apart.
+the tag finds it and finishes.
 
 A resume publishes only a tag whose commit is on `HEAD`'s history, however the
 tag arrived, and refuses any other before writing anything. A tag off that

@@ -156,8 +156,9 @@ failed_release() {
 
 amend_release() {
     # Amends the release commit on the checked-out branch so toolkit/ differs,
-    # and re-tags v0.2.0 on it by hand, as recovery.md advises against. Never
-    # touches dist-v0.2.0 or main.
+    # and re-tags v0.2.0 on it by hand, as recovery.md advises against. The
+    # suite runs on main, so the amend moves main with HEAD; dist-v0.2.0 is
+    # left on the tree split before the amend.
     local old_toolkit
     old_toolkit=$(rev v0.2.0:toolkit)
     printf '# amended manual\n' > "$repo/toolkit/README.md"

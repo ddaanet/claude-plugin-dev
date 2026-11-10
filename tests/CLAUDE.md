@@ -14,11 +14,10 @@ the `release-core` suite under a stub `id` printing 0, to pin its root guard),
 `release-dist-{publish,resume,refusal,optin}-test.sh` (`release.sh` publishing
 the `dist` branch), `self-release-{publish,refusal,branch,amend}-test.sh`
 (`-branch`: releasing from `dev`; `-amend`: an amended release commit),
-`update-plugin-dev-test.sh`, `run-bats-test.sh` (the quiet runner, against a stub
-`bats`),
-`gates-{sentinel,guards,inputs,hash}-test.sh` (`gates.just`'s cache, its guards,
-the files it hashes and the re-hash after a formatter, driven through real
-`just` recipes in a fixture consumer),
+`update-plugin-dev-test.sh`, `run-bats-test.sh` (the quiet runner, against a
+stub `bats`), `gates-{sentinel,guards,inputs,hash}-test.sh` (`gates.just`'s
+cache, its guards, the files it hashes and the re-hash after a formatter, driven
+through real `just` recipes in a fixture consumer),
 `install-{vendor,settings,legacy}-test.sh` (`install.sh`'s vendoring, settings
 wiring and legacy-entry migration), `dist-tree-test.sh` (the shipped-file list),
 `dist-{build,refusal,warning,subcommands}-test.sh` (`dist.sh`'s allowlist, tree
