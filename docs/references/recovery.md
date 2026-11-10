@@ -182,7 +182,11 @@ depend on.
 This repo's own release borrows the same tail without sharing the code — it is
 not consumer-shaped, and folding the two together would make the toolkit consume
 its own consumer-shaped code. That argument, and the one guard the self-release
-carries that no consumer needs, are in [self-release.md](self-release.md).
+carries that no consumer needs, are in [self-release.md](self-release.md). Its
+two amend refusals follow the same rule: a local dist tag split from a
+`toolkit/` tree the release tag no longer has, and a local `main` holding the
+pre-amend release commit, each print the exact command that clears it, the
+second only when that command alone clears the refusal and discards no work.
 
 ## The refusal is where the operational knowledge lives
 

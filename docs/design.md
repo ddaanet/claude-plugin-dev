@@ -223,6 +223,11 @@ present tense.
   both mains are checked as ancestors of `HEAD` after a fetch, before anything
   is written, and local `main` is fast-forwarded without a checkout.
 - A resume publishes only a tag whose commit is on `HEAD`'s history.
+- **A local dist tag must match its tag's `toolkit/` tree**, else the run
+  refuses before pushing and prints `git tag -d`; a published one in that state
+  is unreachable, so it gets no hint.
+- A local `main` that is one pre-amend release commit behind gets a single
+  `git branch -f main <parent>` hint; any other state gets no command.
 - **It borrows the shape, not the code**: the same idempotent tail.
 - A bump is refused while the current `toolkit/VERSION` is tagged but not fully
   published.

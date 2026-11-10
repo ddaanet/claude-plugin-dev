@@ -88,6 +88,19 @@ practice, but "in practice" is not a basis for pushing a recomputed ref over a
 published one, and `push_tag`'s mismatch refusal is the only thing standing
 between a differing split and a moved tag.
 
+**A local dist tag must carry the tag's own `toolkit/` tree.** `ensure_dist_tag`
+keeps a local dist tag, so after an amend of the release commit it would keep
+the tree split from the commit the tag no longer names, and `push_tag` would
+publish it; a published dist tag is never moved, so consumers would vendor the
+stale tree for good. The check compares `dist-vX.Y.Z^{tree}` to `vX.Y.Z:toolkit`
+and refuses before anything is pushed, with `git tag -d dist-vX.Y.Z` on its own
+line and then `just resume-release`. It compares against the tag's tree, never
+`HEAD`'s: a resume's `HEAD` is often past the release with `toolkit/` changed
+since, and a dist tag that matches its tag is right. A dist tag already on
+origin in this state needs no hint, because it is unreachable: main is pushed
+first, then `vX.Y.Z`, then the dist tag, and `common_preflight` refuses once
+origin's `main` holds commits `HEAD` lacks.
+
 ## It releases from `main` or `dev` and publishes the tag's commit
 
 Work lands on `dev`; a release is a review of `dev` against `main`, after which
@@ -116,6 +129,24 @@ would publish that commit and leave `main` off the branch the next release is
 cut from, and a resume cannot take published tags back. The refusal's hint
 re-tags the commit and drops the dist tag too, because `ensure_dist_tag` would
 otherwise keep the tree split from the old commit.
+
+**A local `main` holding the pre-amend release commit gets one command.** When
+the release was cut and `main` moved to it, then the release commit was amended
+on `dev`, local `main` holds a commit `HEAD` lacks and the ancestor refusal
+fires. Its hint offers `git branch -f main <sha>`, on its own indented line,
+only when the rule below holds, because the same refusal also covers a `main`
+with real work on it, which the command would discard. `HEAD..main` is exactly
+one commit; that commit is a sibling of the tagged release commit (same parent,
+not the same commit), which is what a pre-amend release commit is; and
+`origin/main` is an ancestor of `HEAD`, so the command alone clears the refusal
+(the local check runs before the origin one). The target is that commit's
+parent, which `HEAD` carries; `HEAD` itself would put unreleased `dev` work on
+`main`. A release cut from `main` and still tagged is not a sibling of itself,
+so it gets no command. The probes only choose the hint: the refusal is decided
+before they run, so each is captured with a fallback to "no command" and none
+can turn it into a crash. The preflights live in
+`scripts/self-release-preflight.sh`, sourced from the script's own location,
+apart from the publish steps, which are the part that writes.
 
 **`main` moves without a checkout.** After the tags, `main` is fast-forwarded to
 the tag's commit with `git fetch . <sha>:refs/heads/main`, before any push.

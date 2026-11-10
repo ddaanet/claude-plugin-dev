@@ -30,7 +30,9 @@ Before adding, moving or editing a shipped file, open
   plugin, this one releases the toolkit (`toolkit/VERSION`, no marketplace, two
   tags). Same shape, though — every step past the local commit is probed before
   it is taken, so `--resume` finishes a run that died mid-flight. Root-level, so
-  it is not shipped; covered by `tests/self-release-*-test.sh`.
+  it is not shipped; covered by `tests/self-release-*-test.sh`. Its preflights
+  live in the sourced sibling `scripts/self-release-preflight.sh`, split off to
+  stay under the size cap.
 - `README.md` — presents this repo and carries the consumer install and update
   instructions. Root-level, so it is not shipped: the vendored manual is
   `toolkit/README.md`, and a change to the install or update flow has to land in
