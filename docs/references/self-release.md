@@ -120,7 +120,11 @@ were cut, which is the stranded state `resume-release` exists to absorb;
 refusing first costs nothing to undo. This applies on `main` too: a `main` that
 trails `origin/main` is refused up front. The fetch is a plain one, which also
 brings back a release tag on origin's history, so a resume from a clone missing
-the tag finds it and finishes.
+the tag finds it and finishes. The local-`main` refusal prints no command, since
+it covers a `main` holding real work as well as one left on an amended release
+commit, and a command that cures the second discards the first. Its hint names
+the section "Local main after an amended release commit" below, which gives the
+steps.
 
 A resume publishes only a tag whose commit is on `HEAD`'s history, however the
 tag arrived, and refuses any other before writing anything. A tag off that
@@ -130,23 +134,9 @@ cut from, and a resume cannot take published tags back. The refusal's hint
 re-tags the commit and drops the dist tag too, because `ensure_dist_tag` would
 otherwise keep the tree split from the old commit.
 
-**A local `main` holding the pre-amend release commit gets one command.** When
-the release was cut and `main` moved to it, then the release commit was amended
-on `dev`, local `main` holds a commit `HEAD` lacks and the ancestor refusal
-fires. Its hint offers `git branch -f main <sha>`, on its own indented line,
-only when the rule below holds, because the same refusal also covers a `main`
-with real work on it, which the command would discard. `HEAD..main` is exactly
-one commit; that commit is a sibling of the tagged release commit (same parent,
-not the same commit), which is what a pre-amend release commit is; and
-`origin/main` is an ancestor of `HEAD`, so the command alone clears the refusal
-(the local check runs before the origin one). The target is that commit's
-parent, which `HEAD` carries; `HEAD` itself would put unreleased `dev` work on
-`main`. A release cut from `main` and still tagged is not a sibling of itself,
-so it gets no command. The probes only choose the hint: the refusal is decided
-before they run, so each is captured with a fallback to "no command" and none
-can turn it into a crash. The preflights live in
-`scripts/self-release-preflight.sh`, sourced from the script's own location,
-apart from the publish steps, which are the part that writes.
+The preflights live in `scripts/self-release-preflight.sh`, sourced from the
+script's own location, apart from the publish steps, which are the part that
+writes.
 
 **`main` moves without a checkout.** After the tags, `main` is fast-forwarded to
 the tag's commit with `git fetch . <sha>:refs/heads/main`, before any push.
@@ -172,3 +162,28 @@ after later commits publish none of them. The cost is that those commits reach
 origin by an ordinary push, outside the script. gitlore's pre-push hook ignores
 the refspec and pushes each memory store's `live`, so memory publishes as it
 does from `main`.
+
+## Local main after an amended release commit
+
+A release from `dev` moves local `main` to the release commit before it pushes.
+When that push fails and the release commit is then amended on `dev`, local
+`main` still holds the commit as it was before the amend, and every run refuses
+with `local main is not an ancestor of HEAD`. When this lists that one commit
+and nothing else:
+
+```sh
+git log --oneline HEAD..main
+```
+
+`main` is that commit and holds no other work, so this moves it back to the
+commit's parent, which `dev` carries:
+
+```sh
+git branch -f main main^
+```
+
+`just resume-release` then refuses at the tag, which still names the pre-amend
+commit, and prints the commands that re-tag the amended commit and delete the
+dist tag split from the old tree. Running them and `just resume-release` again
+finishes the release with the amended `toolkit/` tree. When `HEAD..main` lists
+anything else, `main` holds work of its own, and these steps do not apply.

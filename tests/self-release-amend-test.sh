@@ -8,8 +8,9 @@
 # dist tag cut from the OLD toolkit/ tree must not be published for the amended
 # tag: the resume refuses and the hint deletes it. (b) Releasing from dev, the
 # failed push left local main fast-forwarded to the release commit; the refusal
-# at "local main is not an ancestor of HEAD" prints one command that moves main
-# back, and never one that would discard a commit main genuinely holds.
+# at "local main is not an ancestor of HEAD" names a section of
+# docs/references/self-release.md, and that section's commands, followed by the
+# resume's own hints, finish the release.
 #
 # The failed push is real: origin's pre-receive hook rejects while a flag file
 # exists, so the fixture is what the script itself leaves behind.
@@ -48,13 +49,6 @@ assert_contains() {
     # match, the writer can take SIGPIPE, and the pipeline reports failure.
     if ! grep -q -- "$2" <<<"$1"; then
         fail "$3: output did not contain '$2'"
-        printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
-    fi
-}
-assert_not_contains() {
-    # $1=haystack $2=needle $3=label — same residual bound as assert_contains.
-    if grep -q -- "$2" <<<"$1"; then
-        fail "$3: output should not contain '$2'"
         printf '  --- output ---\n%s\n  --------------\n' "$1" >&2
     fi
 }
@@ -170,25 +164,42 @@ failed_release() {
     assert_eq "$(rev "dist-v0.2.0^{tree}")" "$(rev v0.2.0:toolkit)" "$1: a clean release's dist tree is the tag's toolkit"
 }
 
-amend_release() {
+amend_release_commit() {
     # Amends the release commit on the checked-out branch so toolkit/ differs,
-    # and re-tags v0.2.0 on it by hand, as recovery.md advises against. Never
-    # touches dist-v0.2.0 or main.
-    local old_toolkit
-    old_toolkit=$(rev v0.2.0:toolkit)
+    # as recovery.md advises against. Never touches a tag or main, so v0.2.0
+    # still names the commit as it was: the state an amend alone leaves.
     printf '# amended manual\n' > "$repo/toolkit/README.md"
     git -C "$repo" add toolkit/README.md
     git -C "$repo" commit -q --amend --no-edit
+    [ "$(rev HEAD:toolkit)" != "$(rev v0.2.0:toolkit)" ] \
+        || fail "fixture: the amend left toolkit/ as it was, so a stale dist tag would go unseen"
+}
+
+amend_release() {
+    # amend_release_commit, then re-tags v0.2.0 on the amended commit by hand.
+    # Never touches dist-v0.2.0 or main.
+    amend_release_commit
     git -C "$repo" tag -d v0.2.0 >/dev/null
     git -C "$repo" tag -a v0.2.0 -m "Release 0.2.0"
-    [ "$(rev HEAD:toolkit)" != "$old_toolkit" ] \
-        || fail "fixture: the amend left toolkit/ as it was, so a stale dist tag would go unseen"
     assert_eq "$(rev "refs/tags/v0.2.0^{commit}")" "$(rev HEAD)" "fixture: v0.2.0 re-tagged on the amended commit"
 }
 
 hint_lines() {
     # $1=output. The command lines of a hint: indented, starting with `git `.
     grep -E '^ +git ' <<<"$1" || true
+}
+
+section_commands() {
+    # $1=a level-2 heading of docs/references/self-release.md. Prints the lines
+    # of the section's sh fences, in order, so the suite runs the commands the
+    # doc gives rather than a copy of them.
+    awk -v h="## $1" '
+        $0 == h { in_section = 1; next }
+        in_section && /^## / { exit }
+        in_section && $0 == "```sh" { in_fence = 1; next }
+        in_fence && $0 == "```" { in_fence = 0; next }
+        in_fence { print }
+    ' "$repo_root/docs/references/self-release.md"
 }
 
 echo "=== (a) a stale local dist tag is refused, with a hint that deletes it ==="
@@ -229,91 +240,40 @@ assert_eq "$rc" 0 "matching dist, later toolkit work: exit status"
 assert_eq "$(rev refs/tags/dist-v0.2.0)" "$dist_before" "matching dist, later toolkit work: the dist tag is kept"
 assert_eq "$(origin_sha refs/tags/dist-v0.2.0)" "$dist_before" "matching dist, later toolkit work: published"
 
-echo "=== (b) from dev, an amended release leaves main behind: the hint moves it back ==="
+echo "=== (b) an amend on dev leaves main on the old commit: the documented steps finish the release ==="
 new_sandbox dev
-failed_release "stale main on dev"
-amend_release
-git -C "$repo" tag -d dist-v0.2.0 >/dev/null
+failed_release "amend on dev"
+amend_release_commit
 commit_in_repo after-amend.md "dev work after the amend"
-main_before=$(rev refs/heads/main)
+amended=$(rev HEAD^)
+assert_eq "$(git -C "$repo" rev-list HEAD..main)" "$old_sha" "amend on dev: fixture: main holds only the pre-amend commit"
+section="Local main after an amended release commit"
 run --resume
-assert_eq "$rc" 1 "stale main on dev: exit status"
-assert_contains "$out" "local main is not an ancestor of HEAD" "stale main on dev: the refusal"
-hint_commands=$(hint_lines "$out")
-assert_eq "$(grep -c . <<<"$hint_commands" || true)" 1 "stale main on dev: the hint holds one command"
-assert_contains "$hint_commands" "main" "stale main on dev: the command names main"
-assert_contains "$hint_commands" "[0-9a-f]\{40\}" "stale main on dev: the command carries a full sha"
-assert_eq "$(rev refs/heads/main)" "$main_before" "stale main on dev: the refusal moved nothing"
-(cd "$repo" && bash -c "$hint_commands") >/dev/null \
-    || fail "stale main on dev: the printed command failed: $hint_commands"
-git -C "$repo" merge-base --is-ancestor refs/heads/main HEAD \
-    || fail "stale main on dev: main is still not an ancestor of HEAD after the hint"
-git -C "$repo" merge-base --is-ancestor refs/heads/main "refs/tags/v0.2.0^{commit}" \
-    || fail "stale main on dev: the hint moved main onto work the release does not carry"
+assert_eq "$rc" 1 "amend on dev: exit status"
+assert_contains "$out" "local main is not an ancestor of HEAD" "amend on dev: the refusal"
+assert_contains "$out" "\"$section\" in docs/references/self-release.md" "amend on dev: the hint names the section"
+steps=$(section_commands "$section")
+assert_eq "$(grep -c . <<<"$steps" || true)" 2 "amend on dev: the section gives a check and a command"
+check=$(sed -n 1p <<<"$steps")
+move=$(sed -n 2p <<<"$steps")
+listed=$(cd "$repo" && bash -c "$check") || fail "amend on dev: the section's check failed: $check"
+assert_eq "$(grep -c . <<<"$listed" || true)" 1 "amend on dev: the section's check lists one commit"
+assert_contains "$listed" "release: 0.2.0" "amend on dev: the section's check lists the release commit"
+(cd "$repo" && bash -c "$move") >/dev/null || fail "amend on dev: the section's command failed: $move"
 run --resume
-assert_eq "$rc" 0 "stale main on dev, hint followed: exit status"
-assert_eq "$(rev refs/heads/main)" "$(rev "refs/tags/v0.2.0^{commit}")" "stale main on dev, hint followed: local main is the amended commit"
-assert_eq "$(origin_sha refs/heads/main)" "$(rev "refs/tags/v0.2.0^{commit}")" "stale main on dev, hint followed: origin main"
-assert_eq "$(rev "dist-v0.2.0^{tree}")" "$(rev v0.2.0:toolkit)" "stale main on dev, hint followed: dist tree is the amended toolkit"
-assert_eq "$(git -C "$repo" symbolic-ref -q --short HEAD || true)" dev "stale main on dev, hint followed: still on dev"
-
-echo "=== (b) a main holding a genuine commit gets no command that discards it ==="
-new_sandbox dev
-git -C "$repo" checkout -q main
-commit_in_repo main-only.md "only on main"
-git -C "$repo" checkout -q dev
-main_before=$(rev refs/heads/main)
-for mode in minor --resume; do
-    run "$mode"
-    assert_eq "$rc" 1 "genuine main commit ($mode): exit status"
-    assert_contains "$out" "local main is not an ancestor of HEAD" "genuine main commit ($mode): the refusal"
-    assert_eq "$(hint_lines "$out")" "" "genuine main commit ($mode): no command offered"
-    assert_not_contains "$out" "branch -f" "genuine main commit ($mode): no forced branch move"
-    assert_eq "$(rev refs/heads/main)" "$main_before" "genuine main commit ($mode): main untouched"
-done
-
-echo "=== (b) a genuine commit stacked on the stale release commit gets no command either ==="
-new_sandbox dev
-failed_release "genuine on stale release"
-git -C "$repo" checkout -q main
-commit_in_repo main-only.md "only on main"
-git -C "$repo" checkout -q dev
-amend_release
-git -C "$repo" tag -d dist-v0.2.0 >/dev/null
-main_before=$(rev refs/heads/main)
+assert_eq "$rc" 1 "amend on dev, main moved back: the stale tag refuses"
+retag=$(hint_lines "$out")
+[ -n "$retag" ] || fail "amend on dev, main moved back: the refusal printed no command"
+(cd "$repo" && bash -c "$retag") >/dev/null \
+    || fail "amend on dev, main moved back: the printed commands failed: $retag"
 run --resume
-assert_eq "$rc" 1 "genuine on stale release: exit status"
-assert_contains "$out" "local main is not an ancestor of HEAD" "genuine on stale release: the refusal"
-assert_eq "$(hint_lines "$out")" "" "genuine on stale release: no command offered"
-assert_not_contains "$out" "branch -f" "genuine on stale release: no forced branch move"
-assert_eq "$(rev refs/heads/main)" "$main_before" "genuine on stale release: main untouched"
-
-echo "=== (b) a release cut from main and still tagged gets no command from dev ==="
-new_sandbox dev
-git -C "$repo" checkout -q main
-failed_release "release from main"
-git -C "$repo" checkout -q dev
-main_before=$(rev refs/heads/main)
-for mode in minor --resume; do
-    run "$mode"
-    assert_eq "$rc" 1 "live release on main ($mode): exit status"
-    assert_contains "$out" "local main is not an ancestor of HEAD" "live release on main ($mode): the refusal"
-    assert_eq "$(hint_lines "$out")" "" "live release on main ($mode): no command offered"
-    assert_eq "$(rev refs/heads/main)" "$main_before" "live release on main ($mode): main untouched"
-done
-
-echo "=== (b) an amended release whose commit origin main already holds gets no command ==="
-new_sandbox dev
-failed_release "published main"
-git -C "$repo" push -q origin "$old_sha:refs/heads/main"
-amend_release
-git -C "$repo" tag -d dist-v0.2.0 >/dev/null
-main_before=$(rev refs/heads/main)
-run --resume
-assert_eq "$rc" 1 "published main: exit status"
-assert_contains "$out" "local main is not an ancestor of HEAD" "published main: the refusal"
-assert_eq "$(hint_lines "$out")" "" "published main: no command offered"
-assert_eq "$(rev refs/heads/main)" "$main_before" "published main: main untouched"
+assert_eq "$rc" 0 "amend on dev, steps followed: exit status"
+assert_eq "$(rev "refs/tags/v0.2.0^{commit}")" "$amended" "amend on dev, steps followed: v0.2.0 names the amended commit"
+assert_eq "$(rev refs/heads/main)" "$amended" "amend on dev, steps followed: local main is the amended commit"
+assert_eq "$(origin_sha refs/heads/main)" "$amended" "amend on dev, steps followed: origin main is the amended commit"
+assert_eq "$(rev "dist-v0.2.0^{tree}")" "$(rev "$amended:toolkit")" "amend on dev, steps followed: dist tree is the amended toolkit"
+assert_eq "$(origin_sha refs/tags/dist-v0.2.0)" "$(rev refs/tags/dist-v0.2.0)" "amend on dev, steps followed: dist tag published"
+assert_eq "$(git -C "$repo" symbolic-ref -q --short HEAD || true)" dev "amend on dev, steps followed: still on dev"
 
 if [ "$failures" -eq 0 ]; then
     echo "self-release.sh amended-release handling: ok"

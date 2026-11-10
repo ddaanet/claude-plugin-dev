@@ -10,36 +10,6 @@
 # set the run's globals (`main_branch`, `branch`, `file_version`, `V`, `tag`,
 # `dist_tag`, `latest_tag`, `bump`) directly rather than through arguments.
 
-hint_stale_local_main() {
-    # Prints a hint for the refusal common_preflight is about to make. That
-    # refusal is already decided: everything here only chooses the hint, so a
-    # probe that fails is absorbed into "no command" and never becomes a crash.
-    # Each probe is a capture with a fallback, because this runs inside a `||`
-    # group where `set -e` is in force and an unread failure would end the run
-    # before the `error:` line printed.
-    #
-    # The one command offered undoes an amend of the release commit made on dev
-    # after the release moved main to the commit as it was. The rule: main holds
-    # exactly one commit HEAD lacks, and that commit is a sibling of the tagged
-    # release commit (same parent, not the same commit), i.e. the pre-amend
-    # release commit; and origin's main is already under HEAD, so moving main to
-    # that parent alone clears the refusal. Anything else -- real work on main,
-    # a release cut from main and still tagged, a release origin already holds --
-    # is a state the command would damage or not cure, so none is printed.
-    local extra tagged tag_parent="" extra_parent=""
-    extra=$(git rev-list "HEAD..refs/heads/$main_branch") || return 0
-    case "$extra" in ""|*$'\n'*) return 0 ;; esac
-    tagged=$(git rev-parse -q --verify "refs/tags/v$file_version^{commit}") || return 0
-    [ "$extra" != "$tagged" ] || return 0
-    tag_parent=$(git rev-parse -q --verify "$tagged^") || return 0
-    extra_parent=$(git rev-parse -q --verify "$extra^") || return 0
-    [ "$extra_parent" = "$tag_parent" ] || return 0
-    git merge-base --is-ancestor "refs/remotes/origin/$main_branch" HEAD || return 0
-    printf 'hint: local %s holds the release commit as it was before an amend; nothing was pushed.\n' "$main_branch" >&2
-    printf '      this command moves it back:\n' >&2
-    printf '        git branch -f %s %s\n' "$main_branch" "$tag_parent" >&2
-}
-
 common_preflight() {
     # The `memory` gitlink is excluded, as toolkit/release-preflight.sh's
     # tree_is_clean excludes the gitlore memory submodule: it rests ahead of
@@ -77,8 +47,10 @@ common_preflight() {
     git fetch origin || die "git fetch origin failed"
     # Refused before anything is written: with either main holding commits HEAD
     # lacks, the move or the push would refuse only after the tag was cut.
-    git merge-base --is-ancestor "refs/heads/$main_branch" HEAD \
-        || { hint_stale_local_main; die "local $main_branch is not an ancestor of HEAD"; }
+    git merge-base --is-ancestor "refs/heads/$main_branch" HEAD || {
+        printf 'hint: see "Local main after an amended release commit" in docs/references/self-release.md.\n' >&2
+        die "local $main_branch is not an ancestor of HEAD"
+    }
     git merge-base --is-ancestor "refs/remotes/origin/$main_branch" HEAD \
         || die "origin/$main_branch is not an ancestor of HEAD"
 }
