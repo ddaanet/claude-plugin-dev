@@ -9,7 +9,9 @@
 # there or held by an interrupted rebase that porcelain shows as `detached`:
 # git's own refusal, naming the worktree, stays visible, the hint says to run
 # the same command again, and once `main` is freed that command completes with
-# the other worktree's work intact. The worktree's path holds a space. A
+# the other worktree's work intact. A worktree whose directory was deleted is
+# refused the same way, its hint gives `git worktree prune`, and after the prune
+# the release completes. The worktree's path holds a space. A
 # release from `main` in the current worktree is unaffected, and so is the
 # resume side: a resume with `main` held elsewhere and already at the release
 # commit completes. Its state is built by hand with git and jq, so no script
@@ -254,6 +256,24 @@ git -C "$wt" switch -q --detach
 run_in "$plugin" bash plugin-dev/release.sh patch
 released "release, main elsewhere: after main is freed"
 wt_intact "release, main elsewhere: after the release"
+
+echo "=== a release from dev with main held by a deleted worktree refuses until it is pruned ==="
+# The worktree's directory is gone but it is still registered, so git still
+# refuses and there is nowhere to free main: the hint's other half, the prune,
+# is the way out.
+new_sandbox
+to_dev
+main_elsewhere
+rm -rf "$wt"
+main_before="$(rev refs/heads/main)"
+head_before="$(rev HEAD)"
+run_in "$plugin" bash plugin-dev/release.sh patch
+refused_clean "release, main in a deleted worktree"
+assert_contains "$out" "^ *git worktree prune\$" \
+    "release, main in a deleted worktree: the hint gives git worktree prune on its own line"
+git -C "$plugin" worktree prune
+run_in "$plugin" bash plugin-dev/release.sh patch
+released "release, main in a deleted worktree: after the prune"
 
 echo "=== a release from main in this worktree, dev checked out in another, completes ==="
 new_sandbox

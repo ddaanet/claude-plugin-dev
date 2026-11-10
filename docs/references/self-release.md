@@ -119,14 +119,15 @@ otherwise keep the tree split from the old commit.
 
 **`main` moves without a checkout.** After the tags, `main` is fast-forwarded to
 the tag's commit with `git fetch . <sha>:refs/heads/main`, before any push.
-Another worktree holding `main` makes git refuse, and the run stops with nothing
-published and the same `just resume-release` hint as a failed push. Switching to
-`main`, fast-forwarding and switching back was weighed and rejected: it moves
-the checkout the session stands in, and a failure between the two switches
-leaves it on the wrong branch. Pushing alone and leaving local `main` behind was
-rejected too, since a stale local `main` is still an ancestor of `HEAD` and no
-check would flag it. A `main` that already contains the tag's commit is left
-alone, never rewound.
+Another worktree holding `main` makes git 2.35 and later refuse, and the run
+stops with nothing published and the same `just resume-release` hint as a failed
+push; an older git does not refuse, and moves `main` under that worktree.
+Switching to `main`, fast-forwarding and switching back was weighed and
+rejected: it moves the checkout the session stands in, and a failure between the
+two switches leaves it on the wrong branch. Pushing alone and leaving local
+`main` behind was rejected too, since a stale local `main` is still an ancestor
+of `HEAD` and no check would flag it. A `main` that already contains the tag's
+commit is left alone, never rewound.
 
 **The push publishes the tag's commit, not `HEAD`.** On `dev`, `HEAD` carries
 work that is not being released, and a bare `git push` would publish it or

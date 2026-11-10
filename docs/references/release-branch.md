@@ -36,15 +36,17 @@ also restores a lost tag before the lost-tag guard can read it. An origin with
 no such branch has nothing to compare, and the run says so and continues.
 
 From `dev`, `branch_preflight` also runs the fetch `move_main` will run, as a
-no-op, before any commit or tag: git refuses to move a branch another worktree
-holds, and found after the commit and tag exist that refusal leaves the release
-half-landed. The probe is git's own fetch rather than a read of
-`git worktree list` because git's rule is wider than a checkout: it also refuses
-a `main` held by a worktree mid-rebase or whose directory was deleted, and a
-parse would pass those. The refusal leaves git's `fatal:` line visible, since it
-names the worktree, and says to free `main` there and run the same command
-again; no tag exists yet, so `just resume-release` is not the way out. A resume
-is unchanged: by then the move is the step that failed, and `move_main`'s hint
+no-op, before any commit or tag: git 2.35 and later refuse to move a branch
+another worktree holds, and found after the commit and tag exist that refusal
+leaves the release half-landed. An older git does not refuse, so neither the
+probe nor `move_main` stops the move. The probe is git's own fetch rather than a
+read of `git worktree list` because git's rule is wider than a checkout: it also
+refuses a `main` held by a worktree mid-rebase or whose directory was deleted,
+and a parse would pass those. The refusal leaves git's `fatal:` line visible,
+since it names the worktree, and says to free `main` in that worktree, or to run
+`git worktree prune` if its directory is gone, then run the same command again;
+no tag exists yet, so `just resume-release` is not the way out. A resume is
+unchanged: by then the move is the step that failed, and `move_main`'s hint
 already says to clear what git reported, which names the worktree. From `main`
 itself the probe is skipped, since nothing moves. Commits made on `main` after a
 failed push do not need a refusal: `move_main` has already brought `main` to the
