@@ -255,6 +255,20 @@ branch_preflight() {
     else
         note "origin has no $main_branch branch, so there is nothing on origin to compare $branch with"
     fi
+    # move_main later fast-forwards local main with a fetch into the ref, which git
+    # refuses while another worktree holds it — after the release commit and tag
+    # exist. Run the same fetch now as a no-op (main is an ancestor of HEAD, so it
+    # moves nothing) and let git apply its own rule: it also refuses a main held by
+    # a worktree mid-rebase or whose directory was deleted: states a parse of
+    # `git worktree list` would miss. git's `fatal:` line stays visible because it
+    # names the worktree. Not needed on main itself: move_main moves nothing there.
+    if [ "$branch" != "$main_branch" ] \
+        && git rev-parse -q --verify "refs/heads/$main_branch" >/dev/null \
+        && ! git fetch -q --no-write-fetch-head . "refs/heads/$main_branch:refs/heads/$main_branch"; then
+        printf 'hint: git refuses to move %s while the worktree named above holds it.\n' "$main_branch" >&2
+        printf '      free it there, then run the same command again.\n' >&2
+        die "$main_branch is held by another worktree — nothing was done"
+    fi
 }
 
 is_ancestor() {
