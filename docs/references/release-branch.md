@@ -41,16 +41,16 @@ another worktree holds, and found after the commit and tag exist that refusal
 leaves the release half-landed. An older git does not refuse, so neither the
 probe nor `move_main` stops the move. The probe is git's own fetch rather than a
 read of `git worktree list` because git's rule is wider than a checkout: it also
-refuses a `main` held by a worktree mid-rebase or whose directory was deleted,
-and a parse would pass those. The refusal leaves git's `fatal:` line visible,
-since it names the worktree, and says to free `main` in that worktree, or to run
-`git worktree prune` if its directory is gone, then run the same command again;
-no tag exists yet, so `just resume-release` is not the way out. A resume is
-unchanged: by then the move is the step that failed, and `move_main`'s hint
-already says to clear what git reported, which names the worktree. From `main`
-itself the probe is skipped, since nothing moves. Commits made on `main` after a
-failed push do not need a refusal: `move_main` has already brought `main` to the
-release commit by then, and the remaining ways to get there are rare.
+refuses a `main` held by a worktree mid-rebase, and a parse would pass that. The
+refusal leaves git's `fatal:` line visible, since it names the worktree, and
+says to free `main` in that worktree, with `git worktree list` to see its state,
+then run the same command again; no tag exists yet, so `just resume-release` is
+not the way out. A resume is unchanged: by then the move is the step that
+failed, and `move_main`'s hint already says to clear what git reported, which
+names the worktree. From `main` itself the probe is skipped, since nothing
+moves. Commits made on `main` after a failed push do not need a refusal:
+`move_main` has already brought `main` to the release commit by then, and the
+remaining ways to get there are rare.
 
 A consumer's `main` may have other writers, which is why the checks differ from
 the self-release's. A resume runs no ancestry check on `main` or `origin/main`:
