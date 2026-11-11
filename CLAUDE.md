@@ -170,6 +170,13 @@ ref" for the reasoning.
   optional fourth argument and rewrites that entry in place — the consumer's
   matcher survives — instead of appending a second version-guard beside it. Only
   the version-guard call passes it.
+- **Root-level scripts are not hardened to match `toolkit/`.**
+  `scripts/self-release.sh` and the `justfile` recipes serve one maintainer, who
+  can read the script; a guard the shipped scripts carry for consumers (such as
+  `branch_preflight`'s held-`main` probe) is no reason to port it here. A late
+  failure that `just resume-release` recovers stays as is; propose a change only
+  when the self-release path publishes something wrong or strands state with no
+  recovery.
 - **Heredocs in `install.sh` that emit example justfile content are unquoted**
   (so `$import_line` expands). That means backticks inside the heredoc body get
   parsed as command substitution by bash. Avoid decorative backticks in those

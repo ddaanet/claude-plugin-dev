@@ -1,5 +1,7 @@
 ## Current task
 
-None chosen: the release-sequence revision in `memory/ddaanet/shared-claude.md`
-and `/release-ritual` step 6 are done. Pick the next item from `TODO.md`'s
-Remaining with my human partner.
+The consumer held-`main` probe in `branch_preflight` and the self-release stale
+dist-tag refusal are on `dev`, each commit reviewed at medium. The proposed
+self-release held-`main` check was refused by my human partner (project scripts
+are not hardened to consumer parity) and dropped from `TODO.md`. Next: the
+remaining `TODO.md` item.
