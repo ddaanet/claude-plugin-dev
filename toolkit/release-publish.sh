@@ -119,14 +119,17 @@ move_main() {
     # non-fast-forward fetch is refused, so main is never rewound. Nothing is
     # pushed here. A clone with no local main gets it created by the same fetch;
     # probing an absent ref with merge-base would print a git `fatal:`.
-    local verb="moved to"
+    local verb="moved to" fetch_out
     if ! git rev-parse -q --verify "refs/heads/$main_branch" >/dev/null; then
         verb="created at"
     elif git merge-base --is-ancestor "$release_commit" "refs/heads/$main_branch"; then
         return
     fi
+    # Not `-q`: it silences git's `[rejected] … (non-fast-forward)` line, which
+    # the hint below sends the reader to. Captured so a success prints nothing.
     # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
-    git fetch -q . "$release_commit:refs/heads/$main_branch" || {
+    fetch_out=$(git fetch . "$release_commit:refs/heads/$main_branch" 2>&1) || {
+        printf '%s\n' "$fetch_out" >&2
         printf 'hint: local %s cannot fast-forward to %s; nothing was pushed.\n' "$main_branch" "$tag" >&2
         printf '      clear what git reported above, then run `just resume-release`.\n' >&2
         die "could not move $main_branch to $tag — nothing was pushed"

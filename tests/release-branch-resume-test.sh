@@ -6,8 +6,10 @@
 # Scope: a resume after later dev commits publishes the tag's commit, never
 # HEAD; a resume of a complete release pushes nothing; origin moving after the
 # push does not block the resume and needs no merge; a tag off HEAD's history
-# refuses, with the hint matching the state. Each state is built by hand with
-# git and jq, so no script under test sets up another's scenario.
+# refuses, with the hint matching the state; a local main off the release
+# commit refuses with git's own non-fast-forward line shown. Each state is
+# built by hand with git and jq, so no script under test sets up another's
+# scenario.
 # Siblings: the other tests/release-*-test.sh suites, one per scenario group
 # (release-core, -resume-push, -resume-hint, -tree, -first, -lost-tag,
 # -push-route, -tags, -rollback, -pipefail, -hint-size), and
@@ -375,6 +377,20 @@ assert_contains "$out" "first release made no bump commit" "first release amende
 assert_not_contains "$out" "git tag -d" "first release amended: no command deleting the tag"
 assert_not_contains "$out" "<commit>" "first release amended: no placeholder"
 assert_not_contains "$out" "${init_sha:0:7}" "first release amended: hint does not name the older commit"
+
+echo "=== local main off the release commit: git's non-fast-forward reaches the output ==="
+new_sandbox "1.2.3"
+to_dev
+hand_release "1.2.4"
+side="$(git -C "$plugin" commit-tree -p refs/heads/main -m "side work on main" "refs/heads/main^{tree}")"
+git -C "$plugin" branch -f main "$side"
+main_before="$(origin_rev refs/heads/main)"
+head_before="$(rev HEAD)"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+refused_resume "main off the release" "$head_before"
+assert_eq "$(rev refs/heads/main)" "$side" "main off the release: local main not moved"
+# The hint says to clear what git reported above, so git has to report it.
+assert_contains "$out" "non-fast-forward" "main off the release: git's refusal is shown"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2

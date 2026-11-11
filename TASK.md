@@ -1,7 +1,3 @@
 ## Current task
 
-The consumer held-`main` probe in `branch_preflight` and the self-release stale
-dist-tag refusal are on `dev`, each commit reviewed at medium. The proposed
-self-release held-`main` check was refused by my human partner (project scripts
-are not hardened to consumer parity) and dropped from `TODO.md`. Next: the
-remaining `TODO.md` item.
+`TODO.md` is empty. `move_main`'s refusal now shows git's own line (reviewed at medium, lows only). The proposed self-release held-`main` check was refused by my human partner and dropped. No task is queued; the next step is my human partner's call (a release of `dev` is the usual candidate).
