@@ -94,7 +94,8 @@ src_committer_date="2021-02-03T04:05:06-0500"
 # license field, a 50-word README, a LICENSE, one skill) and no commit yet.
 # Also lays down the claude stub in $sandbox/stubbin.
 mk_repo() {
-    sandbox="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/dist-refusal.XXXXXX")" && pwd -P)"
+    sandbox="$(mktemp -d "${TMPDIR:-/tmp}/dist-refusal.XXXXXX")" || exit 1
+    sandbox="$(cd "$sandbox" && pwd -P)"
     sandboxes+=("$sandbox")
     repo="$sandbox/plug in"
     gitlinks=()

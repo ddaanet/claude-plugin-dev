@@ -34,7 +34,8 @@ assert_eq() {
     fi
 }
 
-sandbox="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/whitespace.XXXXXX")" && pwd -P)"
+sandbox="$(mktemp -d "${TMPDIR:-/tmp}/whitespace.XXXXXX")" || exit 1
+sandbox="$(cd "$sandbox" && pwd -P)"
 trap 'rm -rf "$sandbox"' EXIT
 
 # A fixture whose own path holds a space. Each file carries a trailing blank

@@ -74,7 +74,8 @@ trap cleanup EXIT
 # git repo whose own path contains a space. Tests append the ignore patterns
 # and files they need, then call commit_all.
 make_consumer() {
-    sandbox="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/dogfood-sync-copy.XXXXXX")" && pwd -P)"
+    sandbox="$(mktemp -d "${TMPDIR:-/tmp}/dogfood-sync-copy.XXXXXX")" || exit 1
+    sandbox="$(cd "$sandbox" && pwd -P)"
     sandboxes+=("$sandbox")
     consumer="$sandbox/my consumer"
     mkdir -p "$consumer/.claude-plugin" "$consumer/skills/demo" "$consumer/plugin-dev"

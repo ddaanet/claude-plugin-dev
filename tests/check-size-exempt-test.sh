@@ -85,7 +85,8 @@ blanks() { head -c "$1" < <(yes ' '); }
 
 # mk_repo: a fresh git repo $repo whose own path holds a space, no commit.
 mk_repo() {
-    sandbox="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/check-size-exempt.XXXXXX")" && pwd -P)"
+    sandbox="$(mktemp -d "${TMPDIR:-/tmp}/check-size-exempt.XXXXXX")" || exit 1
+    sandbox="$(cd "$sandbox" && pwd -P)"
     sandboxes+=("$sandbox")
     repo="$sandbox/plug in"
     mkdir -p "$repo"

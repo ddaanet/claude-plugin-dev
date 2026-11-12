@@ -73,7 +73,8 @@ trap cleanup EXIT
 # The copy exists and is empty, as if promoted before the manifest was written:
 # a sync at launch would put the manifest in it.
 make_consumer() {
-    sandbox="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/dogfood-launcher-exec.XXXXXX")" && pwd -P)"
+    sandbox="$(mktemp -d "${TMPDIR:-/tmp}/dogfood-launcher-exec.XXXXXX")" || exit 1
+    sandbox="$(cd "$sandbox" && pwd -P)"
     sandboxes+=("$sandbox")
     consumer="$sandbox/my consumer"
     shim_dir="$consumer/plugin-dev/bin"

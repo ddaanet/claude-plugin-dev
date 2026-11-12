@@ -70,7 +70,8 @@ fi
 
 # mk_repo: a fresh git repo $repo whose own path holds a space, no commit.
 mk_repo() {
-    sandbox="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/check-frontmatter-$suite.XXXXXX")" && pwd -P)"
+    sandbox="$(mktemp -d "${TMPDIR:-/tmp}/check-frontmatter-$suite.XXXXXX")" || exit 1
+    sandbox="$(cd "$sandbox" && pwd -P)"
     sandboxes+=("$sandbox")
     repo="$sandbox/plug in"
     mkdir -p "$repo"

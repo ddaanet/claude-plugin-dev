@@ -101,7 +101,8 @@ new_sandbox() {
     # The plugin is released at 1.2.3 and its marketplace entry is at 1.2.3.
     # Physical spelling: macOS $TMPDIR sits under a symlink, and git records a
     # worktree's path with symlinks resolved, so $wt must be spelled the same.
-    sandbox="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/release-worktree.XXXXXX")" && pwd -P)"
+    sandbox="$(mktemp -d "${TMPDIR:-/tmp}/release-worktree.XXXXXX")" || exit 1
+    sandbox="$(cd "$sandbox" && pwd -P)"
     sandboxes+=("$sandbox")
     plugin="$sandbox/plugin"
     marketplace="$sandbox/marketplace"
