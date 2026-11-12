@@ -128,7 +128,7 @@ history names a commit the branch does not carry: fast-forwarding `main` to it
 would publish that commit and leave `main` off the branch the next release is
 cut from, and a resume cannot take published tags back. The refusal's hint
 re-tags the commit and drops the dist tag too, because `ensure_dist_tag` would
-otherwise keep the tree split from the old commit.
+otherwise refuse the dist tag split from the old commit.
 
 The preflights live in `scripts/self-release-preflight.sh`, sourced from the
 script's own location, apart from the publish steps, which are the part that
