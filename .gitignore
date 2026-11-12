@@ -2,3 +2,5 @@
 /.venv/
 /.mcp.json
 /tmp/
+.DS_Store
+._*
