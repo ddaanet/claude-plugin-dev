@@ -47,7 +47,8 @@ assert_ne() {
     fi
 }
 
-sandbox="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/gates-inputs.XXXXXX")" && pwd -P)"
+sandbox="$(mktemp -d "${TMPDIR:-/tmp}/gates-inputs.XXXXXX")" || exit 1
+sandbox="$(cd "$sandbox" && pwd -P)"
 trap 'rm -rf "$sandbox"' EXIT
 
 # mk_consumer [justfile-name]: a fresh repo $repo, whose own path holds a space,

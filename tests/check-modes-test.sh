@@ -93,7 +93,8 @@ end_scenario() {
 # script copied into $vdir (default plugin-dev) and made executable. An absent script leaves
 # plugin-dev/ without it: the run then fails on its assertions, not here.
 mk_repo() {
-    sandbox="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/check-modes.XXXXXX")" && pwd -P)"
+    sandbox="$(mktemp -d "${TMPDIR:-/tmp}/check-modes.XXXXXX")" || exit 1
+    sandbox="$(cd "$sandbox" && pwd -P)"
     sandboxes+=("$sandbox")
     repo="$sandbox/plug in"
     vdir="${1:-plugin-dev}"

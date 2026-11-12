@@ -65,7 +65,8 @@ trap cleanup EXIT
 # mk_repo: a fresh git repo $repo whose own path holds a space, with one
 # existing target file, docs/guide.md, and no commit.
 mk_repo() {
-    sandbox="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/check-refs-scan.XXXXXX")" && pwd -P)"
+    sandbox="$(mktemp -d "${TMPDIR:-/tmp}/check-refs-scan.XXXXXX")" || exit 1
+    sandbox="$(cd "$sandbox" && pwd -P)"
     sandboxes+=("$sandbox")
     repo="$sandbox/plug in"
     mkdir -p "$repo/docs"
