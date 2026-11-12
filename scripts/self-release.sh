@@ -83,10 +83,7 @@ ensure_dist_tag() {
         # tag no longer has, and push_tag would publish it: a published dist
         # tag is never moved, so the stale tree would be what consumers vendor
         # for good. The tag's tree, never HEAD's: a resume's HEAD may be past
-        # the release with toolkit/ changed since. A dist tag already on origin
-        # in this state is unreachable (main is pushed first, and
-        # common_preflight refuses once origin's main holds commits HEAD lacks),
-        # so it gets no hint of its own.
+        # the release with toolkit/ changed since.
         if [ "$(git rev-parse "$dist_tag^{tree}")" != "$(git rev-parse "$tag:toolkit")" ]; then
             printf 'hint: %s was split from a toolkit/ tree %s no longer has, as after an amend of the release commit.\n' "$dist_tag" "$tag" >&2
             printf '      nothing was pushed. Delete it, then the next run splits it again:\n' >&2
