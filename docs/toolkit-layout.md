@@ -57,8 +57,9 @@ when a bullet and the tree disagree.
 - `toolkit/check-frontmatter.sh` — refuses a skill, agent or command whose
   frontmatter is missing, not YAML, or breaks the toolkit's field rules. Reads
   `skills/*/SKILL.md` and `agents/` and `commands/` `.md` files git does not
-  ignore, from disk. Python is embedded and run as `python3 -I`; PyYAML must
-  import, else it names the remedy. Uncached; consumers wire
+  ignore, from disk. Python is embedded and run as `python3 -I`, under
+  `.venv/bin/python3` of the git top level, else the `python3` on PATH; PyYAML
+  must import in one of them, else it names the remedy. Uncached; consumers wire
   `precommit: check-refs check-size check-frontmatter`. Executable on disk,
   which `tests/dist-tree-test.sh` pins. This repo has no skills, so its
   `precommit` does not run it.
