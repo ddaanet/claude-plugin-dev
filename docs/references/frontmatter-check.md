@@ -125,8 +125,9 @@ not.
   nothing.
 - **The verdict depends on the PyYAML installed.** It follows YAML 1.1 as PyYAML
   reads it, so a version change could in principle move a verdict. A consumer
-  that caches its gate hashes the interpreter's PyYAML version with its other
-  tool versions, as this repo does in `PLUGIN_DEV_GATE_TOOLS`.
+  that caches its gate hashes the PyYAML version of the interpreter the check
+  resolves, `.venv/bin/python3` where it imports `yaml`, with its other tool
+  versions, as this repo does in `PLUGIN_DEV_GATE_TOOLS`.
 - **This repo does not run it on itself.** It ships no skill, agent or command.
   `tests/check-frontmatter-*-test.sh` covers the script against fixture plugin
   repos and the venv's real PyYAML, and the suites fail outright if that
