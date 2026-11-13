@@ -199,7 +199,8 @@ present tense.
   Claude Code: the validator warns on a missing `description` and is silent on
   an absent `name`.
 - PyYAML parses the block, not awk, and the Python is embedded and run as
-  `python3 -I`.
+  `python3 -I`, under the checked repo's `.venv/bin/python3` or else the one on
+  PATH, so a shell without direnv still runs it.
 - `check-frontmatter.sh` is a shipped script run uncached, wired by hand, and
   needs a venv the consumer adds.
 - Runtime loading was not probed.

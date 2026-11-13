@@ -79,10 +79,15 @@ which is the validator's fault, repeated. PyYAML `safe_load` gives a verdict
 that is YAML's, and what it refuses is this toolkit's policy, as argued above.
 
 The decision is my human partner's, 2026-11-01: Python dependencies come from
-`uv sync`, the venv is activated in `.envrc`, and no recipe uses `uv run`.
-Neither `uv run` nor `pip` is suggested to a consumer, and the remedy line names
-the three steps: `pyyaml` in the dev group of `pyproject.toml`, `uv sync`, and
-`.venv/bin` on PATH from `.envrc`.
+`uv sync`, and no recipe uses `uv run`. Neither `uv run` nor `pip` is suggested
+to a consumer, and the remedy line names the two steps: `pyyaml` in the dev
+group of `pyproject.toml`, and `uv sync`.
+
+The check resolves the venv itself: `<top>/.venv/bin/python3`, where `<top>` is
+the git top level of the checked root, then the `python3` on PATH, and the first
+that imports `yaml` runs the parse. A shell or hook that does not load direnv
+still runs the check, so a consumer needs no `.envrc` activation for it; one
+that has it loses nothing, since the PATH interpreter remains the fallback.
 
 ## Why the Python is embedded and run as `python3 -I`
 
@@ -99,8 +104,8 @@ The script is bash holding a Python program in a heredoc, run as
 - **Stdin for the list**: a path holding a space, a newline or an apostrophe
   survives intact, which an argument list built by word splitting would not.
 - **A listing before the interpreter**: with no file to check, the run signs off
-  with zeros before `python3` is looked up, so a plugin that ships no skill,
-  agent or command needs no parser.
+  with zeros before an interpreter is looked up, so a plugin that ships no
+  skill, agent or command needs no parser.
 
 Files are chosen from disk with `git ls-files -z -co --exclude-standard`, the
 set the sibling checks read, so an untracked file is read and an ignored one is
@@ -114,10 +119,10 @@ not.
   with `name: fancy` is `/my-plugin:fancy`. Correcting the `name` to the
   directory renames the command; renaming the directory to the `name` passes the
   check and keeps it.
-- **A consumer without a venv adds one**: `pyyaml` in `pyproject.toml`,
-  `uv sync`, and a `PATH_add` in `.envrc`. The migration note carries the steps.
-  The check refuses with a one-line remedy rather than skipping, since a skipped
-  check reports green while checking nothing.
+- **A consumer without a venv adds one**: `pyyaml` in the dev group of
+  `pyproject.toml`, and `uv sync`. The check refuses with a one-line remedy
+  rather than skipping, since a skipped check reports green while checking
+  nothing.
 - **The verdict depends on the PyYAML installed.** It follows YAML 1.1 as PyYAML
   reads it, so a version change could in principle move a verdict. A consumer
   that caches its gate hashes the interpreter's PyYAML version with its other

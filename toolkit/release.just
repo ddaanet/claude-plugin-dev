@@ -64,7 +64,7 @@
 # `check-frontmatter` refuses a skill, agent or command whose frontmatter is
 # missing, not YAML, or breaks the toolkit's field rules. Like `check-size`, no
 # recipe here runs it: a plugin wires it into its own gate, as above. It needs
-# PyYAML for the python3 on PATH.
+# PyYAML in the checked repo's .venv, or in the python3 on PATH.
 #
 # `check-modes` refuses a vendored script that starts with `#!` but lacks the
 # execute bit, a flip a consumer commit can make after vendoring. Like

@@ -2,10 +2,12 @@
 # End-to-end test of toolkit/check-frontmatter.sh against real git repos in a
 # temp dir: the interpreter it needs.
 #
-# Scope: no `python3` on PATH, and a `python3` that cannot import `yaml`. With a
-# file to check, each exits 1 with ONE stderr line naming python3, `pyyaml`,
-# `pyproject.toml`, `uv sync`, `.venv/bin` and `.envrc`, never `uv run` or
-# `pip`, and no sign-off. With no file to check, neither matters: the run signs
+# Scope: the interpreter is the first of `<top>/.venv/bin/python3` (top = the git
+# top level, so a root below it still finds the venv) and `python3` on PATH that
+# imports `yaml`; a missing or yaml-less candidate is skipped. With a file to
+# check and no candidate, the run exits 1 with ONE stderr line naming python3,
+# `pyyaml`, `pyproject.toml`, `uv sync` and `.venv/bin`, never `.envrc`,
+# `uv run` or `pip`, and no sign-off. With no file to check, neither matters: the run signs
 # off with zeros. The narrowed PATH holds symlinks to the system tools and no
 # interpreter; the one case that needs a working interpreter there (the
 # control) reaches the venv's python3 through a wrapper script that execs it by
@@ -178,10 +180,10 @@ mk_narrow() {
         "fixture: no python3 reachable on the narrowed PATH"
 }
 
-# run_narrow: run the script with only $narrow on PATH.
+# run_narrow [root]: run the script with only $narrow on PATH, from $from (default $repo).
 run_narrow() {
     rc=0
-    (cd "$repo" && env LC_ALL=C PATH="$narrow" "$bash_path" "$check" \
+    (cd "${from:-$repo}" && env LC_ALL=C PATH="$narrow" "$bash_path" "$check" "$@" \
         >"$sandbox/stdout" 2>"$sandbox/stderr") || rc=$?
     out="$(cat "$sandbox/stdout")"
     err="$(cat "$sandbox/stderr")"
@@ -199,7 +201,7 @@ expect_remedy() {
     assert_contains "$err" "pyproject.toml" "$1: names the dev group file"
     assert_contains "$err" "uv sync" "$1: names the install step"
     assert_contains "$err" ".venv/bin" "$1: names the venv directory"
-    assert_contains "$err" ".envrc" "$1: names the PATH wiring"
+    assert_not_contains "$err" ".envrc" "$1: no longer names .envrc"
     assert_not_contains "$err" "uv run" "$1: never suggests uv run"
     assert_not_contains "$err" "pip" "$1: never suggests pip"
 }
@@ -277,5 +279,63 @@ run_narrow
 assert_eq "$rc" "0" "stub python3, zero files: exit code"
 assert_eq "$out" "$(signoff 0 0 0)" "stub python3, zero files: sign-off"
 assert_eq "$err" "" "stub python3, zero files: stderr"
+
+# mk_venv_python3 <body-kind>: $repo/.venv/bin/python3, a wrapper to the real
+# venv python (`real`) or a stub that cannot import yaml (`stub`).
+mk_venv_python3() {
+    mkdir -p "$repo/.venv/bin"
+    if [[ "$1" == real ]]; then
+        printf '#!/bin/sh\nexec "%s/python3" "$@"\n' "$venv_bin" > "$repo/.venv/bin/python3"
+    else
+        printf '#!/bin/sh\nexit 1\n' > "$repo/.venv/bin/python3"
+    fi
+    chmod +x "$repo/.venv/bin/python3"
+}
+
+echo "=== the repo's .venv/bin/python3, no python3 on PATH: found ==="
+mk_repo
+mk_narrow
+mk_venv_python3 real
+put_good "skills/good/SKILL.md"
+put "agents/bad.md" "$bad_fm"
+run_narrow
+refused_one "venv python3 without PATH python3" "agents/bad.md" "block"
+rm "$repo/agents/bad.md"
+run_narrow
+expect_ok "venv python3 without PATH python3, good plugin" "$(signoff 1 0 0)"
+
+echo "=== root below the top level: the venv is the top level's ==="
+mk_repo
+mk_narrow
+mk_venv_python3 real
+put "sub/skills/good/SKILL.md" "$(printf -- '---\nname: "good"\ndescription: a fine description\n---\nbody\n')"
+put "sub/agents/bad.md" "$bad_fm"
+from="$sandbox" run_narrow "$repo/sub"
+refused_one "sub-root, venv at the top level" "agents/bad.md" "block"
+rm "$repo/sub/agents/bad.md"
+from="$sandbox" run_narrow "$repo/sub"
+expect_ok "sub-root, venv at the top level, good plugin" "$(signoff 1 0 0)"
+
+echo "=== pin: a yaml-less venv python3 is skipped for the one on PATH ==="
+mk_repo
+mk_narrow
+mk_venv_python3 stub
+printf '#!/bin/sh\nexec "%s/python3" "$@"\n' "$venv_bin" > "$narrow/python3"
+chmod +x "$narrow/python3"
+put_good "skills/good/SKILL.md"
+run_narrow
+expect_ok "yaml-less venv python3, working PATH python3" "$(signoff 1 0 0)"
+
+echo "=== a working venv python3 wins: PATH python3 is never called ==="
+mk_repo
+mk_narrow
+mk_venv_python3 real
+path_log="$sandbox/path.log"
+printf '#!/bin/sh\necho called >> "%s"\nexec "%s/python3" "$@"\n' "$path_log" "$venv_bin" > "$narrow/python3"
+chmod +x "$narrow/python3"
+put_good "skills/good/SKILL.md"
+run_narrow
+expect_ok "venv python3 before PATH python3" "$(signoff 1 0 0)"
+assert_eq "$(cat "$path_log" 2>/dev/null || true)" "" "venv before PATH: PATH python3 never called"
 
 finish
