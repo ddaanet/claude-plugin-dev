@@ -283,8 +283,8 @@ skipped, the `size.exempt` format and the report are in
 Optional. `just check-frontmatter` refuses a skill, agent or command whose
 frontmatter is missing, not YAML, or breaks the toolkit's field rules. Wire it
 as `precommit: check-refs check-size check-frontmatter`; it runs uncached and
-needs PyYAML in the dev group of `pyproject.toml`. What is read, each refusal,
-what is not refused and the setup are in
+needs PyYAML in the dev group of `pyproject.toml`, installed by `uv sync`. What
+is read, each refusal, what is not refused and the setup are in
 [manual/frontmatter-check.md](manual/frontmatter-check.md).
 
 ## Mode check
