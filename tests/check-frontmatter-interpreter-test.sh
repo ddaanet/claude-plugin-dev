@@ -180,10 +180,15 @@ mk_narrow() {
         "fixture: no python3 reachable on the narrowed PATH"
 }
 
-# run_narrow [root]: run the script with only $narrow on PATH, from $from (default $repo).
-run_narrow() {
+# run_narrow [root]: run the script from $repo with only $narrow on PATH.
+run_narrow() { run_narrow_in "$repo" "$@"; }
+
+# run_narrow_in <dir> [root]: the same, started from <dir>.
+run_narrow_in() {
+    local dir="$1"
+    shift
     rc=0
-    (cd "${from:-$repo}" && env LC_ALL=C PATH="$narrow" "$bash_path" "$check" "$@" \
+    (cd "$dir" && env LC_ALL=C PATH="$narrow" "$bash_path" "$check" "$@" \
         >"$sandbox/stdout" 2>"$sandbox/stderr") || rc=$?
     out="$(cat "$sandbox/stdout")"
     err="$(cat "$sandbox/stderr")"
@@ -206,6 +211,15 @@ expect_remedy() {
     assert_not_contains "$err" "pip" "$1: never suggests pip"
 }
 
+# mk_wrapper <dest> [logfile]: an executable sh script that execs the venv's
+# python3 by path, appending a line to logfile first when one is given.
+mk_wrapper() {
+    printf '#!/bin/sh\n' > "$1"
+    if [[ -n "${2:-}" ]]; then printf 'echo called >> "%s"\n' "$2" >> "$1"; fi
+    printf 'exec "%s/python3" "$@"\n' "$venv_bin" >> "$1"
+    chmod +x "$1"
+}
+
 echo "=== no python3 on PATH, nothing to check: signs off ==="
 mk_repo
 mk_narrow
@@ -221,8 +235,7 @@ mk_repo
 mk_narrow
 put_good "skills/good/SKILL.md"
 put "agents/bad.md" "$bad_fm"
-printf '#!/bin/sh\nexec "%s/python3" "$@"\n' "$venv_bin" > "$narrow/python3"
-chmod +x "$narrow/python3"
+mk_wrapper "$narrow/python3"
 run_narrow
 refused_one "wrapper to the venv python3" "agents/bad.md" "block"
 rm "$repo/agents/bad.md"
@@ -285,11 +298,11 @@ assert_eq "$err" "" "stub python3, zero files: stderr"
 mk_venv_python3() {
     mkdir -p "$repo/.venv/bin"
     if [[ "$1" == real ]]; then
-        printf '#!/bin/sh\nexec "%s/python3" "$@"\n' "$venv_bin" > "$repo/.venv/bin/python3"
+        mk_wrapper "$repo/.venv/bin/python3"
     else
         printf '#!/bin/sh\nexit 1\n' > "$repo/.venv/bin/python3"
+        chmod +x "$repo/.venv/bin/python3"
     fi
-    chmod +x "$repo/.venv/bin/python3"
 }
 
 echo "=== the repo's .venv/bin/python3, no python3 on PATH: found ==="
@@ -310,18 +323,17 @@ mk_narrow
 mk_venv_python3 real
 put "sub/skills/good/SKILL.md" "$(printf -- '---\nname: "good"\ndescription: a fine description\n---\nbody\n')"
 put "sub/agents/bad.md" "$bad_fm"
-from="$sandbox" run_narrow "$repo/sub"
+run_narrow_in "$sandbox" "$repo/sub"
 refused_one "sub-root, venv at the top level" "agents/bad.md" "block"
 rm "$repo/sub/agents/bad.md"
-from="$sandbox" run_narrow "$repo/sub"
+run_narrow_in "$sandbox" "$repo/sub"
 expect_ok "sub-root, venv at the top level, good plugin" "$(signoff 1 0 0)"
 
 echo "=== pin: a yaml-less venv python3 is skipped for the one on PATH ==="
 mk_repo
 mk_narrow
 mk_venv_python3 stub
-printf '#!/bin/sh\nexec "%s/python3" "$@"\n' "$venv_bin" > "$narrow/python3"
-chmod +x "$narrow/python3"
+mk_wrapper "$narrow/python3"
 put_good "skills/good/SKILL.md"
 run_narrow
 expect_ok "yaml-less venv python3, working PATH python3" "$(signoff 1 0 0)"
@@ -331,8 +343,7 @@ mk_repo
 mk_narrow
 mk_venv_python3 real
 path_log="$sandbox/path.log"
-printf '#!/bin/sh\necho called >> "%s"\nexec "%s/python3" "$@"\n' "$path_log" "$venv_bin" > "$narrow/python3"
-chmod +x "$narrow/python3"
+mk_wrapper "$narrow/python3" "$path_log"
 put_good "skills/good/SKILL.md"
 run_narrow
 expect_ok "venv python3 before PATH python3" "$(signoff 1 0 0)"
