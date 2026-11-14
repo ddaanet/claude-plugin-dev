@@ -41,17 +41,22 @@ main() {
         exit 0
     fi
     top="$(git rev-parse --show-toplevel)"
-    python=""
-    for candidate in "$top/.venv/bin/python3" python3; do
+    python="$(find_python "$top")" \
+        || fail_run "python3 with PyYAML not found in .venv/bin or on PATH: add pyyaml to the dev group of pyproject.toml and run uv sync"
+    printf '%s\0' "${files[@]}" | "$python" -I -c "$program"
+}
+
+# find_python <top>: print the first of <top>/.venv/bin/python3 and python3 on
+# PATH that imports PyYAML; return 1 when neither does.
+find_python() {
+    local candidate
+    for candidate in "$1/.venv/bin/python3" python3; do
         if "$candidate" -I -c 'import yaml' >/dev/null 2>&1; then
-            python="$candidate"
-            break
+            printf '%s\n' "$candidate"
+            return 0
         fi
     done
-    if [ -z "$python" ]; then
-        fail_run "python3 with PyYAML not found in .venv/bin or on PATH: add pyyaml to the dev group of pyproject.toml and run uv sync"
-    fi
-    printf '%s\0' "${files[@]}" | "$python" -I -c "$program"
+    return 1
 }
 
 # is_checked <path>: the path is a file this check reads. In a case pattern `*`
