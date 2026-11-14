@@ -100,7 +100,11 @@ The script is bash holding a Python program in a heredoc, run as
 - **`-I`, isolated mode**: the check runs inside the repository it checks.
   Without `-I`, Python puts the current directory on `sys.path` and reads
   `PYTHON*` environment variables, so a `yaml.py` in the checked tree, or one in
-  the environment, would run in place of PyYAML. `-I` removes both.
+  the environment, would run in place of PyYAML. `-I` removes both. `-I` guards
+  module resolution only: the interpreter itself is the checked repository's own
+  `<top>/.venv/bin/python3`, trusted as much as running that repository's
+  tooling, as direnv activation would, so checking a tree you do not trust runs
+  its `.venv`.
 - **Stdin for the list**: a path holding a space, a newline or an apostrophe
   survives intact, which an argument list built by word splitting would not.
 - **A listing before the interpreter**: with no file to check, the run signs off

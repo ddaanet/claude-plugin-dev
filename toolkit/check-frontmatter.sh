@@ -42,7 +42,7 @@ main() {
     fi
     top="$(git rev-parse --show-toplevel)"
     python="$(find_python "$top")" \
-        || fail_run "python3 with PyYAML not found in .venv/bin or on PATH: add pyyaml to the dev group of pyproject.toml and run uv sync"
+        || fail_run "python3 with PyYAML not found in $top/.venv/bin/python3 (the venv must be at the repository top level) or on PATH: add pyyaml to the dev group of pyproject.toml and run uv sync"
     printf '%s\0' "${files[@]}" | "$python" -I -c "$program"
 }
 

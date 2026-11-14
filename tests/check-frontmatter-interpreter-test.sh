@@ -206,6 +206,7 @@ expect_remedy() {
     assert_contains "$err" "pyproject.toml" "$1: names the dev group file"
     assert_contains "$err" "uv sync" "$1: names the install step"
     assert_contains "$err" ".venv/bin" "$1: names the venv directory"
+    assert_contains "$err" "$(cd "$repo" && pwd -P)/.venv/bin/python3" "$1: names the searched venv path"
     assert_not_contains "$err" ".envrc" "$1: no longer names .envrc"
     assert_not_contains "$err" "uv run" "$1: never suggests uv run"
     assert_not_contains "$err" "pip" "$1: never suggests pip"
