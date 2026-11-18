@@ -15,10 +15,10 @@ the `release-core` suite under a stub `id` printing 0, to pin its root guard),
 the `dist` branch), `self-release-{publish,refusal,branch,amend}-test.sh`
 (`-branch`: releasing from `dev`; `-amend`: an amended release commit),
 `update-plugin-dev-test.sh`, `update-plugin-dev-memory-test.sh` (a moved gitlore
-memory pointer amended into a HEAD no other ref holds or folded into the merge
-otherwise, a checkout behind the recorded pointer moved up to it, a diverged
-one, a missing ref and every other dirt refused before anything is committed),
-`run-bats-test.sh` (the quiet runner, against a stub `bats`),
+memory pointer, unstaged, staged, behind, diverged or beside dirt in the store,
+left as it was and out of the merge; a failed pull leaving it staged; any other
+tracked change, staged-then-reverted included, refused), `run-bats-test.sh` (the
+quiet runner, against a stub `bats`),
 `gates-{sentinel,guards,inputs,hash}-test.sh` (`gates.just`'s cache, its guards,
 the files it hashes and the re-hash after a formatter, driven through real
 `just` recipes in a fixture consumer),

@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # End-to-end tests of update.sh, through release.just's `update-plugin-dev`
-# recipe, when the consumer's `memory` gitlink has moved past HEAD: the pointer
-# is taken out of the way rather than refused, into an unpushed HEAD by amend,
-# or past a pushed one by a commit folded into the subtree merge. Any other
-# dirt still refuses, before anything is committed. The rest of the recipe is
-# covered by update-plugin-dev-test.sh.
+# recipe, when the consumer's gitlore memory gitlink differs from HEAD's: the
+# update commits nothing of it and leaves the checkout and the pointer, staged
+# or not, as they were. Any other tracked change, staged or not, refuses. The
+# rest of the recipe is covered by update-plugin-dev-test.sh.
 #
 # Usage: bash tests/update-plugin-dev-memory-test.sh   (run from repo root)
 set -euo pipefail
@@ -106,10 +105,12 @@ make_toolkit_release "$toolkit" v2 1.0.1
 
 new_sandbox() {
     # $1=submodule name, default gitlore-memory, the name gitlore mounts its
-    # store under. Sets $sandbox, $consumer. The consumer has
-    # vendored dist-v1, mounted its own memory submodule at `memory`, committed both with NOTES.md and a justfile
+    # store under; $2=its path, default memory. Sets $sandbox, $consumer and
+    # $mem. The consumer has vendored dist-v1, mounted its own memory submodule
+    # at $mem, committed both with NOTES.md and a justfile
     # importing this repo's real release.just, and pushed main to a bare
     # origin; dist-v2 is not yet pulled. Nothing is dirty yet.
+    mem="${2:-memory}"
     sandbox="$(mktemp -d "${TMPDIR:-/tmp}/update-plugin-dev-memory.XXXXXX")"
     sandboxes+=("$sandbox")
     consumer="$sandbox/consumer"
@@ -126,8 +127,8 @@ new_sandbox() {
     git_id "$consumer"
     git -C "$consumer" commit --allow-empty -qm init
     allow_file git -C "$consumer" subtree add -q --prefix=plugin-dev "$toolkit" dist-v1 --squash
-    allow_file git -C "$consumer" submodule add -q --name "${1:-gitlore-memory}" "$sandbox/memory-origin.git" memory
-    git_id "$consumer/memory"
+    allow_file git -C "$consumer" submodule add -q --name "${1:-gitlore-memory}" "$sandbox/memory-origin.git" "$mem"
+    git_id "$consumer/$mem"
     printf "import '%s/toolkit/release.just'\n\nprecommit:\n    @echo stub-precommit\n\nprerelease: precommit\n" \
         "$repo_root" > "$consumer/justfile"
     printf 'notes\n' > "$consumer/NOTES.md"
@@ -140,170 +141,151 @@ new_sandbox() {
 move_memory_pointer() {
     # Commits inside the consumer's memory submodule, so the gitlink differs
     # from HEAD's and nothing else is dirty. Prints the new memory sha.
-    git -C "$consumer/memory" commit --allow-empty -qm "memory: new fact"
-    git -C "$consumer/memory" rev-parse HEAD
+    git -C "$consumer/$mem" commit --allow-empty -qm "memory: new fact"
+    git -C "$consumer/$mem" rev-parse HEAD
 }
 
 update() {
     run_in "$consumer" allow_file just --set toolkit_url "$toolkit" update-plugin-dev "$@"
 }
 
-assert_tree_clean() {
-    # $1=label. Both of git subtree's own checks: worktree and index.
-    if ! git -C "$consumer" diff-index --quiet HEAD; then fail "$1: worktree dirty after update"; fi
-    if ! git -C "$consumer" diff-index --quiet --cached HEAD; then fail "$1: index dirty after update"; fi
+snapshot() {
+    # HEAD, status and the index's tree: what a refused update must not move.
+    printf '%s\n%s\n%s\n' "$(git -C "$consumer" rev-parse HEAD)" \
+        "$(git -C "$consumer" status --porcelain)" "$(git -C "$consumer" write-tree)"
 }
 
-echo "=== update-plugin-dev: a moved memory pointer is amended into an unpushed HEAD ==="
+assert_pointer_left() {
+    # $1=label, $2=HEAD:memory before, $3=status before, $4=checkout sha before.
+    # The update succeeded, committed no pointer, and moved nothing of the store.
+    assert_eq "$rc" "0" "$1: update exit code"
+    assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.1" "$1: VERSION pulled"
+    assert_eq "$(git -C "$consumer" rev-parse "HEAD:$mem")" "$2" "$1: the merge records HEAD's old pointer"
+    assert_eq "$(git -C "$consumer" status --porcelain -- "$mem")" "$3" "$1: the pointer's status is unchanged"
+    assert_eq "$(git -C "$consumer/$mem" rev-parse HEAD)" "$4" "$1: the memory checkout is unmoved"
+}
+
+pointer_case() {
+    # $1=label; a sandbox is ready and the store is arranged. Runs the update
+    # and checks the pointer was left as it was.
+    local old status checkout
+    old="$(git -C "$consumer" rev-parse "HEAD:$mem")"
+    status="$(git -C "$consumer" status --porcelain -- "$mem")"
+    checkout="$(git -C "$consumer/$mem" rev-parse HEAD)"
+    update dist-v2
+    assert_pointer_left "$1" "$old" "$status" "$checkout"
+}
+
+echo "=== update-plugin-dev: a pointer ahead of HEAD stays pending, uncommitted ==="
 new_sandbox
-git -C "$consumer" commit --allow-empty -qm "consumer: local work"
-local_parent="$(git -C "$consumer" rev-parse HEAD^)"
-new_memory="$(move_memory_pointer)"
+move_memory_pointer > /dev/null
+pointer_case "ahead"
 
-update dist-v2
-assert_eq "$rc" "0" "unpushed: update exit code"
-assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.1" "unpushed: VERSION pulled"
-assert_eq "$(git -C "$consumer" log -1 --format=%s HEAD^1 2>/dev/null)" "consumer: local work" \
-    "unpushed: the merge's first parent is the amended local commit"
-assert_eq "$(git -C "$consumer" rev-parse HEAD^1^ 2>/dev/null)" "$local_parent" \
-    "unpushed: the amend kept the local commit's parent"
-assert_eq "$(git -C "$consumer" rev-parse HEAD^1:memory 2>/dev/null)" "$new_memory" \
-    "unpushed: the amended commit records the new memory pointer"
-assert_tree_clean "unpushed"
-
-echo "=== update-plugin-dev: a moved memory pointer is folded into the merge past a pushed HEAD ==="
+echo "=== update-plugin-dev: a staged pointer stays staged and out of the merge ==="
 new_sandbox
-base="$(git -C "$consumer" rev-parse HEAD)"
 new_memory="$(move_memory_pointer)"
+git -C "$consumer" add "$mem"
+pointer_case "staged"
+assert_eq "$(git -C "$consumer" rev-parse ":$mem")" "$new_memory" "staged: the same sha is staged afterwards"
 
-update dist-v2
-assert_eq "$rc" "0" "pushed: update exit code"
-assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.1" "pushed: VERSION pulled"
-assert_eq "$(git -C "$consumer" rev-list --parents -n1 HEAD | wc -w | tr -d ' ')" "3" \
-    "pushed: HEAD is a two-parent merge"
-assert_eq "$(git -C "$consumer" rev-parse HEAD^1)" "$base" \
-    "pushed: the merge's first parent is the pushed HEAD, no pointer commit between"
-assert_contains "$(git -C "$consumer" log -1 --format=%s HEAD^2 2>/dev/null)" "^Squashed 'plugin-dev/' changes from" \
-    "pushed: the merge's second parent is the squash commit"
-assert_contains "$(git -C "$consumer" log -1 --format=%s HEAD)" "^Merge commit '" \
-    "pushed: the merge keeps git subtree's message"
-assert_eq "$(git -C "$consumer" rev-parse HEAD:memory)" "$new_memory" \
-    "pushed: the merge records the new memory pointer"
-assert_tree_clean "pushed"
+echo "=== update-plugin-dev: a staged sha behind the checkout's is the one restored ==="
+new_sandbox
+staged_memory="$(move_memory_pointer)"
+git -C "$consumer" add "$mem"
+move_memory_pointer > /dev/null
+pointer_case "staged-differs"
+assert_eq "$(git -C "$consumer" rev-parse ":$mem")" "$staged_memory" "staged-differs: the staged sha survives, not the checkout's"
 
-echo "=== update-plugin-dev: an already-current pull past a pushed HEAD leaves the pointer as it was ==="
+echo "=== update-plugin-dev: a failed pull leaves a staged pointer staged ==="
+new_sandbox
+new_memory="$(move_memory_pointer)"
+git -C "$consumer" add "$mem"
+before="$(snapshot)"
+update dist-v9
+if [ "$rc" -eq 0 ]; then fail "failed pull: update succeeded"; fi
+assert_eq "$(snapshot)" "$before" "failed pull: HEAD, status and index unchanged"
+assert_eq "$(git -C "$consumer" rev-parse ":$mem")" "$new_memory" "failed pull: the pointer is still staged"
+
+echo "=== update-plugin-dev: a memory checkout behind HEAD's pointer is left behind ==="
+new_sandbox
+move_memory_pointer > /dev/null
+git -C "$consumer" add "$mem"
+git -C "$consumer" commit -qm "consumer: memory moved"
+git -C "$consumer/$mem" checkout -q HEAD^
+pointer_case "behind"
+
+echo "=== update-plugin-dev: a memory checkout diverged from HEAD's pointer is left alone ==="
+new_sandbox
+move_memory_pointer > /dev/null
+git -C "$consumer" add "$mem"
+git -C "$consumer" commit -qm "consumer: memory moved"
+git -C "$consumer/$mem" checkout -q HEAD^
+git -C "$consumer/$mem" commit --allow-empty -qm "memory: side fact"
+pointer_case "diverged"
+
+echo "=== update-plugin-dev: uncommitted content inside the store is left alone ==="
+new_sandbox
+move_memory_pointer > /dev/null
+printf 'fact\n' > "$consumer/$mem/fact.md"
+git -C "$consumer/$mem" add fact.md
+printf 'loose\n' > "$consumer/$mem/loose.md"
+pointer_case "store dirt"
+assert_eq "$(git -C "$consumer/$mem" status --porcelain)" "$(printf 'A  fact.md\n?? loose.md')" "store dirt: the store's own dirt is as it was"
+
+echo "=== update-plugin-dev: a pointer at a path with a space, unstaged and staged ==="
+new_sandbox gitlore-memory "my mem"
+move_memory_pointer > /dev/null
+pointer_case "space"
+new_sandbox gitlore-memory "my mem"
+new_memory="$(move_memory_pointer)"
+git -C "$consumer" add "$mem"
+pointer_case "space staged"
+assert_eq "$(git -C "$consumer" rev-parse ":$mem")" "$new_memory" "space staged: the same sha is staged afterwards"
+
+echo "=== update-plugin-dev: an already-current pull with the pointer moved changes nothing ==="
 new_sandbox
 update dist-v2
 assert_eq "$rc" "0" "no-op: first update exit code"
-before="$(git -C "$consumer" rev-parse HEAD)"
-git -C "$consumer" push -q origin main
-new_memory="$(move_memory_pointer)"
-
+move_memory_pointer > /dev/null
+git -C "$consumer" add "$mem"
+before="$(snapshot)"
 update dist-v2
 assert_eq "$rc" "0" "no-op: second update exit code"
-assert_eq "$(git -C "$consumer" rev-parse HEAD)" "$before" "no-op: HEAD unmoved, no pointer commit left behind"
-if git -C "$consumer" diff --quiet HEAD -- memory; then
-    fail "no-op: the moved memory pointer is no longer pending"
-fi
+assert_eq "$(snapshot)" "$before" "no-op: HEAD, status and index unchanged"
 
-echo "=== update-plugin-dev: a ref missing from the remote refuses before the pointer is committed ==="
+echo "=== update-plugin-dev: a pointer beside other tracked dirt refuses, nothing moved ==="
 new_sandbox
-git -C "$consumer" commit --allow-empty -qm "consumer: local work"
-before="$(git -C "$consumer" rev-parse HEAD)"
-move_memory_pointer > /dev/null
-
-update dist-v9
-if [ "$rc" -eq 0 ]; then fail "missing ref: update succeeded"; fi
-assert_contains "$out" "not found" "missing ref: refusal names the cause"
-assert_eq "$(git -C "$consumer" rev-parse HEAD)" "$before" "missing ref: HEAD untouched"
-if git -C "$consumer" diff --quiet HEAD -- memory; then
-    fail "missing ref: the moved memory pointer is no longer pending"
-fi
-
-echo "=== update-plugin-dev: a local tag on the unpushed HEAD is not stranded by the pointer ==="
-new_sandbox
-git -C "$consumer" commit --allow-empty -qm "consumer: tagged work"
-tagged="$(git -C "$consumer" rev-parse HEAD)"
-git -C "$consumer" tag t
-move_memory_pointer > /dev/null
-
-update dist-v2
-assert_eq "$rc" "0" "tagged: update exit code"
-assert_eq "$(git -C "$consumer" rev-parse t)" "$tagged" "tagged: the tag still names its commit"
-if ! git -C "$consumer" merge-base --is-ancestor t HEAD; then
-    fail "tagged: the tag is not an ancestor of HEAD"
-fi
-assert_eq "$(git -C "$consumer" rev-parse HEAD^1 2>/dev/null)" "$tagged" \
-    "tagged: the merge's first parent is the tagged commit, not an amend of it"
-assert_tree_clean "tagged"
-
-echo "=== update-plugin-dev: a moved memory pointer beside other dirt refuses before committing ==="
-new_sandbox
-before="$(git -C "$consumer" rev-parse HEAD)"
 move_memory_pointer > /dev/null
 printf 'edited\n' >> "$consumer/NOTES.md"
-
+before="$(snapshot)"
 update dist-v2
 if [ "$rc" -eq 0 ]; then fail "other dirt: update succeeded"; fi
 assert_contains "$out" "uncommitted changes" "other dirt: refusal names the cause"
-assert_eq "$(git -C "$consumer" rev-parse HEAD)" "$before" "other dirt: HEAD untouched"
+assert_eq "$(snapshot)" "$before" "other dirt: HEAD, status and index unchanged"
 
-echo "=== update-plugin-dev: a memory submodule with uncommitted content refuses before committing ==="
+echo "=== update-plugin-dev: a change staged then reverted in the tree refuses ==="
+# The merge would commit the index, so a clean worktree is not enough.
 new_sandbox
-before="$(git -C "$consumer" rev-parse HEAD)"
 move_memory_pointer > /dev/null
-printf 'fact\n' > "$consumer/memory/fact.md"
-git -C "$consumer/memory" add fact.md
-
+printf 'edited\n' >> "$consumer/NOTES.md"
+git -C "$consumer" add NOTES.md
+printf 'notes\n' > "$consumer/NOTES.md"
+before="$(snapshot)"
 update dist-v2
-if [ "$rc" -eq 0 ]; then fail "dirty memory: update succeeded"; fi
-assert_contains "$out" "uncommitted changes" "dirty memory: refusal names the cause"
-assert_eq "$(git -C "$consumer" rev-parse HEAD)" "$before" "dirty memory: HEAD untouched"
+if [ "$rc" -eq 0 ]; then fail "staged-reverted: update succeeded"; fi
+assert_contains "$out" "uncommitted changes" "staged-reverted: refusal names the cause"
+assert_eq "$(snapshot)" "$before" "staged-reverted: HEAD, status and index unchanged"
 
 echo "=== update-plugin-dev: a moved submodule at memory under another name refuses ==="
 # The store is found by gitlore's submodule name, not by the path it is
 # usually mounted at: any other submodule's moved gitlink is unfinished work.
 new_sandbox notes
-before="$(git -C "$consumer" rev-parse HEAD)"
 move_memory_pointer > /dev/null
-
+before="$(snapshot)"
 update dist-v2
 if [ "$rc" -eq 0 ]; then fail "other submodule: update succeeded"; fi
 assert_contains "$out" "uncommitted changes" "other submodule: refusal names the cause"
-assert_eq "$(git -C "$consumer" rev-parse HEAD)" "$before" "other submodule: HEAD untouched"
-
-echo "=== update-plugin-dev: a memory checkout behind HEAD's pointer is moved up to it, nothing committed ==="
-# A parent pull that does not update the submodule leaves the checkout behind
-# the commit HEAD records. Committing that pointer would rewind the store.
-new_sandbox
-recorded="$(move_memory_pointer)"
-git -C "$consumer" add memory
-git -C "$consumer" commit -qm "consumer: memory moved"
-before="$(git -C "$consumer" rev-parse HEAD)"
-git -C "$consumer/memory" checkout -q HEAD^
-
-update dist-v2
-assert_eq "$rc" "0" "behind: update exit code"
-assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.1" "behind: VERSION pulled"
-assert_eq "$(git -C "$consumer/memory" rev-parse HEAD)" "$recorded" "behind: checkout moved up to the recorded commit"
-assert_eq "$(git -C "$consumer" rev-parse HEAD^1)" "$before" "behind: no commit rewritten or added before the merge"
-assert_tree_clean "behind"
-
-echo "=== update-plugin-dev: a memory checkout diverged from HEAD's pointer refuses ==="
-new_sandbox
-move_memory_pointer > /dev/null
-git -C "$consumer" add memory
-git -C "$consumer" commit -qm "consumer: memory moved"
-before="$(git -C "$consumer" rev-parse HEAD)"
-git -C "$consumer/memory" checkout -q HEAD^
-git -C "$consumer/memory" commit --allow-empty -qm "memory: side fact"
-side="$(git -C "$consumer/memory" rev-parse HEAD)"
-
-update dist-v2
-if [ "$rc" -eq 0 ]; then fail "diverged: update succeeded"; fi
-assert_contains "$out" "diverged" "diverged: refusal names the cause"
-assert_eq "$(git -C "$consumer" rev-parse HEAD)" "$before" "diverged: HEAD untouched"
-assert_eq "$(git -C "$consumer/memory" rev-parse HEAD)" "$side" "diverged: memory checkout untouched"
+assert_eq "$(snapshot)" "$before" "other submodule: HEAD, status and index unchanged"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
