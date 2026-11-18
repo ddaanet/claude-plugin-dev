@@ -192,9 +192,11 @@ git ls-remote --tags --refs --sort=-v:refname \
 ```
 
 This wraps `git subtree pull` with the prefix and URL baked in. It rejects a
-dirty tree, refuses a source (`vX.Y.Z`) ref naming the `dist-` one to use
-instead, and refuses anything else — a branch, a sha, `main` — since only the
-dist lineage carries the consumer-facing files.
+dirty tree, except for a moved gitlore memory pointer, which it commits for you:
+amended into the last commit while that is unpushed, folded into the subtree
+merge once it is pushed. It refuses a source (`vX.Y.Z`) ref naming the `dist-`
+one to use instead, and refuses anything else — a branch, a sha, `main` — since
+only the dist lineage carries the consumer-facing files.
 
 A release that needs a consumer-side step (say, a new required justfile recipe)
 ships a note at `plugin-dev/migrations/vX.Y.Z.md`. After the pull, every note in

@@ -15,7 +15,28 @@ TOOLKIT_PREFIX="plugin-dev"
 
 ref="${1:-}"
 
-git diff --quiet HEAD || { echo "error: uncommitted changes — commit or stash before updating" >&2; exit 1; }
+refuse_dirty() {
+    echo "error: uncommitted changes — commit or stash before updating" >&2
+    exit 1
+}
+
+# A moved gitlore memory gitlink is the one dirt allowed through: a session
+# commits facts to the store as it goes, so its pointer is routinely ahead of
+# HEAD, and `git subtree` refuses any tracked change. It is taken out of the way
+# below, once the ref is known good. Anything else, including uncommitted
+# content inside the store, which committing the pointer would not clean,
+# refuses here before anything is committed. The store is found by its
+# submodule name, as release-preflight.sh finds it, not by the path it is
+# usually mounted at.
+memory=""
+if ! git diff --quiet HEAD; then
+    if [ -f .gitmodules ]; then
+        memory="$(git config -f .gitmodules --get submodule.gitlore-memory.path)" || memory=""
+    fi
+    [ -n "$memory" ] || refuse_dirty
+    git diff --quiet HEAD -- . ":(exclude,literal)$memory" || refuse_dirty
+    git -C "$memory" diff --quiet HEAD || refuse_dirty
+fi
 [ -d "$TOOLKIT_PREFIX" ] || { echo "error: $TOOLKIT_PREFIX/ not found — is the toolkit vendored here?" >&2; exit 1; }
 
 if [ -z "$ref" ]; then
@@ -56,7 +77,35 @@ if [ -f "$TOOLKIT_PREFIX/VERSION" ]; then
     old_version="$(tr -d '[:space:]' < "$TOOLKIT_PREFIX/VERSION")"
 fi
 
+# The moved pointer goes into the last commit while that is still local. Past a
+# pushed one it gets a commit of its own for the pull, folded into the subtree
+# merge afterwards: the same tree and message, with the pre-pointer HEAD as
+# first parent, so no pointer-only commit lands in history.
+base=""
+if [ -n "$memory" ]; then
+    git add -- ":(literal)$memory"
+    if [ -z "$(git branch -r --contains HEAD)" ]; then
+        git commit -q --amend --no-edit
+    else
+        base="$(git rev-parse HEAD)"
+        git commit -q -m "chore: update memory pointer"
+    fi
+fi
+
 git subtree pull --prefix="$TOOLKIT_PREFIX" "$TOOLKIT_URL" "$ref" --squash
+
+if [ -n "$base" ]; then
+    if [ "$(git rev-parse -q --verify HEAD^1)" = "$base" ]; then
+        # Already at the ref: no merge to fold into, so the pointer goes back
+        # to pending, as it was before the update.
+        git reset -q "$base"
+    else
+        merge="$(git rev-parse HEAD)"
+        folded="$(git log -1 --format=%B "$merge" \
+            | git commit-tree "$merge^{tree}" -p "$base" -p "$merge^2")"
+        git reset -q --soft "$folded"
+    fi
+fi
 
 # Verify VERSION matches the requested tag (catches half-applied subtree
 # pulls). Unconditional: the guard above means only a dist-v* ref reaches
