@@ -14,4 +14,6 @@
   clean-tree guard run a plain `git diff --quiet HEAD`, which honours a
   consumer's `diff.ignoreSubmodules` / `submodule.<name>.ignore`, so a code
   submodule's unrecorded move passes them; `update.sh`'s dirt check uses
-  `--ignore-submodules=untracked` to refuse it. Align the three.
+  `--ignore-submodules=untracked` to refuse it. Align the three, deciding first
+  whether the other two should keep refusing untracked files inside a submodule,
+  which their plain check does and `=untracked` would let through.

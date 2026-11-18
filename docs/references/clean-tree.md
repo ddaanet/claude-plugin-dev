@@ -127,10 +127,12 @@ change staged and then reverted in the worktree still counts, since
 submodule under any other name refuses too. The update's own dirt check runs
 with `--ignore-submodules=untracked` and exempts the store by its path, so a
 consumer's `diff.ignoreSubmodules` or `submodule.<name>.ignore` setting does not
-hide a code submodule's unrecorded move or edited content, both of which
-`git subtree`'s own check would refuse anyway, less clearly; untracked files
-inside a submodule pass, as they pass `git subtree`. The `ignore=all` key is
-passed to the pull alone, set for `gitlore-memory` alone.
+hide a code submodule's unrecorded move or a change inside it, staged or not:
+the update refuses on the tree as it is, not as the consumer's config shows it,
+and its refusal lists what is dirty and says a change inside a submodule is
+committed or stashed there. Untracked files inside a submodule pass, since no
+merge in the parent can touch them. The `ignore=all` key is passed to the pull
+alone, set for `gitlore-memory` alone.
 
 Rejected: letting a staged pointer ride the subtree merge commit. The update
 would then commit outside `plugin-dev/`, a pointer change under a message about

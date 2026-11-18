@@ -16,7 +16,15 @@ TOOLKIT_PREFIX="plugin-dev"
 ref="${1:-}"
 
 refuse_dirty() {
+    local path
     echo "error: uncommitted changes — commit or stash before updating" >&2
+    # NUL-delimited, so a path with a space or newline is one path.
+    while IFS= read -r -d '' path; do
+        printf '  %s\n' "$path" >&2
+    done < <({ git diff --name-only -z --ignore-submodules=untracked HEAD -- "${dirt_specs[@]}"
+               git diff --name-only -z --ignore-submodules=untracked --cached HEAD -- "${dirt_specs[@]}"
+             } | sort -zu)
+    echo "a change inside a submodule is committed or stashed in that submodule" >&2
     exit 1
 }
 
@@ -26,9 +34,10 @@ refuse_dirty() {
 # release-preflight.sh finds it, not by the path it is mounted at; every other
 # gitlink counts whatever the consumer's own ignore settings say, hence
 # `--ignore-submodules=untracked`: a moved gitlink or modified content in
-# another submodule refuses, and only untracked files inside one pass, as they
-# do `git subtree`'s own check. Any other tracked change, staged or not,
-# refuses.
+# another submodule refuses, and only untracked files inside one pass. This
+# holds under the consumer's ignore settings, which `git subtree`'s own check
+# honours: it would pass edited content of a submodule they ignore. Any other
+# tracked change, staged or not, refuses.
 memory=""
 if [ -f .gitmodules ]; then
     memory="$(git config -f .gitmodules --get submodule.gitlore-memory.path)" || memory=""
