@@ -161,8 +161,9 @@ gitlore memory checkout: it commits nothing and moves nothing outside
 `plugin-dev/`, so the checkout, whether ahead, behind, diverged or dirty, is
 left as it was, and its pointer, staged or not, is left as it was for your next
 commit (a staged one is unstaged for the pull and restored after, even when it
-fails). Any other tracked change, staged or not, refuses before the pull, as
-does a moved gitlink of a submodule with another name.
+fails, except that a merge conflict prints the command that restages it). Any
+other tracked change, staged or not, refuses before the pull, as does a moved
+gitlink of a submodule with another name.
 
 Updates are per-consumer and deliberate: a new toolkit tag reaches a plugin only
 when someone runs this. A release needing a consumer-side step ships a note at

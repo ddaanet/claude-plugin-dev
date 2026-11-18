@@ -242,6 +242,38 @@ git -C "$consumer" add "$mem"
 pointer_case "space staged"
 assert_eq "$(git -C "$consumer" rev-parse ":$mem")" "$new_memory" "space staged: the same sha is staged afterwards"
 
+echo "=== update-plugin-dev: a staged pointer is found under a consumer config that ignores submodules ==="
+new_sandbox
+git -C "$consumer" config submodule.gitlore-memory.ignore all
+git -C "$consumer" config diff.ignoreSubmodules all
+new_memory="$(move_memory_pointer)"
+git -C "$consumer" add "$mem"
+old="$(git -C "$consumer" rev-parse "HEAD:$mem")"
+update dist-v2
+assert_eq "$rc" "0" "ignore config: update exit code"
+assert_eq "$(git -C "$consumer" rev-parse "HEAD:$mem")" "$old" "ignore config: the merge records HEAD's old pointer"
+assert_eq "$(git -C "$consumer" rev-parse ":$mem")" "$new_memory" "ignore config: the same sha is staged afterwards"
+
+echo "=== update-plugin-dev: a merge stopped on a conflict does not stage the pointer ==="
+new_sandbox gitlore-memory "my mem"
+printf '9.9.9\n' > "$consumer/plugin-dev/VERSION"
+git -C "$consumer" commit -qam "consumer: local VERSION edit"
+old="$(git -C "$consumer" rev-parse "HEAD:$mem")"
+new_memory="$(move_memory_pointer)"
+git -C "$consumer" add "$mem"
+update dist-v2
+if [ "$rc" -eq 0 ]; then fail "conflict: update succeeded"; fi
+git -C "$consumer" rev-parse -q --verify MERGE_HEAD > /dev/null || fail "conflict: no merge in progress"
+assert_eq "$(git -C "$consumer" rev-parse ":$mem")" "$old" "conflict: the pointer is not staged during the merge"
+assert_contains "$out" "cacheinfo 160000,$new_memory," "conflict: the restoring command is printed"
+printf '1.0.1\n' > "$consumer/plugin-dev/VERSION"
+git -C "$consumer" add plugin-dev/VERSION
+git -C "$consumer" commit -qm "consumer: merge resolved"
+assert_eq "$(git -C "$consumer" rev-parse "HEAD:$mem")" "$old" "conflict: the finished merge records HEAD's old pointer"
+restore="$(sed -n 's/^  \(git update-index .*\)$/\1/p' <<<"$out")"
+(cd "$consumer" && eval "$restore")
+assert_eq "$(git -C "$consumer" rev-parse ":$mem")" "$new_memory" "conflict: the printed command stages the pointer again"
+
 echo "=== update-plugin-dev: an already-current pull with the pointer moved changes nothing ==="
 new_sandbox
 update dist-v2

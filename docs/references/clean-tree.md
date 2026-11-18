@@ -107,7 +107,12 @@ stages the moved gitlink after every memory commit, so staged is the usual
 state. When the gitlink is staged, the update records the staged sha, unstages
 it before the pull, and restores exactly that staged entry afterwards from an
 `EXIT` trap, so a failed pull leaves it staged too. The pointer ends as it
-began, staged or not.
+began, staged or not. The one exception is a pull stopped on a merge conflict:
+restaging then would put the pointer into the commit that finishes the merge, so
+the update prints the exact `git update-index` command that restores it instead,
+to run once the merge is committed. The staged-pointer check passes
+`--ignore-submodules=none`, so a consumer whose own config ignores the store
+still has its staged pointer found.
 
 The memory checkout is left exactly as it was, whatever its state: ahead of the
 recorded commit, behind it, diverged from it, staged, or with dirt inside it.

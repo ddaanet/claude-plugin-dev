@@ -68,6 +68,17 @@ if [ -f "$TOOLKIT_PREFIX/VERSION" ]; then
     old_version="$(tr -d '[:space:]' < "$TOOLKIT_PREFIX/VERSION")"
 fi
 
+# A merge stopped on a conflict is finished by the user's commit, which would
+# record a pointer staged now, so then the restore is left as a command.
+restage_memory() {
+    if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+        printf 'note: the staged %s pointer is restored after the merge is committed:\n  git update-index --add --cacheinfo 160000,%s,%q\n' \
+            "$memory" "$staged" "$memory" >&2
+    else
+        git update-index --add --cacheinfo 160000 "$staged" "$memory"
+    fi
+}
+
 # A staged pointer would land in the merge commit, which commits the index, so
 # it is unstaged for the pull and restored at exit to the sha that was staged,
 # which the checkout may have moved past. The store is found by its submodule
@@ -76,9 +87,9 @@ memory=""
 if [ -f .gitmodules ]; then
     memory="$(git config -f .gitmodules --get submodule.gitlore-memory.path)" || memory=""
 fi
-if [ -n "$memory" ] && ! git diff --quiet --cached HEAD -- ":(literal)$memory"; then
+if [ -n "$memory" ] && ! git diff --quiet --ignore-submodules=none --cached HEAD -- ":(literal)$memory"; then
     staged="$(git rev-parse ":$memory")"
-    trap 'git update-index --add --cacheinfo 160000 "$staged" "$memory"' EXIT
+    trap restage_memory EXIT
     git reset -q -- ":(literal)$memory"
 fi
 
