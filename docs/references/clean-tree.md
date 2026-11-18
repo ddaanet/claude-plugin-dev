@@ -113,6 +113,15 @@ lands in history. When the pull finds the subtree already at the ref there is no
 merge to fold into, and the pointer commit is undone, leaving the pointer
 pending as it was.
 
+All of that is for a checkout *ahead* of the commit HEAD records. A checkout
+behind it is the other shape the same diff takes: a parent pull or checkout that
+does not update the submodule leaves the store at an older commit. Committing
+that pointer would rewind the store in the parent's history, so the checkout is
+moved up to the recorded commit instead, and nothing is committed; the store's
+own branches are not touched. A checkout that is neither, diverged from the
+recorded commit or with that commit not fetched, refuses, since only the human
+knows which side holds the facts.
+
 What it costs, accepted. The amend and the pointer commit run the consumer's own
 commit hooks, its gate included, and the pointer commit is left in history if
 the pull itself fails.

@@ -141,7 +141,8 @@ present tense.
 - The clean-tree check exempts only the gitlore memory gitlink.
 - **`update-plugin-dev` commits a moved memory pointer instead of refusing**:
   amended into HEAD when no other ref holds it, or folded into the subtree merge
-  otherwise.
+  otherwise; a checkout behind the recorded commit is moved up to it, and a
+  diverged one refuses.
 
 ### The dist branch — [references/dist-branch.md](references/dist-branch.md)
 

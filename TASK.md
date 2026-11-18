@@ -1,8 +1,9 @@
 ## Current task
 
-`update.sh` commits a moved gitlore memory pointer instead of refusing; the
-change and its review fix are on `dev`, each with its `/code-review medium` done
-(the change's findings 1 and 3 fixed, every other finding on both declined as
-low). Open questions to my human partner are in the session report. Not yet
-released: it reaches consumers with the next toolkit release, a minor, with no
-migration note. Then the `format-docs` restaging defect in TODO.md.
+`update.sh` commits a moved gitlore memory pointer instead of refusing, moves a
+checkout behind the recorded pointer up to it, and refuses a diverged one; all
+on `dev`. Every commit has had its `/code-review medium`; the last pass returned
+only lows, declined. Open questions 1–5 to my human partner (name lookup, amend
+rule, hooks, failed pull, no-op reset) are in the session report, defaults
+standing. Not yet released: a minor, no migration note. Then the `format-docs`
+restaging defect in TODO.md.

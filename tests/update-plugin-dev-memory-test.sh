@@ -269,6 +269,39 @@ if [ "$rc" -eq 0 ]; then fail "other submodule: update succeeded"; fi
 assert_contains "$out" "uncommitted changes" "other submodule: refusal names the cause"
 assert_eq "$(git -C "$consumer" rev-parse HEAD)" "$before" "other submodule: HEAD untouched"
 
+echo "=== update-plugin-dev: a memory checkout behind HEAD's pointer is moved up to it, nothing committed ==="
+# A parent pull that does not update the submodule leaves the checkout behind
+# the commit HEAD records. Committing that pointer would rewind the store.
+new_sandbox
+recorded="$(move_memory_pointer)"
+git -C "$consumer" add memory
+git -C "$consumer" commit -qm "consumer: memory moved"
+before="$(git -C "$consumer" rev-parse HEAD)"
+git -C "$consumer/memory" checkout -q HEAD^
+
+update dist-v2
+assert_eq "$rc" "0" "behind: update exit code"
+assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.1" "behind: VERSION pulled"
+assert_eq "$(git -C "$consumer/memory" rev-parse HEAD)" "$recorded" "behind: checkout moved up to the recorded commit"
+assert_eq "$(git -C "$consumer" rev-parse HEAD^1)" "$before" "behind: no commit rewritten or added before the merge"
+assert_tree_clean "behind"
+
+echo "=== update-plugin-dev: a memory checkout diverged from HEAD's pointer refuses ==="
+new_sandbox
+move_memory_pointer > /dev/null
+git -C "$consumer" add memory
+git -C "$consumer" commit -qm "consumer: memory moved"
+before="$(git -C "$consumer" rev-parse HEAD)"
+git -C "$consumer/memory" checkout -q HEAD^
+git -C "$consumer/memory" commit --allow-empty -qm "memory: side fact"
+side="$(git -C "$consumer/memory" rev-parse HEAD)"
+
+update dist-v2
+if [ "$rc" -eq 0 ]; then fail "diverged: update succeeded"; fi
+assert_contains "$out" "diverged" "diverged: refusal names the cause"
+assert_eq "$(git -C "$consumer" rev-parse HEAD)" "$before" "diverged: HEAD untouched"
+assert_eq "$(git -C "$consumer/memory" rev-parse HEAD)" "$side" "diverged: memory checkout untouched"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
