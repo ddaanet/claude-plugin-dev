@@ -140,8 +140,8 @@ present tense.
 - A commit a consumer's gate refuses is rolled back.
 - The clean-tree check exempts only the gitlore memory gitlink.
 - **`update-plugin-dev` commits a moved memory pointer instead of refusing**:
-  amended into an unpushed HEAD, or folded into the subtree merge past a pushed
-  one.
+  amended into HEAD when no other ref holds it, or folded into the subtree merge
+  otherwise.
 
 ### The dist branch — [references/dist-branch.md](references/dist-branch.md)
 

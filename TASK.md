@@ -1,8 +1,8 @@
 ## Current task
 
-`update.sh` now commits a moved gitlore memory pointer instead of refusing
-(amended into an unpushed HEAD, folded into the subtree merge past a pushed
-one). The commit needs its delegated `/code-review medium`, then the inbox note
-`inbox/2026-11-18-note-gates-md-cites-cut-memory.md` (repoint a citation in
-`docs/references/gates.md`). The change is not breaking and needs no migration
-note; it reaches consumers with the next toolkit release.
+`update.sh` commits a moved gitlore memory pointer instead of refusing; the
+change and its review fix are on `dev`, each with its `/code-review medium` done
+(the change's findings 1 and 3 fixed, every other finding on both declined as
+low). Open questions to my human partner are in the session report. Not yet
+released: it reaches consumers with the next toolkit release, a minor, with no
+migration note. Then the `format-docs` restaging defect in TODO.md.
