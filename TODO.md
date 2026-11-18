@@ -7,3 +7,6 @@
   restaging it: the commit lands unformatted and the tree is left dirty with the
   reflow (seen on `TASK.md`, `docs/references/gates.md`). `whitespace` stages
   what it fixes; `format-docs` should do the same for tracked files.
+- `docs/references/recovery.md` (around line 125) still argues from gitlore's
+  memory-approval gate as a consumer `pre-commit` hook; gitlore retired that
+  hook, so the premise needs rewriting to the live mechanism.

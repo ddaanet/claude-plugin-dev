@@ -236,9 +236,8 @@ After the pull, `update.sh` prints every note in the crossed range (old
 the human to apply: an upgrade never touches files outside `plugin-dev/`,
 because a consumer's justfile and settings are theirs, and a silently-mutating
 upgrade is exactly the class of surprise the rest of this design exists to
-prevent. The one thing it moves outside `plugin-dev/` is a gitlore memory
-gitlink, which it commits or checks out so `git subtree` sees a clean tree; that
-pointer is gitlore's resting state rather than the consumer's edit, and
+prevent. That includes a moved gitlore memory pointer, which the update leaves
+as it was, staged or pending, for the consumer's next commit;
 [clean-tree.md](clean-tree.md) argues it. Most releases need no note; the
 directory may not exist at all.
 

@@ -13,7 +13,7 @@
 common_preflight() {
     # The `memory` gitlink is excluded, as toolkit/release-preflight.sh's
     # tree_is_clean excludes the gitlore memory submodule: it rests ahead of
-    # HEAD until gitlore's pre-commit hook folds it in on the next commit.
+    # HEAD until the next parent commit records it (gitlore-commit stages it).
     # Written literally -- this repo is one known repo, not a consumer the
     # script has to discover.
     git diff --quiet HEAD -- . ':(exclude)memory' \

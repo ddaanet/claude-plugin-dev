@@ -139,10 +139,11 @@ present tense.
 - A refusal carries the diagnosis and the next command.
 - A commit a consumer's gate refuses is rolled back.
 - The clean-tree check exempts only the gitlore memory gitlink.
-- **`update-plugin-dev` commits a moved memory pointer instead of refusing**:
-  amended into HEAD when no other ref holds it, or folded into the subtree merge
-  otherwise; a checkout behind the recorded commit is moved up to it, and a
-  diverged one refuses.
+- **`update-plugin-dev` leaves a moved memory pointer pending**: the pull runs
+  with the memory submodule's changes ignored, so it commits nothing and moves
+  nothing outside `plugin-dev/`, whatever state the memory checkout is in, and a
+  staged pointer is unstaged for the pull and restored after; any other tracked
+  change, or another submodule's moved gitlink, refuses first.
 
 ### The dist branch — [references/dist-branch.md](references/dist-branch.md)
 

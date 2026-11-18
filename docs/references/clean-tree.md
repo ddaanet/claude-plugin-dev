@@ -1,7 +1,7 @@
 # The clean-tree check
 
 Why `common_preflight` exempts only the memory gitlink from its dirty-tree
-refusal, and why `update.sh` commits that gitlink instead, split out of
+refusal, and why `update.sh` leaves that gitlink pending, split out of
 [recovery.md](recovery.md), which holds the other pre-flight state checks. The
 conclusions these arguments support are listed in
 [../design.md](../design.md).
@@ -53,10 +53,11 @@ manifest refuses as any other tracked file does.
 
 A gitlore-mounted memory store makes the check wrong as stated: the store is a
 submodule whose checked-out HEAD moves whenever a session writes a fact, and the
-parent's gitlink is folded forward by gitlore's own `pre-commit` hook on the
-*next* commit, not immediately. Between commits the moved gitlink is the resting
-state, not uncommitted work, and every consumer mounts one — so an unqualified
-check refuses every release.
+parent's gitlink is recorded by the *next* parent commit, not immediately:
+gitlore's `gitlore-commit` stages the moved gitlink into the parent index after
+a memory commit, and the parent commit that follows takes it. Between commits
+the moved gitlink is the resting state, not uncommitted work, and every consumer
+mounts one — so an unqualified check refuses every release.
 
 The path is read from the repo's `.gitmodules`, keyed on the submodule name
 `gitlore-memory`, and excluded by pathspec. It was originally the literal
@@ -83,45 +84,52 @@ be by design, and a submodule mounted at `memory` under some other name is not
 that submodule.
 
 This is the toolkit's most specific coupling to gitlore, but not a new one — the
-release tail is already written around gitlore's `pre-commit` and `pre-push`
-hooks (see "Recovery" in [recovery.md](recovery.md)). Naming the submodule
-gitlore installs is weaker than assuming where it installed it.
+release tail is already written around gitlore's `pre-push` hook (see "Recovery"
+in [recovery.md](recovery.md)). Naming the submodule gitlore installs is weaker
+than assuming where it installed it.
 
-## `update-plugin-dev` commits the moved memory pointer
+## `update-plugin-dev` leaves the memory pointer pending
 
 `update.sh` cannot exempt the gitlink the way the release preflight does:
 `git subtree` runs its own unscoped `git diff-index HEAD` and refuses any
 tracked change, with no flag to scope it. Refusing as well would stop every
 update in a consumer whose session has written a fact since its last commit,
-which is the resting state. So the moved pointer is committed before the pull,
-once the ref is checked to exist on the remote, the store found by the same
-`gitlore-memory` name lookup as the preflight, and every other dirt still
-refuses, before anything is committed. That includes uncommitted content inside
-the store, which committing the pointer would leave dirty, so `git subtree`
-would refuse after the commit had already landed.
+which is the resting state. So the pull runs as
+`git -c submodule.gitlore-memory.ignore=all subtree pull ...`: the setting makes
+`git diff-index` skip that one submodule, `git subtree`'s clean-tree check
+passes, and the pointer stays pending for the consumer's next commit, which
+takes it anyway. The update commits nothing and moves nothing outside
+`plugin-dev/`.
 
-Where the pointer goes depends on whether anything else holds the last commit:
-it is amended in only when no ref but the current branch contains HEAD
-(`git for-each-ref --contains HEAD` names that branch alone), so a pushed
-commit, a tagged one or one on another branch is never rewritten. Unpushed and
-alone, it is amended into that commit, which is what gitlore's `pre-commit` hook
-would have done at the next one. Otherwise an amend would rewrite a commit
-another ref names, so the pointer gets a commit of its own for the pull, and the
-subtree merge is then rebuilt with the same tree and message but the pre-pointer
-HEAD as first parent: the pointer rides the merge and no pointer-only commit
-lands in history. When the pull finds the subtree already at the ref there is no
-merge to fold into, and the pointer commit is undone, leaving the pointer
-pending as it was.
+The setting hides a *staged* pointer from the check, though, and the merge
+commit `git subtree` then makes would record it. Gitlore's `gitlore-commit`
+stages the moved gitlink after every memory commit, so staged is the usual
+state. When the gitlink is staged, the update records the staged sha, unstages
+it before the pull, and restores exactly that staged entry afterwards from an
+`EXIT` trap, so a failed pull leaves it staged too. The pointer ends as it
+began, staged or not.
 
-All of that is for a checkout *ahead* of the commit HEAD records. A checkout
-behind it is the other shape the same diff takes: a parent pull or checkout that
-does not update the submodule leaves the store at an older commit. Committing
-that pointer would rewind the store in the parent's history, so the checkout is
-moved up to the recorded commit instead, and nothing is committed; the store's
-own branches are not touched. A checkout that is neither, diverged from the
-recorded commit or with that commit not fetched, refuses, since only the human
-knows which side holds the facts.
+The memory checkout is left exactly as it was, whatever its state: ahead of the
+recorded commit, behind it, diverged from it, staged, or with dirt inside it.
+The setting hides the submodule from the check whole, so none of those shapes
+needs a decision from the update, and none is the update's to make: only the
+human knows which side of a diverged store holds the facts.
 
-What it costs, accepted. The amend and the pointer commit run the consumer's own
-commit hooks, its gate included, and the pointer commit is left in history if
-the pull itself fails.
+The exemption is scoped by name, as the release preflight's is. Every other
+tracked change refuses before the pull, in the worktree or in the index; a
+change staged and then reverted in the worktree still counts, since
+`git diff-index` compares HEAD with the index as well. A moved gitlink of a
+submodule under any other name refuses too: `ignore=all` is set for
+`gitlore-memory` alone, so a code submodule's unrecorded move is not hidden.
+
+Rejected: letting a staged pointer ride the subtree merge commit. The update
+would then commit outside `plugin-dev/`, a pointer change under a message about
+the toolkit.
+
+Rejected: committing the pointer before the pull. It needs history rewriting for
+a pointer the next commit takes anyway: an amend, which is safe only when no
+other ref holds HEAD, or a pointer commit folded into the subtree merge by
+rebuilding the merge on the pre-pointer parent. It would also run the consumer's
+commit hooks, its gate included, for a commit nobody asked for. Rejected too:
+moving a checkout that is behind the recorded commit up to it. That is a write
+outside `plugin-dev/` for a state the human may have left on purpose.
