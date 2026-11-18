@@ -1,8 +1,8 @@
 ## Current task
 
-Release the toolkit as 0.16.2. On `dev`, ahead of `main`, is the
-check-frontmatter change: it tries `<top>/.venv/bin/python3` first, then
-`python3` on PATH, so a shell or hook without direnv still runs it. That change
-has had its per-commit medium review and the doc-drift fix that review called
-for, but no release review. It is not breaking, so it needs no migration note.
-The first action is to invoke the `release-ritual` skill on `dev`.
+`update.sh` now commits a moved gitlore memory pointer instead of refusing
+(amended into an unpushed HEAD, folded into the subtree merge past a pushed
+one). The commit needs its delegated `/code-review medium`, then the inbox note
+`inbox/2026-11-18-note-gates-md-cites-cut-memory.md` (repoint a citation in
+`docs/references/gates.md`). The change is not breaking and needs no migration
+note; it reaches consumers with the next toolkit release.

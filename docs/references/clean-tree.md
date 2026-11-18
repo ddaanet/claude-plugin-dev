@@ -1,8 +1,9 @@
 # The clean-tree check
 
 Why `common_preflight` exempts only the memory gitlink from its dirty-tree
-refusal, split out of [recovery.md](recovery.md), which holds the other
-pre-flight state checks. The conclusions these arguments support are listed in
+refusal, and why `update.sh` commits that gitlink instead, split out of
+[recovery.md](recovery.md), which holds the other pre-flight state checks. The
+conclusions these arguments support are listed in
 [../design.md](../design.md).
 
 ## The clean-tree check exempts only the memory gitlink
@@ -85,3 +86,29 @@ This is the toolkit's most specific coupling to gitlore, but not a new one — t
 release tail is already written around gitlore's `pre-commit` and `pre-push`
 hooks (see "Recovery" in [recovery.md](recovery.md)). Naming the submodule
 gitlore installs is weaker than assuming where it installed it.
+
+## `update-plugin-dev` commits the moved memory pointer
+
+`update.sh` cannot exempt the gitlink the way the release preflight does:
+`git subtree` runs its own unscoped `git diff-index HEAD` and refuses any
+tracked change, with no flag to scope it. Refusing as well would stop every
+update in a consumer whose session has written a fact since its last commit,
+which is the resting state. So the moved pointer is committed before the pull,
+the store found by the same `gitlore-memory` name lookup as the preflight, and
+every other dirt still refuses, before anything is committed. That includes
+uncommitted content inside the store, which committing the pointer would leave
+dirty, so `git subtree` would refuse after the commit had already landed.
+
+Where the pointer goes depends on whether the last commit is pushed
+(`git branch -r --contains HEAD` prints anything). Unpushed, it is amended into
+that commit, which is what gitlore's `pre-commit` hook would have done at the
+next one. Pushed, an amend would rewrite published history, so the pointer gets
+a commit of its own for the pull, and the subtree merge is then rebuilt with the
+same tree and message but the pre-pointer HEAD as first parent: the pointer
+rides the merge and no pointer-only commit lands in history. When the pull finds
+the subtree already at the ref there is no merge to fold into, and the pointer
+commit is undone, leaving the pointer pending as it was.
+
+What it costs, accepted. The amend and the pointer commit run the consumer's own
+commit hooks, its gate included, and the pointer commit is left in history if
+the pull itself fails.
