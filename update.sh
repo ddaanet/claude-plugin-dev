@@ -109,7 +109,7 @@ if [ "$memory_state" = behind ]; then
     git -C "$memory" checkout -q "$recorded"
 elif [ "$memory_state" = ahead ]; then
     git add -- ":(literal)$memory"
-    if [ "$(git for-each-ref --contains HEAD --format='%(refname)')" = "$(git symbolic-ref -q HEAD)" ]; then
+    if [ "$(git for-each-ref --count=2 --contains HEAD --format='%(refname)')" = "$(git symbolic-ref -q HEAD)" ]; then
         git commit -q --amend --no-edit
     else
         base="$(git rev-parse HEAD)"
