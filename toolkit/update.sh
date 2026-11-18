@@ -77,14 +77,19 @@ if [ -f "$TOOLKIT_PREFIX/VERSION" ]; then
     old_version="$(tr -d '[:space:]' < "$TOOLKIT_PREFIX/VERSION")"
 fi
 
-# The moved pointer goes into the last commit while that is still local. Past a
-# pushed one it gets a commit of its own for the pull, folded into the subtree
-# merge afterwards: the same tree and message, with the pre-pointer HEAD as
-# first parent, so no pointer-only commit lands in history.
+# The moved pointer goes into the last commit when no ref but the current
+# branch contains it (unpushed, untagged, on no other branch): an amend then
+# strands nothing. Otherwise it gets a commit of its own for the pull, folded
+# into the subtree merge afterwards: the same tree and message, with the
+# pre-pointer HEAD as first parent, so no pointer-only commit lands in history
+# and no existing commit is rewritten. The ref is checked for existence first,
+# so a mistyped one leaves HEAD and the tree as they were.
 base=""
 if [ -n "$memory" ]; then
+    git ls-remote --exit-code --tags "$TOOLKIT_URL" "refs/tags/$ref" >/dev/null \
+        || { echo "error: '$ref' not found on $TOOLKIT_URL" >&2; exit 1; }
     git add -- ":(literal)$memory"
-    if [ -z "$(git branch -r --contains HEAD)" ]; then
+    if [ "$(git for-each-ref --contains HEAD --format='%(refname)')" = "$(git symbolic-ref -q HEAD)" ]; then
         git commit -q --amend --no-edit
     else
         base="$(git rev-parse HEAD)"

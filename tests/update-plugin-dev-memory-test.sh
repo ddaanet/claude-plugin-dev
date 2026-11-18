@@ -203,6 +203,37 @@ if git -C "$consumer" diff --quiet HEAD -- memory; then
     fail "no-op: the moved memory pointer is no longer pending"
 fi
 
+echo "=== update-plugin-dev: a ref missing from the remote refuses before the pointer is committed ==="
+new_sandbox
+git -C "$consumer" commit --allow-empty -qm "consumer: local work"
+before="$(git -C "$consumer" rev-parse HEAD)"
+move_memory_pointer > /dev/null
+
+update dist-v9
+if [ "$rc" -eq 0 ]; then fail "missing ref: update succeeded"; fi
+assert_contains "$out" "not found" "missing ref: refusal names the cause"
+assert_eq "$(git -C "$consumer" rev-parse HEAD)" "$before" "missing ref: HEAD untouched"
+if git -C "$consumer" diff --quiet HEAD -- memory; then
+    fail "missing ref: the moved memory pointer is no longer pending"
+fi
+
+echo "=== update-plugin-dev: a local tag on the unpushed HEAD is not stranded by the pointer ==="
+new_sandbox
+git -C "$consumer" commit --allow-empty -qm "consumer: tagged work"
+tagged="$(git -C "$consumer" rev-parse HEAD)"
+git -C "$consumer" tag t
+move_memory_pointer > /dev/null
+
+update dist-v2
+assert_eq "$rc" "0" "tagged: update exit code"
+assert_eq "$(git -C "$consumer" rev-parse t)" "$tagged" "tagged: the tag still names its commit"
+if ! git -C "$consumer" merge-base --is-ancestor t HEAD; then
+    fail "tagged: the tag is not an ancestor of HEAD"
+fi
+assert_eq "$(git -C "$consumer" rev-parse HEAD^1 2>/dev/null)" "$tagged" \
+    "tagged: the merge's first parent is the tagged commit, not an amend of it"
+assert_tree_clean "tagged"
+
 echo "=== update-plugin-dev: a moved memory pointer beside other dirt refuses before committing ==="
 new_sandbox
 before="$(git -C "$consumer" rev-parse HEAD)"
