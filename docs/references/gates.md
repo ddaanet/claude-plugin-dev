@@ -62,13 +62,14 @@ infer the list: it does not know what the consumer's checks read, and a hash of
 the whole tree would be invalidated by every scratch file and, under the command
 sandbox, by the phantom dotfiles it masks into the root. So the consumer names
 paths, and the cache is correct exactly while every check reads inside them.
-That rule is the memory `gate-cache-must-cover-every-check` carried from ghmem:
-a check whose scope exceeds the hash goes red on an unrelated commit, days after
-the file that broke it. The guard hashes two more itself, the justfile and the
-vendored toolkit tree: both exist in every consumer (`install.sh` writes the
-import into the root justfile, and the toolkit is vendored at `plugin-dev/`), so
-listing them was a step to forget that named no choice. The hash does not cover
-`$0`, the recipe's own script, because the justfile already holds it.
+That rule is in the `shell-scripting:just-gotchas` skill,
+`references/gate-design.md`: a check whose scope exceeds the hash goes red on an
+unrelated commit, days after the file that broke it. The guard hashes two more
+itself, the justfile and the vendored toolkit tree: both exist in every consumer
+(`install.sh` writes the import into the root justfile, and the toolkit is
+vendored at `plugin-dev/`), so listing them was a step to forget that named no
+choice. The hash does not cover `$0`, the recipe's own script, because the
+justfile already holds it.
 
 They are a second input set, listed apart from the consumer's pathspecs and
 joined to it after listing. Appended to the consumer's list they would share its
