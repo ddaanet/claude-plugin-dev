@@ -333,14 +333,16 @@ assert_contains "$out" "uncommitted changes" "ignored submodule edit: update.sh'
 assert_contains "$out" "^  $mem\$" "ignored submodule edit: the dirty path is listed"
 assert_eq "$(snapshot)" "$before" "ignored submodule edit: HEAD, status and index unchanged"
 
-echo "=== update-plugin-dev: a change staged inside another submodule refuses ==="
+echo "=== update-plugin-dev: a change staged inside another submodule refuses under its ignore setting ==="
 new_sandbox notes
+git -C "$consumer" config submodule.notes.ignore all
 printf 'fact\n' > "$consumer/$mem/fact.md"
 git -C "$consumer/$mem" add fact.md
 before="$(snapshot)"
 update dist-v2
 if [ "$rc" -eq 0 ]; then fail "submodule staged: update succeeded"; fi
 assert_contains "$out" "uncommitted changes" "submodule staged: update.sh's own refusal"
+assert_contains "$out" "^  $mem\$" "submodule staged: the dirty path is listed"
 assert_eq "$(snapshot)" "$before" "submodule staged: HEAD, status and index unchanged"
 
 echo "=== update-plugin-dev: an already-current pull with the pointer moved changes nothing ==="
