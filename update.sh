@@ -22,36 +22,12 @@ refuse_dirty() {
 
 # A moved gitlore memory gitlink is the one dirt allowed through: a session
 # commits facts to the store as it goes, so its pointer is routinely ahead of
-# HEAD, and `git subtree` refuses any tracked change. It is taken out of the way
-# below, once the ref is known good. Anything else, including uncommitted
-# content inside the store, which committing the pointer would not clean,
-# refuses here before anything is committed. The store is found by its
-# submodule name, as release-preflight.sh finds it, not by the path it is
-# usually mounted at.
-memory=""
-memory_state=""
-if ! git diff --quiet HEAD; then
-    if [ -f .gitmodules ]; then
-        memory="$(git config -f .gitmodules --get submodule.gitlore-memory.path)" || memory=""
-    fi
-    [ -n "$memory" ] || refuse_dirty
-    git diff --quiet HEAD -- . ":(exclude,literal)$memory" || refuse_dirty
-    git -C "$memory" diff --quiet HEAD || refuse_dirty
-    # Ahead of the commit HEAD records, the checkout holds facts to commit.
-    # Behind it, as a parent pull that skipped the submodule leaves it,
-    # committing would rewind the store, so the checkout moves up instead.
-    # Diverged, or the recorded commit not fetched, is for the human.
-    recorded="$(git rev-parse -q --verify "HEAD:$memory")" || recorded=""
-    checkout="$(git -C "$memory" rev-parse HEAD)"
-    if [ -n "$recorded" ] && git -C "$memory" merge-base --is-ancestor "$recorded" "$checkout" 2>/dev/null; then
-        memory_state=ahead
-    elif [ -n "$recorded" ] && git -C "$memory" merge-base --is-ancestor "$checkout" "$recorded" 2>/dev/null; then
-        memory_state=behind
-    else
-        echo "error: $memory is checked out at a commit diverged from the one HEAD records, or that one is not fetched — reconcile the store before updating" >&2
-        exit 1
-    fi
-fi
+# HEAD. The `ignore=all` key, set for the submodule named gitlore-memory only,
+# hides it from this check and from `git subtree`'s own, which refuses any
+# tracked change; the pointer stays pending, as the update commits nothing but
+# the merge. Any other tracked change, staged or not, refuses.
+git -c submodule.gitlore-memory.ignore=all diff --quiet HEAD || refuse_dirty
+git -c submodule.gitlore-memory.ignore=all diff --quiet --cached HEAD || refuse_dirty
 [ -d "$TOOLKIT_PREFIX" ] || { echo "error: $TOOLKIT_PREFIX/ not found — is the toolkit vendored here?" >&2; exit 1; }
 
 if [ -z "$ref" ]; then
@@ -92,45 +68,21 @@ if [ -f "$TOOLKIT_PREFIX/VERSION" ]; then
     old_version="$(tr -d '[:space:]' < "$TOOLKIT_PREFIX/VERSION")"
 fi
 
-# The moved pointer goes into the last commit when no ref but the current
-# branch contains it (unpushed, untagged, on no other branch): an amend then
-# strands nothing. Otherwise it gets a commit of its own for the pull, folded
-# into the subtree merge afterwards: the same tree and message, with the
-# pre-pointer HEAD as first parent, so no pointer-only commit lands in history
-# and no existing commit is rewritten. A checkout behind HEAD's pointer is
-# checked out at it, and nothing is committed. The ref is checked for
-# existence first, so a mistyped one leaves HEAD and the tree as they were.
-base=""
-if [ -n "$memory_state" ]; then
-    git ls-remote --exit-code --tags "$TOOLKIT_URL" "refs/tags/$ref" >/dev/null \
-        || { echo "error: '$ref' not found on $TOOLKIT_URL" >&2; exit 1; }
+# A staged pointer would land in the merge commit, which commits the index, so
+# it is unstaged for the pull and restored at exit to the sha that was staged,
+# which the checkout may have moved past. The store is found by its submodule
+# name, as release-preflight.sh finds it, not by the path it is mounted at.
+memory=""
+if [ -f .gitmodules ]; then
+    memory="$(git config -f .gitmodules --get submodule.gitlore-memory.path)" || memory=""
 fi
-if [ "$memory_state" = behind ]; then
-    git -C "$memory" checkout -q "$recorded"
-elif [ "$memory_state" = ahead ]; then
-    git add -- ":(literal)$memory"
-    if [ "$(git for-each-ref --count=2 --contains HEAD --format='%(refname)')" = "$(git symbolic-ref -q HEAD)" ]; then
-        git commit -q --amend --no-edit
-    else
-        base="$(git rev-parse HEAD)"
-        git commit -q -m "chore: update memory pointer"
-    fi
+if [ -n "$memory" ] && ! git diff --quiet --cached HEAD -- ":(literal)$memory"; then
+    staged="$(git rev-parse ":$memory")"
+    trap 'git update-index --add --cacheinfo 160000 "$staged" "$memory"' EXIT
+    git reset -q -- ":(literal)$memory"
 fi
 
-git subtree pull --prefix="$TOOLKIT_PREFIX" "$TOOLKIT_URL" "$ref" --squash
-
-if [ -n "$base" ]; then
-    if [ "$(git rev-parse -q --verify HEAD^1)" = "$base" ]; then
-        # Already at the ref: no merge to fold into, so the pointer goes back
-        # to pending, as it was before the update.
-        git reset -q "$base"
-    else
-        merge="$(git rev-parse HEAD)"
-        folded="$(git log -1 --format=%B "$merge" \
-            | git commit-tree "$merge^{tree}" -p "$base" -p "$merge^2")"
-        git reset -q --soft "$folded"
-    fi
-fi
+git -c submodule.gitlore-memory.ignore=all subtree pull --prefix="$TOOLKIT_PREFIX" "$TOOLKIT_URL" "$ref" --squash
 
 # Verify VERSION matches the requested tag (catches half-applied subtree
 # pulls). Unconditional: the guard above means only a dist-v* ref reaches
