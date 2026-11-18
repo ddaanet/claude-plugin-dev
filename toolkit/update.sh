@@ -22,12 +22,18 @@ refuse_dirty() {
 
 # A moved gitlore memory gitlink is the one dirt allowed through: a session
 # commits facts to the store as it goes, so its pointer is routinely ahead of
-# HEAD. The `ignore=all` key, set for the submodule named gitlore-memory only,
-# hides it from this check and from `git subtree`'s own, which refuses any
-# tracked change; the pointer stays pending, as the update commits nothing but
-# the merge. Any other tracked change, staged or not, refuses.
-git -c submodule.gitlore-memory.ignore=all diff --quiet HEAD || refuse_dirty
-git -c submodule.gitlore-memory.ignore=all diff --quiet --cached HEAD || refuse_dirty
+# HEAD. It is exempted by pathspec, found by its submodule name as
+# release-preflight.sh finds it, not by the path it is mounted at; every other
+# gitlink counts whatever the consumer's own ignore settings say, hence
+# `--ignore-submodules=none`. Any other tracked change, staged or not, refuses.
+memory=""
+if [ -f .gitmodules ]; then
+    memory="$(git config -f .gitmodules --get submodule.gitlore-memory.path)" || memory=""
+fi
+dirt_specs=(.)
+[ -z "$memory" ] || dirt_specs+=(":(exclude,literal)$memory")
+git diff --quiet --ignore-submodules=none HEAD -- "${dirt_specs[@]}" || refuse_dirty
+git diff --quiet --ignore-submodules=none --cached HEAD -- "${dirt_specs[@]}" || refuse_dirty
 [ -d "$TOOLKIT_PREFIX" ] || { echo "error: $TOOLKIT_PREFIX/ not found — is the toolkit vendored here?" >&2; exit 1; }
 
 if [ -z "$ref" ]; then
@@ -71,9 +77,15 @@ fi
 # A merge stopped on a conflict is finished by the user's commit, which would
 # record a pointer staged now, so then the restore is left as a command.
 restage_memory() {
+    local top
     if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
-        printf 'note: the staged %s pointer is restored after the merge is committed:\n  git update-index --add --cacheinfo 160000,%s,%q\n' \
-            "$memory" "$staged" "$memory" >&2
+        top="$(git rev-parse --show-toplevel)"
+        {
+            printf 'note: the staged %s pointer was not restored. Once the merge is committed,\n' "$memory"
+            printf 'restage it with:\n  git -C %q update-index --add --cacheinfo 160000,%s,%q\n' "$top" "$staged" "$memory"
+            printf 'and check it: git -C %q rev-parse %q should print %s.\n' "$top" ":$memory" "$staged"
+            printf 'Finish the merge with git commit, not git commit -a or git add -A, which would commit the checkout'"'"'s sha.\n'
+        } >&2
     else
         git update-index --add --cacheinfo 160000 "$staged" "$memory"
     fi
@@ -81,18 +93,15 @@ restage_memory() {
 
 # A staged pointer would land in the merge commit, which commits the index, so
 # it is unstaged for the pull and restored at exit to the sha that was staged,
-# which the checkout may have moved past. The store is found by its submodule
-# name, as release-preflight.sh finds it, not by the path it is mounted at.
-memory=""
-if [ -f .gitmodules ]; then
-    memory="$(git config -f .gitmodules --get submodule.gitlore-memory.path)" || memory=""
-fi
+# which the checkout may have moved past.
 if [ -n "$memory" ] && ! git diff --quiet --ignore-submodules=none --cached HEAD -- ":(literal)$memory"; then
     staged="$(git rev-parse ":$memory")"
     trap restage_memory EXIT
     git reset -q -- ":(literal)$memory"
 fi
 
+# The ignore key, for the submodule named gitlore-memory only, hides its pointer
+# from `git subtree`'s own clean check, which refuses any tracked change.
 git -c submodule.gitlore-memory.ignore=all subtree pull --prefix="$TOOLKIT_PREFIX" "$TOOLKIT_URL" "$ref" --squash
 
 # Verify VERSION matches the requested tag (catches half-applied subtree

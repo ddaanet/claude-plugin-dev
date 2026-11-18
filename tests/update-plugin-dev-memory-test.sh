@@ -270,9 +270,21 @@ printf '1.0.1\n' > "$consumer/plugin-dev/VERSION"
 git -C "$consumer" add plugin-dev/VERSION
 git -C "$consumer" commit -qm "consumer: merge resolved"
 assert_eq "$(git -C "$consumer" rev-parse "HEAD:$mem")" "$old" "conflict: the finished merge records HEAD's old pointer"
-restore="$(sed -n 's/^  \(git update-index .*\)$/\1/p' <<<"$out")"
-(cd "$consumer" && eval "$restore")
+restore="$(sed -n 's/^  \(git -C .* update-index .*\)$/\1/p' <<<"$out")"
+mkdir -p "$consumer/plugin-dev/sub"
+(cd "$consumer/plugin-dev/sub" && eval "$restore")
 assert_eq "$(git -C "$consumer" rev-parse ":$mem")" "$new_memory" "conflict: the printed command stages the pointer again"
+
+echo "=== update-plugin-dev: another submodule's staged gitlink refuses under a consumer config that ignores submodules ==="
+new_sandbox notes
+git -C "$consumer" config diff.ignoreSubmodules all
+move_memory_pointer > /dev/null
+git -C "$consumer" add "$mem"
+before="$(snapshot)"
+update dist-v2
+if [ "$rc" -eq 0 ]; then fail "ignore config, other submodule: update succeeded"; fi
+assert_contains "$out" "uncommitted changes" "ignore config, other submodule: refusal names the cause"
+assert_eq "$(snapshot)" "$before" "ignore config, other submodule: HEAD, status and index unchanged"
 
 echo "=== update-plugin-dev: an already-current pull with the pointer moved changes nothing ==="
 new_sandbox

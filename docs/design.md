@@ -142,8 +142,9 @@ present tense.
 - **`update-plugin-dev` leaves a moved memory pointer pending**: the pull runs
   with the memory submodule's changes ignored, so it commits nothing and moves
   nothing outside `plugin-dev/`, whatever state the memory checkout is in, and a
-  staged pointer is unstaged for the pull and restored after; any other tracked
-  change, or another submodule's moved gitlink, refuses first.
+  staged pointer is unstaged for the pull and restored after, except on a merge
+  conflict, where the update prints the command that restores it; any other
+  tracked change, or another submodule's moved gitlink, refuses first.
 
 ### The dist branch — [references/dist-branch.md](references/dist-branch.md)
 
