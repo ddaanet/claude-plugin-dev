@@ -10,8 +10,8 @@
 - `docs/references/recovery.md` (around line 125) still argues from gitlore's
   memory-approval gate as a consumer `pre-commit` hook; gitlore retired that
   hook, so the premise needs rewriting to the live mechanism.
-- `toolkit/release-preflight.sh`'s `tree_is_clean` runs a plain
-  `git diff --quiet HEAD`, which honours a consumer's `diff.ignoreSubmodules` /
-  `submodule.<name>.ignore`, so a code submodule's unrecorded move passes the
-  release clean-tree gate; `update.sh`'s dirt check uses
-  `--ignore-submodules=dirty` to refuse it. Align the two.
+- `toolkit/release-preflight.sh`'s `tree_is_clean` and `toolkit/install.sh`'s
+  clean-tree guard run a plain `git diff --quiet HEAD`, which honours a
+  consumer's `diff.ignoreSubmodules` / `submodule.<name>.ignore`, so a code
+  submodule's unrecorded move passes them; `update.sh`'s dirt check uses
+  `--ignore-submodules=untracked` to refuse it. Align the three.

@@ -303,6 +303,20 @@ update dist-v2
 assert_eq "$rc" "0" "submodule content: update exit code"
 assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.1" "submodule content: VERSION pulled"
 
+echo "=== update-plugin-dev: an edited tracked file inside another submodule refuses ==="
+new_sandbox notes
+printf 'fact\n' > "$consumer/$mem/fact.md"
+git -C "$consumer/$mem" add fact.md
+git -C "$consumer/$mem" commit -qm "memory: fact"
+git -C "$consumer" add "$mem"
+git -C "$consumer" commit -qm "consumer: memory moved"
+printf 'edited\n' >> "$consumer/$mem/fact.md"
+before="$(snapshot)"
+update dist-v2
+if [ "$rc" -eq 0 ]; then fail "submodule edit: update succeeded"; fi
+assert_contains "$out" "uncommitted changes" "submodule edit: update.sh's own refusal"
+assert_eq "$(snapshot)" "$before" "submodule edit: HEAD, status and index unchanged"
+
 echo "=== update-plugin-dev: an already-current pull with the pointer moved changes nothing ==="
 new_sandbox
 update dist-v2
