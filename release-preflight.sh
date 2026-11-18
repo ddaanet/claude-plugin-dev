@@ -64,7 +64,7 @@ clean_pathspecs() {
     fi
     if [ -n "$mem" ]; then
         clean_specs+=(":(exclude)$mem")
-        clean_exempt+=("$mem/ — the gitlore memory submodule, whose gitlink the next commit folds in")
+        clean_exempt+=("$mem/ — the gitlore memory submodule, whose gitlink gitlore-commit stages and the next commit records")
     fi
 }
 

@@ -196,11 +196,12 @@ dirty tree, except for the gitlore memory checkout: it commits nothing and moves
 nothing outside `plugin-dev/`, so the checkout, whether ahead, behind, diverged
 or dirty, is left as it was, and its pointer, staged or not, is left as it was
 for your next commit (a staged one is unstaged for the pull and restored after,
-even when it fails). Any other tracked change, staged or not, refuses before the
-pull, as does a moved gitlink of a submodule with another name. It refuses a
-source (`vX.Y.Z`) ref naming the `dist-` one to use instead, and refuses
-anything else — a branch, a sha, `main` — since only the dist lineage carries
-the consumer-facing files.
+even when it fails, except that a merge conflict prints the command that
+restages it). Any other tracked change, staged or not, refuses before the pull,
+as does a moved gitlink of a submodule with another name. It refuses a source
+(`vX.Y.Z`) ref naming the `dist-` one to use instead, and refuses anything else
+— a branch, a sha, `main` — since only the dist lineage carries the
+consumer-facing files.
 
 A release that needs a consumer-side step (say, a new required justfile recipe)
 ships a note at `plugin-dev/migrations/vX.Y.Z.md`. After the pull, every note in
