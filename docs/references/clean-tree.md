@@ -125,10 +125,11 @@ tracked change refuses before the pull, in the worktree or in the index; a
 change staged and then reverted in the worktree still counts, since
 `git diff-index` compares HEAD with the index as well. A moved gitlink of a
 submodule under any other name refuses too. The update's own dirt check runs
-with `--ignore-submodules=none` and exempts the store by its path, so a
+with `--ignore-submodules=dirty` and exempts the store by its path, so a
 consumer's `diff.ignoreSubmodules` or `submodule.<name>.ignore` setting does not
-hide a code submodule's unrecorded move; the `ignore=all` key is passed to the
-pull alone, set for `gitlore-memory` alone.
+hide a code submodule's unrecorded move, while dirt inside a submodule, which no
+parent commit or stash could clear, does not refuse; the `ignore=all` key is
+passed to the pull alone, set for `gitlore-memory` alone.
 
 Rejected: letting a staged pointer ride the subtree merge commit. The update
 would then commit outside `plugin-dev/`, a pointer change under a message about

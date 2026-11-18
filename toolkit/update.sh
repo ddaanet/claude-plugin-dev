@@ -25,15 +25,16 @@ refuse_dirty() {
 # HEAD. It is exempted by pathspec, found by its submodule name as
 # release-preflight.sh finds it, not by the path it is mounted at; every other
 # gitlink counts whatever the consumer's own ignore settings say, hence
-# `--ignore-submodules=none`. Any other tracked change, staged or not, refuses.
+# `--ignore-submodules=dirty`, which still sees a moved one but not the content
+# inside a submodule, which the parent can neither commit nor stash. Any other tracked change, staged or not, refuses.
 memory=""
 if [ -f .gitmodules ]; then
     memory="$(git config -f .gitmodules --get submodule.gitlore-memory.path)" || memory=""
 fi
 dirt_specs=(.)
 [ -z "$memory" ] || dirt_specs+=(":(exclude,literal)$memory")
-git diff --quiet --ignore-submodules=none HEAD -- "${dirt_specs[@]}" || refuse_dirty
-git diff --quiet --ignore-submodules=none --cached HEAD -- "${dirt_specs[@]}" || refuse_dirty
+git diff --quiet --ignore-submodules=dirty HEAD -- "${dirt_specs[@]}" || refuse_dirty
+git diff --quiet --ignore-submodules=dirty --cached HEAD -- "${dirt_specs[@]}" || refuse_dirty
 [ -d "$TOOLKIT_PREFIX" ] || { echo "error: $TOOLKIT_PREFIX/ not found — is the toolkit vendored here?" >&2; exit 1; }
 
 if [ -z "$ref" ]; then

@@ -286,6 +286,23 @@ if [ "$rc" -eq 0 ]; then fail "ignore config, other submodule: update succeeded"
 assert_contains "$out" "uncommitted changes" "ignore config, other submodule: refusal names the cause"
 assert_eq "$(snapshot)" "$before" "ignore config, other submodule: HEAD, status and index unchanged"
 
+echo "=== update-plugin-dev: another submodule's unstaged move refuses under a submodule ignore setting ==="
+new_sandbox notes
+git -C "$consumer" config submodule.notes.ignore all
+move_memory_pointer > /dev/null
+before="$(snapshot)"
+update dist-v2
+if [ "$rc" -eq 0 ]; then fail "ignore setting, unstaged: update succeeded"; fi
+assert_contains "$out" "uncommitted changes" "ignore setting, unstaged: refusal names the cause"
+assert_eq "$(snapshot)" "$before" "ignore setting, unstaged: HEAD, status and index unchanged"
+
+echo "=== update-plugin-dev: untracked content inside another submodule does not refuse ==="
+new_sandbox notes
+printf 'loose\n' > "$consumer/$mem/loose.md"
+update dist-v2
+assert_eq "$rc" "0" "submodule content: update exit code"
+assert_eq "$(cat "$consumer/plugin-dev/VERSION" 2>/dev/null)" "1.0.1" "submodule content: VERSION pulled"
+
 echo "=== update-plugin-dev: an already-current pull with the pointer moved changes nothing ==="
 new_sandbox
 update dist-v2
