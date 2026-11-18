@@ -93,21 +93,26 @@ make_toolkit_release() {
     git -C "$toolkit" tag "dist-$tag" "$dist_sha"
 }
 
+# The fixture toolkit is only ever read from, so every scenario shares one,
+# with dist-v1 and dist-v2 both cut: its subtree splits are the slowest setup.
+toolkit_dir="$(mktemp -d "${TMPDIR:-/tmp}/update-plugin-dev-memory-toolkit.XXXXXX")"
+sandboxes+=("$toolkit_dir")
+toolkit="$toolkit_dir/toolkit"
+git init -q -b main "$toolkit"
+git_id "$toolkit"
+git -C "$toolkit" commit --allow-empty -qm init
+make_toolkit_release "$toolkit" v1 1.0.0
+make_toolkit_release "$toolkit" v2 1.0.1
+
 new_sandbox() {
     # $1=submodule name, default gitlore-memory, the name gitlore mounts its
-    # store under. Sets $sandbox, $toolkit, $consumer. The consumer has
+    # store under. Sets $sandbox, $consumer. The consumer has
     # vendored dist-v1, mounted its own memory submodule at `memory`, committed both with NOTES.md and a justfile
     # importing this repo's real release.just, and pushed main to a bare
-    # origin; dist-v2 is cut and not yet pulled. Nothing is dirty yet.
+    # origin; dist-v2 is not yet pulled. Nothing is dirty yet.
     sandbox="$(mktemp -d "${TMPDIR:-/tmp}/update-plugin-dev-memory.XXXXXX")"
     sandboxes+=("$sandbox")
-    toolkit="$sandbox/toolkit"
     consumer="$sandbox/consumer"
-
-    git init -q -b main "$toolkit"
-    git_id "$toolkit"
-    git -C "$toolkit" commit --allow-empty -qm init
-    make_toolkit_release "$toolkit" v1 1.0.0
 
     git init -q --bare -b main "$sandbox/memory-origin.git"
     local seed="$sandbox/seed"
@@ -130,8 +135,6 @@ new_sandbox() {
     git -C "$consumer" commit -qm "consumer: memory + justfile"
     git -C "$consumer" remote add origin "$sandbox/consumer-origin.git"
     git -C "$consumer" push -q -u origin main
-
-    make_toolkit_release "$toolkit" v2 1.0.1
 }
 
 move_memory_pointer() {
