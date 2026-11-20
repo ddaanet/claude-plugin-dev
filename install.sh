@@ -82,7 +82,9 @@ if [ ! -d "$TOOLKIT_PREFIX" ]; then
         echo "error: no commits yet — commit the plugin before vendoring" >&2
         exit 1
     }
-    git diff --quiet HEAD || { echo "error: uncommitted changes — commit or stash before vendoring" >&2; exit 1; }
+    # `--ignore-submodules=untracked` overrides the consumer's ignore settings:
+    # a moved gitlink refuses under any of them (see update.sh's dirt check).
+    git diff --quiet --ignore-submodules=untracked HEAD || { echo "error: uncommitted changes — commit or stash before vendoring" >&2; exit 1; }
     if [ -z "$ref" ]; then
         # Same resolver as update.sh's no-ref default. Kept as a copy here:
         # the bootstrap script must stay runnable on its own, without
