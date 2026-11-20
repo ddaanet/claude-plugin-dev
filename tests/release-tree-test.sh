@@ -6,8 +6,8 @@
 # staged handoff frame under .claude, like any other dirty path, refuses -- in
 # the plugin root and the marketplace repo.
 # Siblings: the other tests/release-*-test.sh suites, one per scenario group
-# (release-core, -resume-push, -resume-hint, -tree, -first, -lost-tag,
-# -push-route, -tags, -rollback, -pipefail, -hint-size).
+# (release-core, -resume-push, -resume-hint, -tree, -tree-submodule, -first,
+# -lost-tag, -push-route, -tags, -rollback, -pipefail, -hint-size).
 #
 # Usage: bash tests/release-tree-test.sh   (run from repo root)
 set -euo pipefail
@@ -289,57 +289,6 @@ mount_resting_submodule "$marketplace" store
 run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "0" "non-default-mount marketplace exit code"
 assert_contains "$out" "Release v1.2.4 complete" "non-default-mount marketplace summary"
-
-echo "=== release: still refuses a resting submodule that is not the memory store ==="
-new_sandbox "1.2.3"
-mount_resting_submodule "$plugin" vendor vendored-lib
-run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "1" "non-memory-submodule exit code"
-assert_contains "$out" "uncommitted changes" "non-memory-submodule message"
-assert_eq "$(cat "$GH_LOG")" "" "non-memory-submodule release must not call gh"
-
-# A consumer may tell git to ignore a code submodule's moves. The check reads the
-# tree as it is, so a moved gitlink still refuses under that setting, whether it
-# is set in .git/config or in .gitmodules, and in the marketplace repo as well.
-echo "=== release: refuses a moved code submodule under submodule.<name>.ignore=all ==="
-new_sandbox "1.2.3"
-mount_resting_submodule "$plugin" vendor vendored-lib
-git -C "$plugin" config submodule.vendored-lib.ignore all
-run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "1" "ignore-all submodule exit code"
-assert_contains "$out" "uncommitted changes" "ignore-all submodule message"
-assert_contains "$out" "vendor" "ignore-all submodule names the moved path"
-assert_eq "$(cat "$GH_LOG")" "" "ignore-all submodule release must not call gh"
-
-echo "=== release: refuses a moved code submodule under diff.ignoreSubmodules=all ==="
-new_sandbox "1.2.3"
-mount_resting_submodule "$plugin" "vendor dir" vendored-lib
-git -C "$plugin" config diff.ignoreSubmodules all
-run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "1" "diff.ignoreSubmodules exit code"
-assert_contains "$out" "        vendor dir$" "diff.ignoreSubmodules names the spaced path whole"
-
-echo "=== release: refuses a moved code submodule in the marketplace under ignore=all ==="
-new_sandbox "1.2.3"
-mount_resting_submodule "$marketplace" vendor vendored-lib
-git -C "$marketplace" config submodule.vendored-lib.ignore all
-run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "1" "ignore-all marketplace submodule exit code"
-assert_contains "$out" "$MARKETPLACE_DIR has uncommitted changes" "ignore-all marketplace submodule message"
-assert_eq "$(cat "$GH_LOG")" "" "ignore-all marketplace submodule release must not call gh"
-
-# Untracked files are not checked in the parent, so they are not inside a
-# submodule either. The memory store is moved beside it and still exempt.
-echo "=== release: proceeds with only an untracked file inside a code submodule ==="
-new_sandbox "1.2.3"
-mount_resting_submodule "$plugin"
-mount_resting_submodule "$plugin" vendor vendored-lib
-git -C "$plugin/vendor" reset -q --hard HEAD~1
-printf 'scratch\n' > "$plugin/vendor/untracked.txt"
-git -C "$plugin" config submodule.vendored-lib.ignore all
-run_in "$plugin" bash plugin-dev/release.sh patch
-assert_eq "$rc" "0" "untracked-in-submodule release exit code"
-assert_contains "$out" "Release v1.2.4 complete" "untracked-in-submodule release summary"
 
 echo "=== release: refuses a staged handoff frame under .claude in the plugin root ==="
 new_sandbox "1.2.3"
