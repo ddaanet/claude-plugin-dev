@@ -104,7 +104,8 @@ printf 'plain\nunstaged edit\n' > "$repo/docs/kept.md"
 printf 'LONG a b\nmid\nLONG c d\n' > "$repo/docs/split file.md"
 
 rc=0
-out="$(just --justfile "$repo_root/justfile" --working-directory "$repo" "rumdl=$stub" format-docs 2>&1)" || rc=$?
+out="$(just --justfile "$repo_root/justfile" --working-directory "$repo" "rumdl=$stub" format-docs 2>"$sandbox/err")" || rc=$?
+err="$(cat "$sandbox/err")"
 
 echo "=== a tracked file is reformatted and staged ==="
 assert_eq "$(git -C "$repo" show :docs/tracked.md)" "x
@@ -130,6 +131,8 @@ assert_eq "$(git -C "$repo" ls-files -s -- docs/conflicted.md)" "$unmerged_index
 assert_eq "$(cat "$repo/docs/conflicted.md")" "$unmerged_wt" "unmerged: the worktree is unchanged"
 assert_eq "$(grep -cF 'format-docs: docs/conflicted.md skipped (unmerged)' <<<"$out" || true)" "1" \
     "unmerged: the path is reported skipped exactly once"
+assert_eq "$(grep -cF 'format-docs: unmerged paths left unformatted' <<<"$err" || true)" "1" \
+    "unmerged: stderr names the unmerged failure; stderr: $err"
 
 echo "=== an intent-to-add file is formatted and stays intent-to-add ==="
 assert_eq "$(cat "$repo/docs/intent.md")" "k
@@ -155,8 +158,14 @@ echo "=== an ignored file and a file of another type are left alone ==="
 assert_eq "$(cat "$repo/docs/ignored.md")" "LONG i j" "ignored file: untouched"
 assert_eq "$(cat "$repo/data.txt")" "LONG o p" "a .txt file: untouched"
 
+echo "=== once the conflict is resolved, the recipe passes ==="
+git -C "$repo" add docs/conflicted.md
+rc=0
+out="$(just --justfile "$repo_root/justfile" --working-directory "$repo" "rumdl=$stub" format-docs 2>&1)" || rc=$?
+assert_eq "$rc" "0" "resolved: the recipe exits 0; output: $out"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\nformat-docs ok (tracked rewrite staged, unstaged edits formatted unstaged, unmerged skipped and failing, intent-to-add kept, untracked left unstaged, unchanged file not restaged, spaced paths, ignored and other types untouched)\n'
+printf '\nformat-docs ok (tracked rewrite staged, unstaged edits formatted unstaged, unmerged skipped and failing, resolved passing, intent-to-add kept, untracked left unstaged, unchanged file not restaged, spaced paths, ignored and other types untouched)\n'

@@ -169,6 +169,7 @@ present tense.
 - Tool versions are an exported `PLUGIN_DEV_GATE_TOOLS`, empty by default.
 - A pass is recorded only against the hash taken before the checks, and never
   from a hash that failed.
+- A tree with unmerged paths is refused before the cache or a formatter.
 - One guard per recipe body, enforced.
 - Names are toolkit-neutral, with no aliases.
 - The quiet runner shows the log whenever bats failed with nothing else to show,

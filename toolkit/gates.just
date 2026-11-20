@@ -21,7 +21,8 @@
 #
 #   sentinel-guard <gate> <pathspec>...   first line of the body; exits the
 #                                         recipe 0, reporting "cached", when the
-#                                         inputs match the last recorded pass
+#                                         inputs match the last recorded pass;
+#                                         fails it first if any path is unmerged
 #   hash-sentinel                         after a formatter that may rewrite
 #                                         inputs, before the checks; re-takes
 #                                         the hash record-sentinel records
@@ -60,7 +61,26 @@ plugin_dev_gate_prolog := "/usr/bin/env bash\nset -euo pipefail\n" + "gate_built
 # keys the sentinel file and heads the report. Leaves the recipe when the
 # inputs are unchanged -- `exit`, not `return`, because a shebang recipe is one
 # script and the checks follow on the next line.
+#
+# A tree with unmerged paths is refused first, before the cache is read and
+# before any formatter runs: a formatter that stages a file can resolve its
+# conflict with the markers still in it, and the hash, which reads disk and
+# not the index, would then cache a pass over it. Whole repository, whatever
+# the pathspecs, and a forced run too. A failing `git ls-files` lists nothing
+# here and leaves the refusal to `check-sentinel`.
 sentinel-guard () {
+    local record path prev='' unmerged=()
+    while IFS= read -r -d '' record; do
+        path=${record#*$'\t'}
+        [ "$path" = "$prev" ] || unmerged+=("$path")
+        prev=$path
+    done < <(git ls-files -u -z --full-name -- ':/' 2>/dev/null)
+    if [ "${#unmerged[@]}" -gt 0 ]; then
+        echo "$1: refused, unmerged paths:" >&2
+        printf '  %s\n' "${unmerged[@]}" >&2
+        echo "$1: resolve the conflicts and git add each path, then rerun" >&2
+        exit 1
+    fi
     if check-sentinel "$@"; then
         echo "$1: cached (inputs unchanged)"
         exit 0

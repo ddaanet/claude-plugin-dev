@@ -137,7 +137,8 @@ format-docs:
     # Every `.md` file on disk that git does not ignore, tracked or not: the
     # set the gate hashes. A file listed but gone from the worktree is skipped,
     # and so is an unmerged one, which then fails the recipe once the rest is
-    # formatted: a pass would let the gate cache its unformatted text. Every
+    # formatted: `sentinel-guard` refuses an unmerged tree before this runs, so
+    # this is the net for a run outside the gate. Every
     # other file is formatted in place; which ones are then staged, and how,
     # depends on its index entry (below).
     tmp=$(mktemp -d "${TMPDIR:-/tmp}/format-docs.XXXXXX")

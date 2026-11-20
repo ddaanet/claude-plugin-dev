@@ -197,6 +197,18 @@ stderr, and a failing line fails the hash.
   depends on the locale. No other mode bit is hashed. The same reason makes
   every refusal inside `check-sentinel` an explicit `exit`: it runs as the
   condition of an `if`.
+- **A tree with unmerged paths is refused before anything else.**
+  `sentinel-guard` lists every unmerged path in the repository, whatever the
+  pathspecs, and exits non-zero before `check-sentinel` reads the cache or a
+  formatter runs, forced run included. A formatter that stages its output can
+  write a stage-0 entry over a conflicted file and so resolve the conflict with
+  its markers in place; the hash reads disk, not the index, so it cannot tell a
+  conflict from its resolution and would cache a pass over that tree. Checking
+  in the guard covers every formatter a consumer writes, where a skip inside
+  each formatter covers only the one that remembers it. Only a run by hand meets
+  the refusal: git refuses a commit with unmerged entries before the pre-commit
+  hook runs. The scan lists nothing when `git ls-files` fails, and leaves that
+  refusal to `check-sentinel`, which needs a repository too.
 - **One guard per recipe body, enforced.** `check-sentinel` leaves shell
   variables for `record-sentinel`, so a second gate in one body would clobber
   the first's state and record the wrong pass. gitlore documented this in a

@@ -3,7 +3,7 @@
 # it cannot vouch for, and the refusals that stop a misused prolog: inputs that
 # move during a run, a hash that cannot be computed, the tool-version list, a
 # second gate in one recipe body, a record with no guard, and bad arguments
-# (including a pathspec that matches nothing).
+# (including a pathspec that matches nothing), and a tree with unmerged paths.
 # Same fixture shape as gates-sentinel-test.sh, which covers the cache itself.
 #
 # Usage: bash tests/gates-guards-test.sh   (run from repo root)
@@ -324,6 +324,37 @@ run_gate gate "PATH=$sandbox/shim:$PATH" "REAL_GIT=$(command -v git)" "GIT_LOG=$
 assert_eq "$rc" "0" "a gate over a large tree: exit status ($out)"
 assert_contains "$(cat "$sandbox/git.log")" "ls-files 141" "the match check closed its listing at the first file"
 
+echo "=== an unmerged path is refused, cached or not, and listed ==="
+# The conflict sits outside the gate's inputs, so the hash is the recorded one:
+# only the unmerged check stands between the tree and a cached pass.
+mk_consumer
+gitc() { git -C "$repo" -c user.name=t -c user.email=t@example.invalid "$@"; }
+mkdir -p "$repo/no tes"
+printf 'base\n' > "$repo/no tes/con flict.txt"
+gitc add src "no tes"
+gitc commit -qm base
+base_branch="$(gitc symbolic-ref --short HEAD)"
+gitc checkout -qb side
+printf 'side\n' > "$repo/no tes/con flict.txt"
+gitc commit -qam side
+gitc checkout -q "$base_branch"
+printf 'main\n' > "$repo/no tes/con flict.txt"
+gitc commit -qam main
+run_gate gate
+assert_eq "$(runs)" "1" "unmerged: the clean tree runs and records"
+if gitc merge -q side >/dev/null 2>&1; then
+    fail "unmerged: the fixture merge was expected to conflict"
+fi
+run_gate gate
+assert_nonzero "$rc" "unmerged: a cached tree mid-merge refuses"
+assert_not_contains "$out" "cached" "unmerged: the cached pass is not reported"
+assert_contains "$out" "no tes/con flict.txt" "unmerged: the path is listed whole"
+assert_eq "$(grep -cF 'no tes/con flict.txt' <<<"$out" || true)" "1" "unmerged: listed once, not once per stage"
+assert_contains "$out" "resolve" "unmerged: the message says what to do"
+run_gate gate PLUGIN_DEV_GATE_FORCE=1
+assert_nonzero "$rc" "unmerged: a forced run refuses too"
+assert_eq "$(runs)" "1" "unmerged: no checks ran"
+
 echo "=== a gate name that is a path is refused ==="
 mk_consumer
 run_gate badname
@@ -359,4 +390,4 @@ if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\ngates guards ok (moved inputs, unhashable, tool versions, one gate per body, misuse, unmatched pathspec, exclude spellings, first-file match, unreadable input, shellcheck)\n'
+printf '\ngates guards ok (moved inputs, unhashable, tool versions, one gate per body, misuse, unmatched pathspec, unmerged paths, exclude spellings, first-file match, unreadable input, shellcheck)\n'
