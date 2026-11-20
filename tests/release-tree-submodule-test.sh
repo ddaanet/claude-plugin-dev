@@ -4,8 +4,9 @@
 #
 # Scope: what counts as a clean tree where a submodule other than the memory
 # store is concerned -- a moved code submodule refuses, under any ignore
-# setting, in the plugin root and the marketplace repo; an untracked file
-# inside one passes.
+# setting, in the plugin root and the marketplace repo, and so does one staged
+# ahead of HEAD with its checkout put back; an untracked file inside one
+# passes.
 # Siblings: the other tests/release-*-test.sh suites, one per scenario group
 # (release-core, -resume-push, -resume-hint, -tree, -tree-submodule, -first,
 # -lost-tag, -push-route, -tags, -rollback, -pipefail, -hint-size).
@@ -225,6 +226,44 @@ git -C "$plugin" config submodule.vendored-lib.ignore all
 run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "0" "untracked-in-submodule release exit code"
 assert_contains "$out" "Release v1.2.4 complete" "untracked-in-submodule release summary"
+
+# The worktree matching HEAD says nothing about the index: a gitlink staged
+# ahead of HEAD, whose checkout was then put back, would ride the release
+# commit, which commits the index.
+echo "=== release: refuses a staged code submodule gitlink whose checkout was reverted ==="
+new_sandbox "1.2.3"
+mount_resting_submodule "$plugin" "vendor dir" vendored-lib
+git -C "$plugin" add "vendor dir"
+git -C "$plugin/vendor dir" checkout -q HEAD~1
+staged_head="$(git -C "$plugin" rev-parse HEAD)"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "staged-reverted gitlink exit code"
+assert_contains "$out" "uncommitted changes" "staged-reverted gitlink message"
+assert_contains "$out" "        vendor dir$" "staged-reverted gitlink names the spaced path whole"
+assert_eq "$(git -C "$plugin" rev-parse HEAD)" "$staged_head" "staged-reverted gitlink refusal commits nothing"
+assert_eq "$(cat "$GH_LOG")" "" "staged-reverted gitlink release must not call gh"
+
+echo "=== release: refuses a staged gitlink in the marketplace whose checkout was reverted ==="
+new_sandbox "1.2.3"
+mount_resting_submodule "$marketplace" vendor vendored-lib
+git -C "$marketplace" add vendor
+git -C "$marketplace/vendor" checkout -q HEAD~1
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "staged-reverted marketplace gitlink exit code"
+assert_contains "$out" "$MARKETPLACE_DIR has uncommitted changes" "staged-reverted marketplace gitlink message"
+assert_contains "$out" "        vendor$" "staged-reverted marketplace gitlink names the path"
+assert_eq "$(cat "$GH_LOG")" "" "staged-reverted marketplace gitlink release must not call gh"
+
+# Staged ahead of HEAD and reverted in place, the memory store is still the
+# one exempt path, and still leaves its exemption listed.
+echo "=== release: proceeds with a staged memory gitlink whose checkout was reverted ==="
+new_sandbox "1.2.3"
+mount_resting_submodule "$plugin"
+git -C "$plugin" add memory
+git -C "$plugin/memory" checkout -q HEAD~1
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "0" "staged-reverted memory gitlink exit code"
+assert_contains "$out" "Release v1.2.4 complete" "staged-reverted memory gitlink summary"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2

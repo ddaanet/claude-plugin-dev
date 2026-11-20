@@ -95,6 +95,13 @@ parent do: the check never refused those, and no commit of the parent could
 carry them. The dirty-path report passes the same flag, so a refusal names the
 moved path.
 
+The check compares the index to HEAD as well as the worktree, with the same
+pathspecs and flag, as `update.sh`'s dirt check does. A worktree diff alone
+passes a path staged ahead of HEAD whose worktree was put back — a submodule
+gitlink staged and then its checkout reverted, or a file staged and then
+restored — and the release commit, which commits the index, would carry it
+ungated. The report lists the union of both diffs, each path once.
+
 This is the toolkit's most specific coupling to gitlore, but not a new one — the
 release tail is already written around gitlore's `pre-push` hook (see "Recovery"
 in [recovery.md](recovery.md)). Naming the submodule gitlore installs is weaker

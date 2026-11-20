@@ -319,6 +319,21 @@ assert_not_contains "$out" "exempt from this check" "staged-frame marketplace pr
 assert_eq "$(market_version)" "1.2.3" "staged-frame marketplace refusal leaves the marketplace alone"
 assert_eq "$(cat "$GH_LOG")" "" "staged-frame marketplace release must not call gh"
 
+echo "=== release: refuses a staged change whose worktree was put back to HEAD ==="
+new_sandbox "1.2.3"
+printf 'staged\n' > "$plugin/notes file.md"
+git -C "$plugin" add "notes file.md"
+git -C "$plugin" commit -qm notes
+printf 'staged edit\n' > "$plugin/notes file.md"
+git -C "$plugin" add "notes file.md"
+printf 'staged\n' > "$plugin/notes file.md"
+git -C "$plugin" push -q origin main
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "staged-reverted file exit code"
+assert_contains "$out" "uncommitted changes" "staged-reverted file message"
+assert_contains "$out" "        notes file.md$" "staged-reverted file names the spaced path whole"
+assert_eq "$(cat "$GH_LOG")" "" "staged-reverted file release must not call gh"
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
