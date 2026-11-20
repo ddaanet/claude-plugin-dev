@@ -79,37 +79,78 @@ outdated-consumers:
     done
     [ "$found" = 1 ] || echo "every sibling consumer is on $current"
 
-# Apply git stripspace to text files on disk, tracked or not. Never blocks the recipe.
+# Apply git stripspace to text files on disk, tracked or not, and to their staged blobs.
 whitespace:
     #!/usr/bin/env bash
     set -euo pipefail
     # From disk, not the index: the files the gate hashes and the checks read,
-    # so a file added after a cached pass was fixed before it was hashed.
+    # so a file added after a cached pass was fixed before it was hashed. A
+    # file listed but gone from the worktree (a deletion not yet staged, or one
+    # staged but left out of a `git commit -- <paths>`, whose hook sees HEAD's
+    # index) is skipped, and so is an unmerged one, which then fails the recipe
+    # once the rest is fixed: `sentinel-guard` refuses an unmerged tree before
+    # this runs, so this is the net for a run outside the gate. Which fixes are
+    # then staged, and how, depends on the file's index entry, as in
+    # `format-docs`.
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/whitespace.XXXXXX")
+    trap 'rm -rf "$tmp"' EXIT
+    empty=$(git hash-object --stdin < /dev/null)
+    prev=
+    unmerged=0
     while IFS= read -r -d '' f; do
         case "$f" in justfile | *.sh | *.md | *.just) ;; *) continue ;; esac
-        # Listed but gone from the worktree: a deletion not yet staged, or one
-        # staged but left out of a `git commit -- <paths>`, whose hook sees HEAD's index.
+        # An unmerged path is listed once per stage, adjacently.
+        [ "$f" != "$prev" ] || continue
+        prev=$f
         [ -f "$f" ] || continue
-        tmp=$(mktemp "${TMPDIR:-/tmp}/whitespace.XXXXXX")
-        git stripspace < "$f" > "$tmp"
-        if cmp -s "$f" "$tmp"; then
-            rm -f "$tmp"
-        else
-            # Written through the file, not mv-ed over it: mktemp creates 0600
-            # and mv would carry that mode across, so a whitespace-only pass
-            # would also stage a mode change on any 755 script.
-            cat "$tmp" > "$f"
-            rm -f "$tmp"
-            # A tracked file's fix is staged with it; an untracked file is
-            # fixed in place and left for the committer to add.
-            if [ -n "$(git ls-files -- ":(literal)$f")" ]; then
-                git add -- "$f"
-                echo "whitespace: $f"
-            else
-                echo "whitespace: $f (untracked, not staged)"
+        # An untracked file lists nothing, and read then fails at EOF. An
+        # unmerged one lists only nonzero stages, so its first line says so.
+        read -r mode oid st _ < <(git ls-files -s -- ":(literal)$f") || true
+        if [ -n "${st:-}" ] && [ "$st" != 0 ]; then
+            # Writing a stage-0 entry would mark the conflict resolved.
+            echo "whitespace: $f skipped (unmerged)"
+            unmerged=1
+            unset mode oid st
+            continue
+        fi
+        if [ -z "${oid:-}" ]; then
+            label="untracked, not staged"
+        elif [ "$oid" = "$empty" ]; then
+            # Intent-to-add (`git add -N`): staging would add it whole.
+            label="intent-to-add, not staged"
+        elif [ "$oid" != "$(git hash-object -- "$f")" ]; then
+            # Unstaged edits: staging the file would put them in the commit.
+            # The index takes the staged blob fixed on its own, mode kept.
+            label="unstaged edits, not staged"
+            git cat-file blob "$oid" > "$tmp/base"
+            git stripspace < "$tmp/base" > "$tmp/fixed"
+            if ! cmp -s "$tmp/base" "$tmp/fixed"; then
+                new=$(git hash-object -w --stdin < "$tmp/fixed")
+                git update-index --cacheinfo "$mode" "$new" "$f"
+                echo "whitespace: $f (staged content)"
             fi
+        else
+            # Worktree equal to index, so staging stages nothing but the fix.
+            label=
+        fi
+        unset mode oid st
+        git stripspace < "$f" > "$tmp/fixed"
+        cmp -s "$f" "$tmp/fixed" && continue
+        # Written through the file, not mv-ed over it: mktemp creates 0600
+        # and mv would carry that mode across, so a whitespace-only pass
+        # would also stage a mode change on any 755 script.
+        cat "$tmp/fixed" > "$f"
+        if [ -z "$label" ]; then
+            git add -- "$f"
+            echo "whitespace: $f"
+        else
+            echo "whitespace: $f ($label)"
         fi
     done < <(git ls-files -z --cached --others --exclude-standard)
+    if [ "$unmerged" = 1 ]; then
+        echo "whitespace: unmerged paths left unfixed; resolve them and rerun" >&2
+        exit 1
+    fi
 
 # Hard-wrap prose in every Markdown file at 80 columns, for an 80-column read.
 format-docs:

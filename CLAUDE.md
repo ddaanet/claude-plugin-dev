@@ -95,7 +95,10 @@ tree prints `precommit: cached (inputs unchanged)` and formats nothing.
 bits by `[ -x ]` — never from the index: a check that read the index would see a
 file the next `git add` stages while the hash, which reads disk, did not move,
 and a cached pass would let it commit unchecked. `whitespace` stages a tracked
-file it fixes and fixes an untracked one in place without adding it.
+file it fixes when its worktree matched its index; one with unstaged edits has
+its staged blob fixed in the index and its worktree fixed in place, unstaged. An
+untracked or intent-to-add file is fixed in place and never staged, and an
+unmerged path is skipped and fails the recipe.
 
 ## Releasing the toolkit
 
