@@ -46,8 +46,9 @@ contents, and the `toolkit/` paths the root [CLAUDE.md](../CLAUDE.md) names),
 `citation-test.sh` (refuses a `<script>.sh:<line>` citation into a file outside
 `plans/`), `mktemp-template-test.sh` (refuses a `mktemp` call with no template
 in `*.sh`, `*.just` and justfiles), `whitespace-test.sh` (the `whitespace`
-recipe, against a fixture repo), the `dogfood.sh` suites
-(`dogfood-sync-{copy,nested,allowlist,refusal}-test.sh`,
+recipe, against a fixture repo), `format-docs-test.sh` (the `format-docs`
+recipe, against a fixture repo and a stub rumdl: what it restages), the
+`dogfood.sh` suites (`dogfood-sync-{copy,nested,allowlist,refusal}-test.sh`,
 `dogfood-pre-tool-{paths,jq}-test.sh` and
 `dogfood-session-{start,warn}-test.sh`) and
 `dogfood-launcher-{exec,path,bin}-test.sh` (the `bin/claude` shim).
