@@ -31,9 +31,12 @@ tree_is_clean() {
     # paths clean_pathspecs exempts. `--ignore-submodules=untracked` overrides
     # a consumer's `submodule.<name>.ignore` and `diff.ignoreSubmodules`, so a
     # moved gitlink refuses under any setting; untracked files inside a
-    # submodule pass, as they do in the parent.
+    # submodule pass, as they do in the parent. Worktree and index are each
+    # compared to HEAD: a path staged ahead of HEAD whose worktree was put
+    # back matches HEAD on disk, yet would ride the release commit.
     clean_pathspecs "$1"
-    git -C "$1" diff --quiet --ignore-submodules=untracked HEAD -- "${clean_specs[@]}"
+    git -C "$1" diff --quiet --ignore-submodules=untracked HEAD -- "${clean_specs[@]}" \
+        && git -C "$1" diff --quiet --ignore-submodules=untracked --cached HEAD -- "${clean_specs[@]}"
 }
 
 clean_pathspecs() {
@@ -82,10 +85,12 @@ report_dirty() {
     # survives -z — which is the residual bound here.
     local dir="$1" label="$2" p
     clean_pathspecs "$dir"
-    printf 'hint: these tracked paths in %s differ from HEAD:\n' "$label" >&2
+    printf 'hint: these tracked paths in %s differ from HEAD, on disk or staged:\n' "$label" >&2
     while IFS= read -r -d '' p; do
         printf '        %s\n' "$p" >&2
-    done < <(git -C "$dir" diff -z --name-only --ignore-submodules=untracked HEAD -- "${clean_specs[@]}")
+    done < <({ git -C "$dir" diff -z --name-only --ignore-submodules=untracked HEAD -- "${clean_specs[@]}"
+               git -C "$dir" diff -z --name-only --ignore-submodules=untracked --cached HEAD -- "${clean_specs[@]}"
+             } | sort -zu)
     if [ "${#clean_exempt[@]}" -gt 0 ]; then
         printf '      exempt from this check, and so not among the paths above:\n' >&2
         for p in "${clean_exempt[@]}"; do
