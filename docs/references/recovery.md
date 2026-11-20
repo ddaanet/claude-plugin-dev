@@ -122,8 +122,9 @@ no-local-tags flag, since folding a failure into the empty case would let
 silence claim "never released" and route to a bare `just release`.
 
 A failure *of* the version commit is the one case recovery does not own. A
-consumer's `pre-commit` hook can refuse it — gitlore's memory-approval gate is
-on every consumer — and at that point nothing is committed or tagged, so there
+consumer's `pre-commit` hook can refuse it — a consumer that wires its
+`precommit` gate as a git `pre-commit` hook, as this repo does, runs the whole
+gate on that commit — and at that point nothing is committed or tagged, so there
 is no partial release to resume. The manifest rewrite is already staged though,
 and left in place it is a dirty tree that `common_preflight` refuses, blocking
 `release` and `resume-release` alike on `uncommitted changes` with no mention of

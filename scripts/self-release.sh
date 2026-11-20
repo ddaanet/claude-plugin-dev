@@ -54,12 +54,12 @@ ls_remote_sha() {
 bump_commit_tag() {
     printf '%s\n' "$V" > toolkit/VERSION
     git add toolkit/VERSION
-    # This repo's own pre-commit hook runs `just precommit`, and gitlore's gates
-    # the memory submodule -- either can refuse. Dying with the bump written and
-    # staged strands it, where common_preflight's "uncommitted changes" then
-    # blocks both a re-run and --resume while naming neither the gate nor the
-    # leftover. Restoring from HEAD leaves the tree as this run found it, so
-    # satisfying the gate and re-running is the whole recovery.
+    # This repo's own pre-commit hook runs `just precommit`, and it can refuse.
+    # Dying with the bump written and staged strands it, where common_preflight's
+    # "uncommitted changes" then blocks both a re-run and --resume while naming
+    # neither the gate nor the leftover. Restoring from HEAD leaves the tree as
+    # this run found it, so satisfying the gate and re-running is the whole
+    # recovery.
     git commit -qm "release: $V" || {
         git checkout HEAD -- toolkit/VERSION
         printf 'hint: toolkit/VERSION was rolled back and nothing was tagged.\n' >&2
