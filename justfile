@@ -95,6 +95,16 @@ whitespace:
     tmp=$(mktemp -d "${TMPDIR:-/tmp}/whitespace.XXXXXX")
     trap 'rm -rf "$tmp"' EXIT
     empty=$(git hash-object --stdin < /dev/null)
+    # Whether the worktree of $1 differs from its index blob $2, mode
+    # included: a restage would stage a mode change as surely as an edit.
+    # diff-files reads the index unrefreshed, so it also lists a file whose
+    # stat alone moved; with the mode unchanged, content settles it.
+    differs() {
+        local meta imode wmode
+        IFS= read -r -d '' meta < <(git diff-files -z -- ":(literal)$1") || return 1
+        read -r imode wmode _ <<<"$meta"
+        [ "${imode#:}" != "$wmode" ] || [ "$2" != "$(git hash-object -- "$1")" ]
+    }
     prev=
     unmerged=0
     while IFS= read -r -d '' f; do
@@ -102,9 +112,10 @@ whitespace:
         # An unmerged path is listed once per stage, adjacently.
         [ "$f" != "$prev" ] || continue
         prev=$f
-        [ -f "$f" ] || continue
         # An untracked file lists nothing, and read then fails at EOF. An
-        # unmerged one lists only nonzero stages, so its first line says so.
+        # unmerged one lists only nonzero stages, so its first line says so;
+        # it is read before the worktree, so one whose file is gone still
+        # fails the recipe.
         read -r mode oid st _ < <(git ls-files -s -- ":(literal)$f") || true
         if [ -n "${st:-}" ] && [ "$st" != 0 ]; then
             # Writing a stage-0 entry would mark the conflict resolved.
@@ -113,12 +124,17 @@ whitespace:
             unset mode oid st
             continue
         fi
+        # Only a regular file, in the worktree and the index: a symlink's
+        # blob is its target path, which a fix would rewrite, and a write
+        # through it would land on another file.
+        [ -f "$f" ] && [ ! -L "$f" ] || continue
+        case "${mode:-100644}" in 100644 | 100755) ;; *) continue ;; esac
         if [ -z "${oid:-}" ]; then
             label="untracked, not staged"
         elif [ "$oid" = "$empty" ]; then
             # Intent-to-add (`git add -N`): staging would add it whole.
             label="intent-to-add, not staged"
-        elif [ "$oid" != "$(git hash-object -- "$f")" ]; then
+        elif differs "$f" "$oid"; then
             # Unstaged edits: staging the file would put them in the commit.
             # The index takes the staged blob fixed on its own, mode kept.
             label="unstaged edits, not staged"
@@ -189,26 +205,44 @@ format-docs:
     before=()
     stage=()
     split=()
+    # Whether the worktree of $1 differs from its index blob $2, mode
+    # included: a restage would stage a mode change as surely as an edit.
+    # diff-files reads the index unrefreshed, so it also lists a file whose
+    # stat alone moved; with the mode unchanged, content settles it.
+    differs() {
+        local meta imode wmode
+        IFS= read -r -d '' meta < <(git diff-files -z -- ":(literal)$1") || return 1
+        read -r imode wmode _ <<<"$meta"
+        [ "${imode#:}" != "$wmode" ] || [ "$2" != "$(git hash-object -- "$1")" ]
+    }
     prev=
     unmerged=0
     while IFS= read -r -d '' f; do
         # An unmerged path is listed once per stage, adjacently.
         [ "$f" != "$prev" ] || continue
         prev=$f
-        [ -f "$f" ] || continue
         # An untracked file lists nothing, and read then fails at EOF. An
-        # unmerged one lists only nonzero stages, so its first line says so.
+        # unmerged one lists only nonzero stages, so its first line says so;
+        # it is read before the worktree, so one whose file is gone still
+        # fails the recipe.
         read -r mode oid st _ < <(git ls-files -s -- ":(literal)$f") || true
         if [ -n "${st:-}" ] && [ "$st" != 0 ]; then
             # Writing a stage-0 entry would mark the conflict resolved.
             echo "format-docs: $f skipped (unmerged)"
             unmerged=1
-        elif [ -z "${oid:-}" ]; then
+            continue
+        fi
+        # Only a regular file, in the worktree and the index: a symlink's
+        # blob is its target path, which a fix would rewrite, and a write
+        # through it would land on another file.
+        [ -f "$f" ] && [ ! -L "$f" ] || continue
+        case "${mode:-100644}" in 100644 | 100755) ;; *) continue ;; esac
+        if [ -z "${oid:-}" ]; then
             files+=("$f"); before+=("$(git hash-object -- "$f")"); stage+=("untracked, not staged")
         elif [ "$oid" = "$empty" ]; then
             # Intent-to-add (`git add -N`): staging would add it whole.
             files+=("$f"); before+=("$(git hash-object -- "$f")"); stage+=("intent-to-add, not staged")
-        elif [ "$oid" != "$(git hash-object -- "$f")" ]; then
+        elif differs "$f" "$oid"; then
             # Unstaged edits: staging the file would put them in the commit.
             # The worktree is formatted in place, edits and all, unstaged;
             # the index takes the staged blob formatted on its own (below).

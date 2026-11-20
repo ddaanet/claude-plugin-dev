@@ -9,8 +9,10 @@
 # edits takes the reflow of its staged blob in the index, and is formatted in
 # place, edits and all, without being staged. An unmerged path is skipped,
 # index and worktree alike, and fails the recipe once the rest is formatted,
-# so the gate records no sentinel over an unformatted file; an intent-to-add
-# file is formatted in place and left intent-to-add.
+# so the gate records no sentinel over an unformatted file, even when its
+# worktree file is gone; an intent-to-add file is formatted in place and left
+# intent-to-add. A symlink is never touched, and a mode-only unstaged change is
+# never staged.
 #
 # Usage: bash tests/format-docs-test.sh   (run from repo root)
 set -euo pipefail
@@ -75,20 +77,26 @@ printf 'docs/ignored.md\n' > "$repo/.gitignore"
 # rewrite the last line of docs/conflicted.md, far enough from its long first
 # line that a reflow of the ancestor would merge cleanly into the markers.
 printf 'LONG a b\n1\n2\n3\n4\nx\n' > "$repo/docs/conflicted.md"
-git -C "$repo" add pyproject.toml .gitignore docs/conflicted.md
+printf 'x\n' > "$repo/docs/gone.md"
+git -C "$repo" add pyproject.toml .gitignore docs/conflicted.md docs/gone.md
 git -C "$repo" commit -qm base
 base_branch="$(git -C "$repo" symbolic-ref --short HEAD)"
 git -C "$repo" checkout -qb side
 printf 'LONG a b\n1\n2\n3\n4\ny\n' > "$repo/docs/conflicted.md"
+printf 'y\n' > "$repo/docs/gone.md"
 git -C "$repo" commit -qam side
 git -C "$repo" checkout -q "$base_branch"
 printf 'LONG a b\n1\n2\n3\n4\nz\n' > "$repo/docs/conflicted.md"
+printf 'z\n' > "$repo/docs/gone.md"
 git -C "$repo" commit -qam main
 if git -C "$repo" merge -q side >/dev/null 2>&1; then
     fail "fixture: the merge was expected to conflict"
 fi
 unmerged_index="$(git -C "$repo" ls-files -s -- docs/conflicted.md)"
 unmerged_wt="$(cat "$repo/docs/conflicted.md")"
+# A second conflicted path, its worktree file removed while unresolved.
+gone_index="$(git -C "$repo" ls-files -s -- docs/gone.md)"
+rm "$repo/docs/gone.md"
 printf 'LONG x y\n' > "$repo/docs/tracked.md"
 printf 'LONG s p\n' > "$repo/docs/a b.md"
 printf 'plain\n' > "$repo/docs/kept.md"
@@ -97,8 +105,14 @@ printf 'LONG u v\n' > "$repo/docs/new file.md"
 printf 'LONG k l\n' > "$repo/docs/intent.md"
 printf 'LONG i j\n' > "$repo/docs/ignored.md"
 printf 'LONG o p\n' > "$repo/data.txt"
+# A tracked symlink whose name passes the filter: its blob is the target path.
+ln -s tracked.md "$repo/docs/link.md"
+# A file whose only unstaged change is its mode.
+printf 'LONG m n\n' > "$repo/docs/mode.md"
 git -C "$repo" add docs/tracked.md docs/a\ b.md docs/kept.md \
-    'docs/split file.md' data.txt
+    'docs/split file.md' data.txt docs/link.md docs/mode.md
+link_index="$(git -C "$repo" ls-files -s -- docs/link.md)"
+chmod 755 "$repo/docs/mode.md"
 git -C "$repo" add -N docs/intent.md
 printf 'plain\nunstaged edit\n' > "$repo/docs/kept.md"
 printf 'LONG a b\nmid\nLONG c d\n' > "$repo/docs/split file.md"
@@ -125,6 +139,21 @@ mid
 c
 d" "split file: the worktree holds both, formatted"
 
+echo "=== a tracked symlink is left alone ==="
+assert_eq "$(git -C "$repo" ls-files -s -- docs/link.md)" "$link_index" "symlink: the index entry is untouched"
+assert_eq "$(readlink "$repo/docs/link.md")" "tracked.md" "symlink: the worktree link is untouched"
+if grep -qF 'format-docs: docs/link.md' <<<"$out"; then
+    fail "symlink: reported though it must be skipped; output: $out"
+fi
+
+echo "=== a mode-only unstaged change is not staged ==="
+assert_eq "$(git -C "$repo" ls-files -s -- docs/mode.md | awk '{ print $1 }')" "100644" "mode only: the index mode is kept"
+assert_eq "$(git -C "$repo" show :docs/mode.md)" "m
+n" "mode only: the staged blob is reformatted"
+assert_eq "$(cat "$repo/docs/mode.md")" "m
+n" "mode only: the worktree is reformatted"
+[ -x "$repo/docs/mode.md" ] || fail "mode only: the worktree lost its execute bit"
+
 echo "=== an unmerged path is skipped, and fails the recipe ==="
 assert_eq "$rc" "1" "unmerged: the recipe exits 1 after formatting the rest"
 assert_eq "$(git -C "$repo" ls-files -s -- docs/conflicted.md)" "$unmerged_index" "unmerged: the index stages are unchanged"
@@ -133,6 +162,9 @@ assert_eq "$(grep -cF 'format-docs: docs/conflicted.md skipped (unmerged)' <<<"$
     "unmerged: the path is reported skipped exactly once"
 assert_eq "$(grep -cF 'format-docs: unmerged paths left unformatted' <<<"$err" || true)" "1" \
     "unmerged: stderr names the unmerged failure; stderr: $err"
+assert_eq "$(git -C "$repo" ls-files -s -- docs/gone.md)" "$gone_index" "unmerged, worktree gone: the index stages are unchanged"
+assert_eq "$(grep -cF 'format-docs: docs/gone.md skipped (unmerged)' <<<"$out" || true)" "1" \
+    "unmerged, worktree gone: the path is still reported skipped"
 
 echo "=== an intent-to-add file is formatted and stays intent-to-add ==="
 assert_eq "$(cat "$repo/docs/intent.md")" "k
@@ -160,6 +192,7 @@ assert_eq "$(cat "$repo/data.txt")" "LONG o p" "a .txt file: untouched"
 
 echo "=== once the conflict is resolved, the recipe passes ==="
 git -C "$repo" add docs/conflicted.md
+git -C "$repo" rm -q docs/gone.md
 rc=0
 out="$(just --justfile "$repo_root/justfile" --working-directory "$repo" "rumdl=$stub" format-docs 2>&1)" || rc=$?
 assert_eq "$rc" "0" "resolved: the recipe exits 0; output: $out"
@@ -168,4 +201,4 @@ if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\nformat-docs ok (tracked rewrite staged, unstaged edits formatted unstaged, unmerged skipped and failing, resolved passing, intent-to-add kept, untracked left unstaged, unchanged file not restaged, spaced paths, ignored and other types untouched)\n'
+printf '\nformat-docs ok (tracked rewrite staged, unstaged edits formatted unstaged, symlink and mode-only change untouched in the index, unmerged skipped and failing even with its file gone, resolved passing, intent-to-add kept, untracked left unstaged, unchanged file not restaged, spaced paths, ignored and other types untouched)\n'
