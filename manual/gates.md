@@ -113,9 +113,11 @@ by `hash-sentinel`, and records nothing when it cannot vouch for it:
 - **The repository has unmerged paths** (a merge, rebase or cherry-pick stopped
   on a conflict): `sentinel-guard` lists them, says to resolve them and rerun,
   and fails the recipe before the cache is read or a formatter runs, cached tree
-  or not and under `PLUGIN_DEV_GATE_FORCE` too. git refuses a commit with
-  unmerged entries before the pre-commit hook runs, so only a gate you run by
-  hand mid-merge meets this.
+  or not and under `PLUGIN_DEV_GATE_FORCE` too. A commit never reaches the
+  pre-commit hook with unmerged entries in its index: a plain `git commit`
+  refuses first, and `git commit -a` stages every conflicted file first, markers
+  included. So only a gate you run by hand mid-merge meets this, and it does not
+  guard `commit -a`.
 
 ### One gate per recipe body
 
