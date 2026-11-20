@@ -312,6 +312,30 @@ if [ "$rc" -eq 0 ]; then fail "install.sh vendored outside a git repository"; fi
 assert_contains "$out" "error: not a git repository" "non-repo refusal names the real problem in the installer's own words"
 if grep -q "no commits" <<<"$out"; then fail "non-repo refusal is reported as an unborn HEAD"; fi
 
+# The guard reads the tree as it is: a code submodule the consumer's own config
+# ignores, moved without its gitlink committed, still refuses; an untracked file
+# inside one does not, as in the parent.
+echo "=== install.sh: refuses a moved code submodule under submodule.<name>.ignore=all ==="
+new_sandbox
+mkdir -p "$consumer/.claude-plugin"
+printf '{"name": "stub-plugin", "version": "0.1.0"}\n' > "$consumer/.claude-plugin/plugin.json"
+allow_file git -C "$consumer" submodule add -q "$sandbox/consumer-memory-origin.git" "vendor dir"
+git -C "$consumer" add .claude-plugin/plugin.json
+git -C "$consumer" commit -qm "consumer: manifest and code submodule"
+git -C "$consumer" config submodule.vendor\ dir.ignore all
+git -C "$consumer/vendor dir" commit --allow-empty -qm advance
+run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh" dist-v1
+if [ "$rc" -eq 0 ]; then fail "install.sh vendored beside a moved ignore=all submodule"; fi
+assert_contains "$out" "uncommitted changes" "ignore-all submodule refusal message"
+if [ -d "$consumer/plugin-dev" ]; then fail "install.sh vendored despite the moved submodule"; fi
+
+echo "=== install.sh: vendors beside a code submodule holding only an untracked file ==="
+git -C "$consumer/vendor dir" reset -q --hard HEAD~1
+printf 'scratch\n' > "$consumer/vendor dir/untracked.txt"
+run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh" dist-v1
+assert_eq "$rc" "0" "untracked-in-submodule install exit code"
+if [ ! -d "$consumer/plugin-dev" ]; then fail "install.sh did not vendor beside an untracked file in a submodule"; fi
+
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1

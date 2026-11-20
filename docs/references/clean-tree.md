@@ -83,6 +83,18 @@ exemption is for the one submodule whose floating gitlink the toolkit knows to
 be by design, and a submodule mounted at `memory` under some other name is not
 that submodule.
 
+The check runs `git diff --ignore-submodules=untracked`, here and in
+`install.sh`'s guard, as `update.sh`'s dirt check does. A consumer may set
+`submodule.<name>.ignore = all` or `diff.ignoreSubmodules` on a code submodule,
+and a plain `git diff --quiet HEAD` honours it: the release would gate the
+submodule's new content but commit and tag the old gitlink, shipping something
+other than what was gated. The flag overrides the config, so a moved gitlink
+refuses under any ignore setting, and so does modified content inside the
+submodule. Untracked files inside a submodule pass, as untracked files in the
+parent do: the check never refused those, and no commit of the parent could
+carry them. The dirty-path report passes the same flag, so a refusal names the
+moved path.
+
 This is the toolkit's most specific coupling to gitlore, but not a new one — the
 release tail is already written around gitlore's `pre-push` hook (see "Recovery"
 in [recovery.md](recovery.md)). Naming the submodule gitlore installs is weaker

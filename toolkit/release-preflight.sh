@@ -28,9 +28,12 @@ check_marketplace_writable() {
 
 tree_is_clean() {
     # $1=repo root. True when nothing tracked is uncommitted there, ignoring the
-    # paths clean_pathspecs exempts.
+    # paths clean_pathspecs exempts. `--ignore-submodules=untracked` overrides
+    # a consumer's `submodule.<name>.ignore` and `diff.ignoreSubmodules`, so a
+    # moved gitlink refuses under any setting; untracked files inside a
+    # submodule pass, as they do in the parent.
     clean_pathspecs "$1"
-    git -C "$1" diff --quiet HEAD -- "${clean_specs[@]}"
+    git -C "$1" diff --quiet --ignore-submodules=untracked HEAD -- "${clean_specs[@]}"
 }
 
 clean_pathspecs() {
@@ -82,7 +85,7 @@ report_dirty() {
     printf 'hint: these tracked paths in %s differ from HEAD:\n' "$label" >&2
     while IFS= read -r -d '' p; do
         printf '        %s\n' "$p" >&2
-    done < <(git -C "$dir" diff -z --name-only HEAD -- "${clean_specs[@]}")
+    done < <(git -C "$dir" diff -z --name-only --ignore-submodules=untracked HEAD -- "${clean_specs[@]}")
     if [ "${#clean_exempt[@]}" -gt 0 ]; then
         printf '      exempt from this check, and so not among the paths above:\n' >&2
         for p in "${clean_exempt[@]}"; do
