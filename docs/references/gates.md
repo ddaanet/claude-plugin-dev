@@ -205,10 +205,12 @@ stderr, and a failing line fails the hash.
   its markers in place; the hash reads disk, not the index, so it cannot tell a
   conflict from its resolution and would cache a pass over that tree. Checking
   in the guard covers every formatter a consumer writes, where a skip inside
-  each formatter covers only the one that remembers it. Only a run by hand meets
-  the refusal: git refuses a commit with unmerged entries before the pre-commit
-  hook runs. The scan lists nothing when `git ls-files` fails, and leaves that
-  refusal to `check-sentinel`, which needs a repository too.
+  each formatter covers only the one that remembers it. A commit never reaches
+  the pre-commit hook with unmerged entries in its index: a plain `git commit`
+  refuses first, and `git commit -a` stages every conflicted file first, markers
+  included. So only a gate run by hand mid-merge meets the refusal, and it does
+  not guard `commit -a`. The scan lists nothing when `git ls-files` fails, and
+  leaves that refusal to `check-sentinel`, which needs a repository too.
 - **One guard per recipe body, enforced.** `check-sentinel` leaves shell
   variables for `record-sentinel`, so a second gate in one body would clobber
   the first's state and record the wrong pass. gitlore documented this in a
