@@ -110,6 +110,12 @@ by `hash-sentinel`, and records nothing when it cannot vouch for it:
   never caches is slow, not wrong, but the message is how you hear that it
   stopped caching.
 - **A check failed**: the recipe ends at the failure, before `record-sentinel`.
+- **The repository has unmerged paths** (a merge, rebase or cherry-pick stopped
+  on a conflict): `sentinel-guard` lists them, says to resolve them and rerun,
+  and fails the recipe before the cache is read or a formatter runs, cached tree
+  or not and under `PLUGIN_DEV_GATE_FORCE` too. git refuses a commit with
+  unmerged entries before the pre-commit hook runs, so only a gate you run by
+  hand mid-merge meets this.
 
 ### One gate per recipe body
 
