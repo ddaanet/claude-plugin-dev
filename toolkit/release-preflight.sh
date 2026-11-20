@@ -69,7 +69,7 @@ clean_pathspecs() {
         mem=$(git config -f "$dir/.gitmodules" --get submodule.gitlore-memory.path) || mem=""
     fi
     if [ -n "$mem" ]; then
-        clean_specs+=(":(exclude)$mem")
+        clean_specs+=(":(exclude,literal)$mem")
         clean_exempt+=("$mem/ — the gitlore memory submodule, whose gitlink gitlore-commit stages and the next commit records")
     fi
 }
