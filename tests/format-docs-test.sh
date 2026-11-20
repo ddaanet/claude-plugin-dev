@@ -8,8 +8,9 @@
 # keeps its index entry, unstaged edit and all. A tracked file with unstaged
 # edits takes the reflow of its staged blob in the index, and is formatted in
 # place, edits and all, without being staged. An unmerged path is skipped,
-# index and worktree alike, and an intent-to-add file is formatted in place
-# and left intent-to-add.
+# index and worktree alike, and fails the recipe once the rest is formatted,
+# so the gate records no sentinel over an unformatted file; an intent-to-add
+# file is formatted in place and left intent-to-add.
 #
 # Usage: bash tests/format-docs-test.sh   (run from repo root)
 set -euo pipefail
@@ -106,7 +107,6 @@ rc=0
 out="$(just --justfile "$repo_root/justfile" --working-directory "$repo" "rumdl=$stub" format-docs 2>&1)" || rc=$?
 
 echo "=== a tracked file is reformatted and staged ==="
-assert_eq "$rc" "0" "the recipe exits 0"
 assert_eq "$(git -C "$repo" show :docs/tracked.md)" "x
 y" "tracked file: the rewrite is staged"
 assert_eq "$(git -C "$repo" show ':docs/a b.md')" "s
@@ -124,12 +124,12 @@ mid
 c
 d" "split file: the worktree holds both, formatted"
 
-echo "=== an unmerged path is skipped ==="
+echo "=== an unmerged path is skipped, and fails the recipe ==="
+assert_eq "$rc" "1" "unmerged: the recipe exits 1 after formatting the rest"
 assert_eq "$(git -C "$repo" ls-files -s -- docs/conflicted.md)" "$unmerged_index" "unmerged: the index stages are unchanged"
 assert_eq "$(cat "$repo/docs/conflicted.md")" "$unmerged_wt" "unmerged: the worktree is unchanged"
-if ! grep -qF 'format-docs: docs/conflicted.md skipped (unmerged)' <<<"$out"; then
-    fail "unmerged: the path is reported skipped; output: $out"
-fi
+assert_eq "$(grep -cF 'format-docs: docs/conflicted.md skipped (unmerged)' <<<"$out" || true)" "1" \
+    "unmerged: the path is reported skipped exactly once"
 
 echo "=== an intent-to-add file is formatted and stays intent-to-add ==="
 assert_eq "$(cat "$repo/docs/intent.md")" "k
@@ -159,4 +159,4 @@ if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\nformat-docs ok (tracked rewrite staged, unstaged edits formatted unstaged, unmerged skipped, intent-to-add kept, untracked left unstaged, unchanged file not restaged, spaced paths, ignored and other types untouched)\n'
+printf '\nformat-docs ok (tracked rewrite staged, unstaged edits formatted unstaged, unmerged skipped and failing, intent-to-add kept, untracked left unstaged, unchanged file not restaged, spaced paths, ignored and other types untouched)\n'

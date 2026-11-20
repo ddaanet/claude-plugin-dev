@@ -135,9 +135,11 @@ format-docs:
         exit 1
     }
     # Every `.md` file on disk that git does not ignore, tracked or not: the
-    # set the gate hashes. A file listed but gone from the worktree is skipped.
-    # Every other file is formatted in place; which ones are then staged, and
-    # how, depends on its index entry (below).
+    # set the gate hashes. A file listed but gone from the worktree is skipped,
+    # and so is an unmerged one, which then fails the recipe once the rest is
+    # formatted: a pass would let the gate cache its unformatted text. Every
+    # other file is formatted in place; which ones are then staged, and how,
+    # depends on its index entry (below).
     tmp=$(mktemp -d "${TMPDIR:-/tmp}/format-docs.XXXXXX")
     trap 'rm -rf "$tmp"' EXIT
     empty=$(git hash-object --stdin < /dev/null)
@@ -146,6 +148,7 @@ format-docs:
     stage=()
     split=()
     prev=
+    unmerged=0
     while IFS= read -r -d '' f; do
         # An unmerged path is listed once per stage, adjacently.
         [ "$f" != "$prev" ] || continue
@@ -157,6 +160,7 @@ format-docs:
         if [ -n "${st:-}" ] && [ "$st" != 0 ]; then
             # Writing a stage-0 entry would mark the conflict resolved.
             echo "format-docs: $f skipped (unmerged)"
+            unmerged=1
         elif [ -z "${oid:-}" ]; then
             files+=("$f"); before+=("$(git hash-object -- "$f")"); stage+=("untracked, not staged")
         elif [ "$oid" = "$empty" ]; then
@@ -207,6 +211,10 @@ format-docs:
         git update-index --cacheinfo "$mode" "$new" "$f"
         echo "format-docs: $f (staged content)"
     done
+    if [ "$unmerged" = 1 ]; then
+        echo "format-docs: unmerged paths left unformatted; resolve them and rerun" >&2
+        exit 1
+    fi
 
 # Overridable so a test can stand in a stub: `just rumdl=/path/to/stub format-docs`.
 rumdl := "rumdl"
