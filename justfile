@@ -136,65 +136,76 @@ format-docs:
     }
     # Every `.md` file on disk that git does not ignore, tracked or not: the
     # set the gate hashes. A file listed but gone from the worktree is skipped.
-    # A tracked file whose worktree differs from its index is merged piecewise
-    # (below); every other file is formatted in place.
+    # Every other file is formatted in place; which ones are then staged, and
+    # how, depends on its index entry (below).
     tmp=$(mktemp -d "${TMPDIR:-/tmp}/format-docs.XXXXXX")
     trap 'rm -rf "$tmp"' EXIT
+    empty=$(git hash-object --stdin < /dev/null)
     files=()
     before=()
+    stage=()
     split=()
+    prev=
     while IFS= read -r -d '' f; do
+        # An unmerged path is listed once per stage, adjacently.
+        [ "$f" != "$prev" ] || continue
+        prev=$f
         [ -f "$f" ] || continue
-        # An untracked file lists nothing, and read then fails at EOF.
-        read -r mode oid _ < <(git ls-files -s -- ":(literal)$f") || true
-        if [ -n "${oid:-}" ] && [ "$oid" != "$(git hash-object -- "$f")" ]; then
-            split+=("$f")
+        # An untracked file lists nothing, and read then fails at EOF. An
+        # unmerged one lists only nonzero stages, so its first line says so.
+        read -r mode oid st _ < <(git ls-files -s -- ":(literal)$f") || true
+        if [ -n "${st:-}" ] && [ "$st" != 0 ]; then
+            # Writing a stage-0 entry would mark the conflict resolved.
+            echo "format-docs: $f skipped (unmerged)"
+        elif [ -z "${oid:-}" ]; then
+            files+=("$f"); before+=("$(git hash-object -- "$f")"); stage+=("untracked, not staged")
+        elif [ "$oid" = "$empty" ]; then
+            # Intent-to-add (`git add -N`): staging would add it whole.
+            files+=("$f"); before+=("$(git hash-object -- "$f")"); stage+=("intent-to-add, not staged")
+        elif [ "$oid" != "$(git hash-object -- "$f")" ]; then
+            # Unstaged edits: staging the file would put them in the commit.
+            # The worktree is formatted in place, edits and all, unstaged;
+            # the index takes the staged blob formatted on its own (below).
+            split+=("$f:$mode:$oid")
+            files+=("$f"); before+=("$(git hash-object -- "$f")"); stage+=("unstaged edits, not staged")
         else
-            files+=("$f")
-            before+=("$(git hash-object -- "$f")")
+            files+=("$f"); before+=("$oid"); stage+=("")
         fi
-        unset mode oid
+        unset mode oid st
     done < <(git ls-files -z --cached --others --exclude-standard -- '*.md')
     # `fmt` exits 0 with anything it cannot wrap left in place; `check --fix`
     # would exit 1 on the same tree and fail the gate over a long URL.
     if [ "${#files[@]}" -gt 0 ]; then
         "$bin" fmt --no-cache -- "${files[@]}"
     fi
-    # Only a file whose content moved is reported and, when tracked, staged,
-    # as `whitespace` does: from a pre-commit hook the reflow would otherwise
-    # land unstaged beside a commit of the unformatted text. Worktree equal to
-    # index here, so staging the file stages nothing but the reflow.
+    # Only a file whose content moved is reported and, when its worktree
+    # matched its index (an empty label), staged, as `whitespace` does: from a
+    # pre-commit hook the reflow would otherwise land unstaged beside a commit
+    # of the unformatted text. Worktree equal to index there, so staging the
+    # file stages nothing but the reflow.
     for i in "${!files[@]}"; do
         f=${files[$i]}
         [ "$(git hash-object -- "$f")" != "${before[$i]}" ] || continue
-        if [ -n "$(git ls-files -- ":(literal)$f")" ]; then
+        if [ -z "${stage[$i]}" ]; then
             git add -- "$f"
             echo "format-docs: $f"
         else
-            echo "format-docs: $f (untracked, not staged)"
+            echo "format-docs: $f (${stage[$i]})"
         fi
     done
-    # A tracked file with unstaged edits: staging it whole would put those
-    # edits in the commit. The staged blob is formatted through stdin (rumdl
-    # reads the repo's config and path rules for --stdin-filename, so no copy
-    # at a fake path is needed); the index takes that, and the worktree takes
-    # a three-way merge of its own edits over the reflow. A conflict leaves
-    # both index and worktree as they were: no markers in the user's file.
-    for f in "${split[@]+"${split[@]}"}"; do
-        read -r mode oid _ < <(git ls-files -s -- ":(literal)$f") || true
+    # The staged blob of a file with unstaged edits is formatted through stdin
+    # (rumdl reads the repo's config and path rules for --stdin-filename, so
+    # no copy at a fake path is needed) and written to the index, mode kept.
+    # Entries are path:mode:oid; mode and oid hold no colon, the path may.
+    for e in "${split[@]+"${split[@]}"}"; do
+        oid=${e##*:}; e=${e%:*}
+        mode=${e##*:}; f=${e%:*}
         git cat-file blob "$oid" > "$tmp/base"
         "$bin" fmt --no-cache --stdin --stdin-filename "$f" --silent < "$tmp/base" > "$tmp/formatted"
         cmp -s "$tmp/base" "$tmp/formatted" && continue
-        rc=0
-        git merge-file -p "$f" "$tmp/base" "$tmp/formatted" > "$tmp/merged" || rc=$?
-        if [ "$rc" -ne 0 ]; then
-            echo "format-docs: $f unformatted (unstaged edits conflict with the reflow)"
-            continue
-        fi
         new=$(git hash-object -w --stdin < "$tmp/formatted")
         git update-index --cacheinfo "$mode" "$new" "$f"
-        cat "$tmp/merged" > "$f"
-        echo "format-docs: $f (staged content only; unstaged edits kept)"
+        echo "format-docs: $f (staged content)"
     done
 
 # Overridable so a test can stand in a stub: `just rumdl=/path/to/stub format-docs`.

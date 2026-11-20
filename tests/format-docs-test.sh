@@ -6,8 +6,10 @@
 # from the pre-commit hook carries the formatted text; an untracked one is
 # rewritten in place and left untracked; a file the formatter leaves alone
 # keeps its index entry, unstaged edit and all. A tracked file with unstaged
-# edits takes the reflow in the index only, the worktree a three-way merge of
-# its edits over it, and a conflict leaves both as they were.
+# edits takes the reflow of its staged blob in the index, and is formatted in
+# place, edits and all, without being staged. An unmerged path is skipped,
+# index and worktree alike, and an intent-to-add file is formatted in place
+# and left intent-to-add.
 #
 # Usage: bash tests/format-docs-test.sh   (run from repo root)
 set -euo pipefail
@@ -64,22 +66,41 @@ chmod +x "$stub"
 repo="$sandbox/fix ture"
 mkdir -p "$repo/docs"
 git -C "$repo" init -q
+git -C "$repo" config user.name t
+git -C "$repo" config user.email t@example.invalid
 printf '"rumdl==1.2.3"\n' > "$repo/pyproject.toml"
+printf 'docs/ignored.md\n' > "$repo/.gitignore"
+# A real conflicted merge, made before anything else is staged: both sides
+# rewrite the last line of docs/conflicted.md, far enough from its long first
+# line that a reflow of the ancestor would merge cleanly into the markers.
+printf 'LONG a b\n1\n2\n3\n4\nx\n' > "$repo/docs/conflicted.md"
+git -C "$repo" add pyproject.toml .gitignore docs/conflicted.md
+git -C "$repo" commit -qm base
+base_branch="$(git -C "$repo" symbolic-ref --short HEAD)"
+git -C "$repo" checkout -qb side
+printf 'LONG a b\n1\n2\n3\n4\ny\n' > "$repo/docs/conflicted.md"
+git -C "$repo" commit -qam side
+git -C "$repo" checkout -q "$base_branch"
+printf 'LONG a b\n1\n2\n3\n4\nz\n' > "$repo/docs/conflicted.md"
+git -C "$repo" commit -qam main
+if git -C "$repo" merge -q side >/dev/null 2>&1; then
+    fail "fixture: the merge was expected to conflict"
+fi
+unmerged_index="$(git -C "$repo" ls-files -s -- docs/conflicted.md)"
+unmerged_wt="$(cat "$repo/docs/conflicted.md")"
 printf 'LONG x y\n' > "$repo/docs/tracked.md"
 printf 'LONG s p\n' > "$repo/docs/a b.md"
 printf 'plain\n' > "$repo/docs/kept.md"
 printf 'LONG a b\nmid\nend\n' > "$repo/docs/split file.md"
-printf 'LONG a b\nend\n' > "$repo/docs/conflict.md"
 printf 'LONG u v\n' > "$repo/docs/new file.md"
+printf 'LONG k l\n' > "$repo/docs/intent.md"
 printf 'LONG i j\n' > "$repo/docs/ignored.md"
 printf 'LONG o p\n' > "$repo/data.txt"
-printf 'docs/ignored.md\n' > "$repo/.gitignore"
-git -C "$repo" add pyproject.toml docs/tracked.md docs/a\ b.md docs/kept.md \
-    'docs/split file.md' docs/conflict.md .gitignore data.txt
+git -C "$repo" add docs/tracked.md docs/a\ b.md docs/kept.md \
+    'docs/split file.md' data.txt
+git -C "$repo" add -N docs/intent.md
 printf 'plain\nunstaged edit\n' > "$repo/docs/kept.md"
-printf 'LONG a b\nmid\nend edited\n' > "$repo/docs/split file.md"
-printf 'LONG a c\nend\n' > "$repo/docs/conflict.md"
-conflict_wt="$(cat "$repo/docs/conflict.md")"
+printf 'LONG a b\nmid\nLONG c d\n' > "$repo/docs/split file.md"
 
 rc=0
 out="$(just --justfile "$repo_root/justfile" --working-directory "$repo" "rumdl=$stub" format-docs 2>&1)" || rc=$?
@@ -92,23 +113,30 @@ assert_eq "$(git -C "$repo" show ':docs/a b.md')" "s
 p" "tracked file with a space: the rewrite is staged"
 assert_eq "$(git -C "$repo" diff --name-only -- docs/tracked.md 'docs/a b.md')" "" "tracked files: no unstaged remainder"
 
-echo "=== a staged reflow with an unstaged edit elsewhere is merged piecewise ==="
+echo "=== a staged reflow with an unstaged long-line edit ==="
 assert_eq "$(git -C "$repo" show ':docs/split file.md')" "a
 b
 mid
-end" "split file: the index holds the reflow without the edit"
+end" "split file: the index holds the formatted staged content without the edit"
 assert_eq "$(cat "$repo/docs/split file.md")" "a
 b
 mid
-end edited" "split file: the worktree holds the reflow and the edit"
+c
+d" "split file: the worktree holds both, formatted"
 
-echo "=== a conflicting edit leaves index and worktree as they were ==="
-assert_eq "$(git -C "$repo" show :docs/conflict.md)" "LONG a b
-end" "conflict: the index is untouched"
-assert_eq "$(cat "$repo/docs/conflict.md")" "$conflict_wt" "conflict: the worktree is untouched"
-if ! grep -qF 'format-docs: docs/conflict.md unformatted' <<<"$out"; then
-    fail "conflict: the path is reported unformatted; output: $out"
+echo "=== an unmerged path is skipped ==="
+assert_eq "$(git -C "$repo" ls-files -s -- docs/conflicted.md)" "$unmerged_index" "unmerged: the index stages are unchanged"
+assert_eq "$(cat "$repo/docs/conflicted.md")" "$unmerged_wt" "unmerged: the worktree is unchanged"
+if ! grep -qF 'format-docs: docs/conflicted.md skipped (unmerged)' <<<"$out"; then
+    fail "unmerged: the path is reported skipped; output: $out"
 fi
+
+echo "=== an intent-to-add file is formatted and stays intent-to-add ==="
+assert_eq "$(cat "$repo/docs/intent.md")" "k
+l" "intent-to-add: rewritten in place"
+assert_eq "$(git -C "$repo" ls-files -s -- docs/intent.md | awk '{ print $2 }')" \
+    "$(git -C "$repo" hash-object --stdin </dev/null)" "intent-to-add: the index entry is still the empty blob"
+assert_eq "$(git -C "$repo" diff --cached --name-only -- docs/intent.md)" "" "intent-to-add: nothing staged"
 
 echo "=== an untracked file is reformatted but not staged ==="
 assert_eq "$(cat "$repo/docs/new file.md")" "u
@@ -131,4 +159,4 @@ if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\nformat-docs ok (tracked rewrite staged, unstaged edits merged piecewise or left on conflict, untracked left unstaged, unchanged file not restaged, spaced paths, ignored and other types untouched)\n'
+printf '\nformat-docs ok (tracked rewrite staged, unstaged edits formatted unstaged, unmerged skipped, intent-to-add kept, untracked left unstaged, unchanged file not restaged, spaced paths, ignored and other types untouched)\n'
