@@ -1,7 +1,8 @@
 # The clean-tree check
 
 Why `common_preflight` exempts only the memory gitlink from its dirty-tree
-refusal, and why `update.sh` leaves that gitlink pending, split out of
+refusal, and why `update.sh` and `install.sh` leave that gitlink pending, split
+out of
 [recovery.md](recovery.md), which holds the other pre-flight state checks. The
 conclusions these arguments support are listed in
 [../design.md](../design.md).
@@ -164,3 +165,22 @@ rebuilding the merge on the pre-pointer parent. It would also run the consumer's
 commit hooks, its gate included, for a commit nobody asked for. Rejected too:
 moving a checkout that is behind the recorded commit up to it. That is a write
 outside `plugin-dev/` for a state the human may have left on purpose.
+
+## `install.sh` leaves the memory pointer pending too
+
+A plugin repo that mounted its gitlore store before vendoring the toolkit has
+the same resting state at install time: a memory commit moves the pointer ahead
+of HEAD, and a guard with no exemption refused the first install on it.
+`install.sh` therefore carries the same exemption as `update.sh`, as a copy
+rather than a call, since the bootstrap script runs before any sibling file is
+vendored: the path `.gitmodules` gives the submodule named `gitlore-memory`,
+excluded as a literal pathspec, under `--ignore-submodules=untracked`, with the
+index compared to HEAD as well as the worktree. Every other tracked change
+refuses, a moved gitlink under another name included.
+
+`git subtree add` runs the same unscoped clean check as `subtree pull`, so it
+runs under `-c submodule.gitlore-memory.ignore=all`, and the commit it makes
+takes the whole index, so a staged pointer is unstaged for the add and restored
+from an `EXIT` trap, as the update does. An add into a new prefix cannot stop on
+a merge conflict, so the restore is unconditional and the update's printed
+command has no counterpart here.

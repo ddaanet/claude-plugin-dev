@@ -148,6 +148,10 @@ present tense.
   staged pointer is unstaged for the pull and restored after, except on a merge
   conflict, where the update prints the command that restores it; any other
   tracked change, or another submodule's moved gitlink, refuses first.
+- **`install.sh` leaves a moved memory pointer pending the same way**, by a copy
+  of the update's exemption, so a store mounted before vendoring does not block
+  the first install; a staged pointer is restored unconditionally, since an add
+  cannot stop on a conflict.
 
 ### The dist branch — [references/dist-branch.md](references/dist-branch.md)
 

@@ -24,7 +24,9 @@ quiet runner, against a stub `bats`),
 the files it hashes and the re-hash after a formatter, driven through real
 `just` recipes in a fixture consumer),
 `install-{vendor,settings,legacy}-test.sh` (`install.sh`'s vendoring, settings
-wiring and legacy-entry migration), `dist-tree-test.sh` (the shipped-file list),
+wiring and legacy-entry migration), `install-memory-test.sh` (a moved gitlore
+memory pointer, unstaged or staged, installed past and left as it was; any other
+tracked change refused), `dist-tree-test.sh` (the shipped-file list),
 `dist-{build,refusal,warning,subcommands}-test.sh` (`dist.sh`'s allowlist, tree
 build, refusals, warnings and other subcommands),
 `check-refs-{syntax,scan,shipped}-test.sh` (`check-refs.sh`: what a reference
