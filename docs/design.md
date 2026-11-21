@@ -248,7 +248,8 @@ present tense.
 - No guard ties the bump to a migration note waiting above `toolkit/VERSION`;
   one is added if a release ever lands below its note.
 - `resume-release` re-cuts `dist-vX.Y.Z` from the `vX.Y.Z` tag, never `HEAD`.
-- The clean-tree exclusion is a literal pathspec here.
+- The clean-tree exclusions are literal pathspecs here; the release commit takes
+  `TASK.md` and `TODO.md`, as the consumer's does.
 
 ### The version-guard hook — [references/version-guard.md](references/version-guard.md)
 

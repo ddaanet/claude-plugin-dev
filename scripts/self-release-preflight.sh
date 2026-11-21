@@ -15,8 +15,11 @@ common_preflight() {
     # tree_is_clean excludes the gitlore memory submodule: it rests ahead of
     # HEAD until the next parent commit records it (gitlore-commit stages it).
     # Written literally -- this repo is one known repo, not a consumer the
-    # script has to discover.
+    # script has to discover. TASK.md and TODO.md are excluded as the consumer
+    # release excludes them: bump_commit_tag stages them into the release
+    # commit.
     git diff --quiet HEAD -- . ':(exclude)memory' \
+        ':(exclude,literal)TASK.md' ':(exclude,literal)TODO.md' \
         || die "uncommitted changes"
     # Read before the branch: the refusal below names it, and set -u would
     # otherwise end the script on an unset variable.

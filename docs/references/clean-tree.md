@@ -16,7 +16,8 @@ ahead of HEAD is the resting state rather than unfinished work. It applies to
 this repo's own release too, where it is a literal pathspec rather than a
 `.gitmodules` lookup — see [self-release.md](self-release.md). The plugin repo
 also exempts its root `TASK.md` and `TODO.md`, which the release commit takes
-(see "The release commit takes the handoff files" below).
+(see "The release commit takes the handoff files" below), and so does this
+repo's own release.
 
 ### `.claude/` is not exempt
 

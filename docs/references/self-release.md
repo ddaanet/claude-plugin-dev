@@ -23,7 +23,7 @@ ground, paid for by the `tests/self-release-*-test.sh` suites driving it end to
 end against real repos with local bare origins and a `gh` stub — the same
 fixture shape the `tests/release-*-test.sh` suites use for the consumer flow.
 
-## The clean-tree exclusion is a literal pathspec here
+## The clean-tree exclusions are literal pathspecs here
 
 `scripts/self-release.sh` carries `common_preflight`'s memory exclusion —
 `memory` — as a literal pathspec, rather than repeating `release.sh`'s
@@ -33,6 +33,14 @@ why `.claude/` is not). It runs against exactly one repo, whose mount path is
 known, so discovery would be answering a question that has no second answer.
 That is the same reasoning that keeps it separate from `release.sh` at all: it
 is not consumer-shaped code and does not have to generalise.
+
+The root `TASK.md` and `TODO.md` are excluded too, and its `bump_commit_tag`
+takes them into the release commit as the consumer's does, for the reason "The
+release commit takes the handoff files" in [clean-tree.md](clean-tree.md) gives:
+a tracked one that differs from HEAD, a deletion as a deletion, and an untracked
+one git does not ignore. A commit the gate refuses unstages them with the
+`toolkit/VERSION` rollback, so the tree is as the run found it. The logic is a
+copy, not a call into `toolkit/`, as the rest of the script is.
 
 ## The shape it shares, and the one guard it adds
 

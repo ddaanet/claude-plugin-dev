@@ -54,6 +54,17 @@ ls_remote_sha() {
 bump_commit_tag() {
     printf '%s\n' "$V" > toolkit/VERSION
     git add toolkit/VERSION
+    # The handoff files common_preflight exempts ride this commit, as
+    # toolkit/release-publish.sh's bump_commit_tag takes them: a tracked one
+    # that differs from HEAD, a deletion staged as one, and an untracked one
+    # git does not ignore. Listed first, because `git add` of a path neither on
+    # disk nor tracked fails.
+    local handoff=() p
+    while IFS= read -r -d '' p; do
+        handoff+=("$p")
+    done < <(git diff -z --name-only HEAD -- ':(literal)TASK.md' ':(literal)TODO.md'
+             git ls-files -z -o --exclude-standard -- ':(literal)TASK.md' ':(literal)TODO.md')
+    [ "${#handoff[@]}" -eq 0 ] || git add -A -- "${handoff[@]}"
     # This repo's own pre-commit hook runs `just precommit`, and it can refuse.
     # Dying with the bump written and staged strands it, where common_preflight's
     # "uncommitted changes" then blocks both a re-run and --resume while naming
@@ -62,6 +73,7 @@ bump_commit_tag() {
     # recovery.
     git commit -qm "release: $V" || {
         git checkout HEAD -- toolkit/VERSION
+        [ "${#handoff[@]}" -eq 0 ] || git reset -q HEAD -- "${handoff[@]}"
         printf 'hint: toolkit/VERSION was rolled back and nothing was tagged.\n' >&2
         printf '      fix what the gate reported above, then run the same command again.\n' >&2
         die "commit gate refused the release commit"

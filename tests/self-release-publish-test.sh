@@ -221,6 +221,41 @@ assert_not_contains "$dist_files" "ROOT-ONLY" "happy: dist tree is root-free"
 assert_not_contains "$dist_files" "toolkit" "happy: dist tree is unprefixed"
 assert_eq "$(git -C "$repo" show dist-v0.2.0:VERSION)" "0.2.0" "happy: dist VERSION"
 
+echo "=== the release commit takes the handoff files ==="
+# A modified TODO.md and an untracked TASK.md ride it; in the next, a deleted
+# TASK.md rides as a deletion and an ignored TODO.md stays out.
+new_sandbox
+commit_in_repo TODO.md "todo"
+git -C "$repo" push -q origin main
+printf 'todo, released\n' > "$repo/TODO.md"
+printf 'task\n' > "$repo/TASK.md"
+run minor
+assert_eq "$rc" 0 "handoff: exit status ($out)"
+assert_eq "$(git -C "$repo" diff-tree --no-commit-id --name-status -r HEAD | LC_ALL=C sort)" \
+    "$(printf 'A\tTASK.md\nM\tTODO.md\nM\ttoolkit/VERSION')" "handoff: the commit carries both"
+git -C "$repo" rm -q --cached TODO.md
+printf 'TODO.md\n' >> "$repo/.git/info/exclude"
+git -C "$repo" commit -qm "untrack TODO.md"
+git -C "$repo" push -q origin main
+rm "$repo/TASK.md"
+run minor
+assert_eq "$rc" 0 "handoff deletion: exit status ($out)"
+assert_eq "$(git -C "$repo" diff-tree --no-commit-id --name-status -r HEAD | LC_ALL=C sort)" \
+    "$(printf 'D\tTASK.md\nM\ttoolkit/VERSION')" "handoff: a deletion rides, an ignored file does not"
+
+echo "=== a refused release commit leaves an unstaged TODO.md unstaged ==="
+new_sandbox
+commit_in_repo TODO.md "todo"
+git -C "$repo" push -q origin main
+printf 'todo, edited\n' > "$repo/TODO.md"
+printf '#!/bin/sh\nexit 1\n' > "$repo/.git/hooks/pre-commit"
+chmod +x "$repo/.git/hooks/pre-commit"
+run minor
+assert_eq "$rc" 1 "refused commit: exit status"
+assert_contains "$out" "commit gate refused the release commit" "refused commit: message"
+assert_eq "$(git -C "$repo" status --porcelain)" " M TODO.md" "refused commit: tree as the run found it"
+refute_tag v0.2.0 "refused commit"
+
 echo "=== bump arithmetic ==="
 new_sandbox
 run major
