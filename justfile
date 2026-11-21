@@ -79,10 +79,106 @@ outdated-consumers:
     done
     [ "$found" = 1 ] || echo "every sibling consumer is on $current"
 
+# The index classification `whitespace` and `format-docs` share, interpolated
+# at the top of each shebang recipe as gates.just does its prolog. A recipe
+# sets `tmp` to a scratch directory, calls `index_open [pathspec...]`, then
+# loops `while index_next; do ... done`. Each pass sets f, mode, oid, label and
+# kind: unmerged, skip (gone, symlink, or not a regular file in the index),
+# untracked, intent-to-add, unstaged (worktree differs from its index blob,
+# mode included) or clean. The listing is read from three snapshots taken up
+# front, so the loop's own `git add` cannot move what a later file reads, and
+# an unchanged file costs no git process. Tracked entries come in index order
+# and the `diff-files` records in the same order, so one pass joins them with
+# no lookup table (bash 3.2 has no associative arrays). Every read is
+# NUL-delimited.
+[private]
+index_prolog := "/usr/bin/env bash\nset -euo pipefail\n" + '''
+empty=$(git hash-object --stdin < /dev/null)
+index_open() {
+    git ls-files -s -z -- "$@" > "$tmp/index"
+    # diff-files reads the index unrefreshed, so it also lists a file whose
+    # stat alone moved; with the mode unchanged, content settles it.
+    git diff-files -z -- "$@" > "$tmp/diff"
+    git ls-files -z --others --exclude-standard -- "$@" > "$tmp/others"
+    exec 3< "$tmp/index" 4< "$tmp/diff" 5< "$tmp/others"
+    index_prev=
+    index_diff_next
+}
+# The next diff-files record: dmeta, then dpath, empty at the end.
+index_diff_next() {
+    dpath=
+    IFS= read -r -d '' dmeta <&4 || return 0
+    IFS= read -r -d '' dpath <&4 || dpath=
+}
+index_next() {
+    local rec meta st dimode dwmode hit
+    while :; do
+        if IFS= read -r -d '' rec <&3; then
+            meta=${rec%%$'\t'*}
+            f=${rec#*$'\t'}
+            read -r mode oid st <<<"$meta"
+            # An unmerged path is listed once per stage, adjacently.
+            [ "$f" != "$index_prev" ] || continue
+            index_prev=$f
+            hit=0
+            if [ "$dpath" = "$f" ]; then
+                hit=1
+                read -r dimode dwmode _ <<<"$dmeta"
+                while [ "$dpath" = "$f" ]; do index_diff_next; done
+            fi
+            label=
+            # Read before the worktree, so an unmerged file that is gone
+            # still fails the recipe. Writing a stage-0 entry would mark the
+            # conflict resolved.
+            if [ "$st" != 0 ]; then kind=unmerged; return 0; fi
+            # Only a regular file, in the worktree and the index: a symlink's
+            # blob is its target path, which a fix would rewrite, and a write
+            # through it would land on another file.
+            if [ ! -f "$f" ] || [ -L "$f" ]; then kind=skip; return 0; fi
+            case "$mode" in 100644 | 100755) ;; *) kind=skip; return 0 ;; esac
+            if [ "$oid" = "$empty" ]; then
+                # Intent-to-add (`git add -N`): staging would add it whole.
+                kind=intent-to-add label="intent-to-add, not staged"
+            elif [ "$hit" = 1 ] && { [ "${dimode#:}" != "$dwmode" ] \
+                || [ "$oid" != "$(git hash-object -- "$f")" ]; }; then
+                # Unstaged edits: staging the file would put them in the commit.
+                kind=unstaged label="unstaged edits, not staged"
+            else
+                # Worktree equal to index, so staging stages nothing but the fix.
+                kind=clean
+            fi
+            return 0
+        elif IFS= read -r -d '' f <&5; then
+            mode= oid= label=
+            if [ ! -f "$f" ] || [ -L "$f" ]; then
+                kind=skip
+            else
+                kind=untracked label="untracked, not staged"
+            fi
+            return 0
+        else
+            return 1
+        fi
+    done
+}
+# restage_blob <recipe> <mode> <oid> <path> <command>...: run the command over
+# the staged blob and, when it changed it, write the result to the index with
+# the mode kept. The worktree file is the caller's.
+restage_blob() {
+    local recipe=$1 smode=$2 soid=$3 spath=$4 new
+    shift 4
+    git cat-file blob "$soid" > "$tmp/base"
+    "$@" < "$tmp/base" > "$tmp/formatted"
+    cmp -s "$tmp/base" "$tmp/formatted" && return 0
+    new=$(git hash-object -w --stdin < "$tmp/formatted")
+    git update-index --cacheinfo "$smode" "$new" "$spath"
+    echo "$recipe: $spath (staged content)"
+}
+'''
+
 # Apply git stripspace to text files on disk, tracked or not, and to their staged blobs.
 whitespace:
-    #!/usr/bin/env bash
-    set -euo pipefail
+    #!{{ index_prolog }}
     # From disk, not the index: the files the gate hashes and the checks read,
     # so a file added after a cached pass was fixed before it was hashed. A
     # file listed but gone from the worktree (a deletion not yet staged, or one
@@ -94,62 +190,20 @@ whitespace:
     # `format-docs`.
     tmp=$(mktemp -d "${TMPDIR:-/tmp}/whitespace.XXXXXX")
     trap 'rm -rf "$tmp"' EXIT
-    empty=$(git hash-object --stdin < /dev/null)
-    # Whether the worktree of $1 differs from its index blob $2, mode
-    # included: a restage would stage a mode change as surely as an edit.
-    # diff-files reads the index unrefreshed, so it also lists a file whose
-    # stat alone moved; with the mode unchanged, content settles it.
-    differs() {
-        local meta imode wmode
-        IFS= read -r -d '' meta < <(git diff-files -z -- ":(literal)$1") || return 1
-        read -r imode wmode _ <<<"$meta"
-        [ "${imode#:}" != "$wmode" ] || [ "$2" != "$(git hash-object -- "$1")" ]
-    }
-    prev=
+    index_open
     unmerged=0
-    while IFS= read -r -d '' f; do
+    while index_next; do
         case "$f" in justfile | *.sh | *.md | *.just) ;; *) continue ;; esac
-        # An unmerged path is listed once per stage, adjacently.
-        [ "$f" != "$prev" ] || continue
-        prev=$f
-        # An untracked file lists nothing, and read then fails at EOF. An
-        # unmerged one lists only nonzero stages, so its first line says so;
-        # it is read before the worktree, so one whose file is gone still
-        # fails the recipe.
-        read -r mode oid st _ < <(git ls-files -s -- ":(literal)$f") || true
-        if [ -n "${st:-}" ] && [ "$st" != 0 ]; then
-            # Writing a stage-0 entry would mark the conflict resolved.
-            echo "whitespace: $f skipped (unmerged)"
-            unmerged=1
-            unset mode oid st
-            continue
-        fi
-        # Only a regular file, in the worktree and the index: a symlink's
-        # blob is its target path, which a fix would rewrite, and a write
-        # through it would land on another file.
-        [ -f "$f" ] && [ ! -L "$f" ] || continue
-        case "${mode:-100644}" in 100644 | 100755) ;; *) continue ;; esac
-        if [ -z "${oid:-}" ]; then
-            label="untracked, not staged"
-        elif [ "$oid" = "$empty" ]; then
-            # Intent-to-add (`git add -N`): staging would add it whole.
-            label="intent-to-add, not staged"
-        elif differs "$f" "$oid"; then
-            # Unstaged edits: staging the file would put them in the commit.
-            # The index takes the staged blob fixed on its own, mode kept.
-            label="unstaged edits, not staged"
-            git cat-file blob "$oid" > "$tmp/base"
-            git stripspace < "$tmp/base" > "$tmp/fixed"
-            if ! cmp -s "$tmp/base" "$tmp/fixed"; then
-                new=$(git hash-object -w --stdin < "$tmp/fixed")
-                git update-index --cacheinfo "$mode" "$new" "$f"
-                echo "whitespace: $f (staged content)"
-            fi
-        else
-            # Worktree equal to index, so staging stages nothing but the fix.
-            label=
-        fi
-        unset mode oid st
+        case "$kind" in
+            unmerged)
+                echo "whitespace: $f skipped (unmerged)"
+                unmerged=1
+                continue ;;
+            skip) continue ;;
+            unstaged)
+                # The index takes the staged blob fixed on its own, mode kept.
+                restage_blob whitespace "$mode" "$oid" "$f" git stripspace ;;
+        esac
         git stripspace < "$f" > "$tmp/fixed"
         cmp -s "$f" "$tmp/fixed" && continue
         # Written through the file, not mv-ed over it: mktemp creates 0600
@@ -162,7 +216,7 @@ whitespace:
         else
             echo "whitespace: $f ($label)"
         fi
-    done < <(git ls-files -z --cached --others --exclude-standard)
+    done
     if [ "$unmerged" = 1 ]; then
         echo "whitespace: unmerged paths left unfixed; resolve them and rerun" >&2
         exit 1
@@ -170,8 +224,7 @@ whitespace:
 
 # Hard-wrap prose in every Markdown file at 80 columns, for an 80-column read.
 format-docs:
-    #!/usr/bin/env bash
-    set -euo pipefail
+    #!{{ index_prolog }}
     # The wrap is for an 80-column read, not for any count. rumdl comes from
     # uv.lock via `uv sync`, on PATH
     # through `.envrc`; the pin check turns a stale `.venv` into a message
@@ -197,66 +250,38 @@ format-docs:
     # formatted: `sentinel-guard` refuses an unmerged tree before this runs, so
     # this is the net for a run outside the gate. Every
     # other file is formatted in place; which ones are then staged, and how,
-    # depends on its index entry (below).
+    # depends on its index entry (`index_next`).
     tmp=$(mktemp -d "${TMPDIR:-/tmp}/format-docs.XXXXXX")
     trap 'rm -rf "$tmp"' EXIT
-    empty=$(git hash-object --stdin < /dev/null)
     files=()
-    before=()
     stage=()
     split=()
-    # Whether the worktree of $1 differs from its index blob $2, mode
-    # included: a restage would stage a mode change as surely as an edit.
-    # diff-files reads the index unrefreshed, so it also lists a file whose
-    # stat alone moved; with the mode unchanged, content settles it.
-    differs() {
-        local meta imode wmode
-        IFS= read -r -d '' meta < <(git diff-files -z -- ":(literal)$1") || return 1
-        read -r imode wmode _ <<<"$meta"
-        [ "${imode#:}" != "$wmode" ] || [ "$2" != "$(git hash-object -- "$1")" ]
-    }
-    prev=
+    index_open '*.md'
     unmerged=0
-    while IFS= read -r -d '' f; do
-        # An unmerged path is listed once per stage, adjacently.
-        [ "$f" != "$prev" ] || continue
-        prev=$f
-        # An untracked file lists nothing, and read then fails at EOF. An
-        # unmerged one lists only nonzero stages, so its first line says so;
-        # it is read before the worktree, so one whose file is gone still
-        # fails the recipe.
-        read -r mode oid st _ < <(git ls-files -s -- ":(literal)$f") || true
-        if [ -n "${st:-}" ] && [ "$st" != 0 ]; then
-            # Writing a stage-0 entry would mark the conflict resolved.
-            echo "format-docs: $f skipped (unmerged)"
-            unmerged=1
-            continue
-        fi
-        # Only a regular file, in the worktree and the index: a symlink's
-        # blob is its target path, which a fix would rewrite, and a write
-        # through it would land on another file.
-        [ -f "$f" ] && [ ! -L "$f" ] || continue
-        case "${mode:-100644}" in 100644 | 100755) ;; *) continue ;; esac
-        if [ -z "${oid:-}" ]; then
-            files+=("$f"); before+=("$(git hash-object -- "$f")"); stage+=("untracked, not staged")
-        elif [ "$oid" = "$empty" ]; then
-            # Intent-to-add (`git add -N`): staging would add it whole.
-            files+=("$f"); before+=("$(git hash-object -- "$f")"); stage+=("intent-to-add, not staged")
-        elif differs "$f" "$oid"; then
-            # Unstaged edits: staging the file would put them in the commit.
-            # The worktree is formatted in place, edits and all, unstaged;
-            # the index takes the staged blob formatted on its own (below).
-            split+=("$f:$mode:$oid")
-            files+=("$f"); before+=("$(git hash-object -- "$f")"); stage+=("unstaged edits, not staged")
-        else
-            files+=("$f"); before+=("$oid"); stage+=("")
-        fi
-        unset mode oid st
-    done < <(git ls-files -z --cached --others --exclude-standard -- '*.md')
+    while index_next; do
+        case "$kind" in
+            unmerged)
+                echo "format-docs: $f skipped (unmerged)"
+                unmerged=1
+                continue ;;
+            skip) continue ;;
+            unstaged)
+                # The worktree is formatted in place, edits and all, unstaged;
+                # the index takes the staged blob formatted on its own (below).
+                split+=("$f:$mode:$oid") ;;
+        esac
+        files+=("$f")
+        stage+=("$label")
+    done
+    before=()
+    after=()
+    # One hash-object call for the whole list, before and after the format.
     # `fmt` exits 0 with anything it cannot wrap left in place; `check --fix`
     # would exit 1 on the same tree and fail the gate over a long URL.
     if [ "${#files[@]}" -gt 0 ]; then
+        while IFS= read -r h; do before+=("$h"); done < <(git hash-object -- "${files[@]}")
         "$bin" fmt --no-cache -- "${files[@]}"
+        while IFS= read -r h; do after+=("$h"); done < <(git hash-object -- "${files[@]}")
     fi
     # Only a file whose content moved is reported and, when its worktree
     # matched its index (an empty label), staged, as `whitespace` does: from a
@@ -265,7 +290,7 @@ format-docs:
     # file stages nothing but the reflow.
     for i in "${!files[@]}"; do
         f=${files[$i]}
-        [ "$(git hash-object -- "$f")" != "${before[$i]}" ] || continue
+        [ "${after[$i]}" != "${before[$i]}" ] || continue
         if [ -z "${stage[$i]}" ]; then
             git add -- "$f"
             echo "format-docs: $f"
@@ -280,12 +305,8 @@ format-docs:
     for e in "${split[@]+"${split[@]}"}"; do
         oid=${e##*:}; e=${e%:*}
         mode=${e##*:}; f=${e%:*}
-        git cat-file blob "$oid" > "$tmp/base"
-        "$bin" fmt --no-cache --stdin --stdin-filename "$f" --silent < "$tmp/base" > "$tmp/formatted"
-        cmp -s "$tmp/base" "$tmp/formatted" && continue
-        new=$(git hash-object -w --stdin < "$tmp/formatted")
-        git update-index --cacheinfo "$mode" "$new" "$f"
-        echo "format-docs: $f (staged content)"
+        restage_blob format-docs "$mode" "$oid" "$f" \
+            "$bin" fmt --no-cache --stdin --stdin-filename "$f" --silent
     done
     if [ "$unmerged" = 1 ]; then
         echo "format-docs: unmerged paths left unformatted; resolve them and rerun" >&2
