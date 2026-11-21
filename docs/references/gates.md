@@ -128,9 +128,9 @@ no file, because a typo there would narrow the hash and cache forever. An
 exclude pathspec has no files of its own and is not held to it: `:!…`, `:^…`,
 their `:/` forms, and `exclude` among the comma-separated magic words of `:(…)`.
 A positive pathspec that merely contains the word, `:(glob)excluded/**`, is held
-to it. The check stops at the first file it finds rather than listing them all.
-Revisit the rest when a second consumer adopts and a pattern for the declaration
-shows.
+to it. The check is one listing over every pathspec held to it, and the refusal
+names each one that matched nothing. Revisit the rest when a second consumer
+adopts and a pattern for the declaration shows.
 
 ## Tool versions are the consumer's list
 
