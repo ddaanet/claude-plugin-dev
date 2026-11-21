@@ -66,7 +66,7 @@ trap 'rm -rf "$sandbox"' EXIT
 # appends to $RUN_LOG, which lives outside the
 # repo so it is not an input. `moving` edits an input between guard and record;
 # `twice` opens two gates in one body; `bare` records with no guard; `nopaths`,
-# `badname`, `typo` and `typoglob` misuse the guard, which `forms` does not; `exported` sets the tool list the
+# `badname`, `typo` and `typoglob` misuse the guard, which `forms` and `three` do not; `exported` sets the tool list the
 # documented way, as an exported just variable.
 mk_consumer() {
     n=$((${n:-0} + 1))
@@ -120,8 +120,14 @@ badname:
 
 typo:
     #!{{ plugin_dev_gate_prolog }}
-    sentinel-guard typo src ':(exclude)src/none' srcs
+    sentinel-guard typo src ':(exclude)src/none' srcs srcz
     echo ran >> "$RUN_LOG"
+
+three:
+    #!{{ plugin_dev_gate_prolog }}
+    sentinel-guard three src src/a.txt ':(glob)src/**'
+    echo ran >> "$RUN_LOG"
+    record-sentinel
 
 typoglob:
     #!{{ plugin_dev_gate_prolog }}
@@ -283,7 +289,8 @@ echo "=== a pathspec that matches nothing is refused, and named ==="
 mk_consumer
 run_gate typo
 assert_nonzero "$rc" "pathspec matching nothing"
-assert_contains "$out" "'srcs'" "the message names the pathspec"
+assert_contains "$out" "check-sentinel: pathspec 'srcs' matches no file" "the message names the pathspec"
+assert_contains "$out" "check-sentinel: pathspec 'srcz' matches no file" "the message names every unmatched pathspec"
 assert_not_contains "$out" "'src/none'" "an exclude pathspec is not held to matching a file"
 assert_eq "$(runs)" "0" "no checks ran"
 
@@ -304,25 +311,30 @@ for form in topbang topcaret; do
     assert_eq "$(runs)" "1" "$form runs the checks"
 done
 
-echo "=== the match check stops at the first file ==="
-# A shim `git` logs how each `ls-files` exited. A listing longer than the pipe
-# buffer is cut short by a reader that stops at the first file, and git then
-# dies of SIGPIPE: 141.
+echo "=== an untracked, non-ignored file is a match ==="
 mk_consumer
-mkdir -p "$repo/src/big" "$sandbox/shim"
-for i in $(seq 1 3000); do : > "$repo/src/big/a-file-with-a-longish-name-$i.txt"; done
+run_gate gate
+assert_eq "$rc" "0" "a gate over untracked files alone: exit status ($out)"
+assert_eq "$(git -C "$repo" ls-files)" "" "the fixture tracks nothing"
+
+echo "=== the match check is one listing, however many pathspecs ==="
+# A shim `git` logs each `ls-files` call. A gate of three pathspecs lists as
+# often as a gate of one: the match check does not fork per pathspec.
+mk_consumer
+mkdir -p "$sandbox/shim"
 cat > "$sandbox/shim/git" <<'SHIM'
 #!/bin/bash
-rc=0
-"$REAL_GIT" "$@" || rc=$?
-[ "$1" != ls-files ] || echo "ls-files $rc" >> "$GIT_LOG"
-exit "$rc"
+[ "$1" != ls-files ] || echo ls-files >> "$GIT_LOG"
+exec "$REAL_GIT" "$@"
 SHIM
 chmod +x "$sandbox/shim/git"
-: > "$sandbox/git.log"
-run_gate gate "PATH=$sandbox/shim:$PATH" "REAL_GIT=$(command -v git)" "GIT_LOG=$sandbox/git.log"
-assert_eq "$rc" "0" "a gate over a large tree: exit status ($out)"
-assert_contains "$(cat "$sandbox/git.log")" "ls-files 141" "the match check closed its listing at the first file"
+for recipe in gate three; do
+    : > "$sandbox/git-$recipe.log"
+    run_gate "$recipe" "PATH=$sandbox/shim:$PATH" "REAL_GIT=$(command -v git)" "GIT_LOG=$sandbox/git-$recipe.log"
+    assert_eq "$rc" "0" "$recipe: exit status ($out)"
+done
+assert_eq "$(wc -l < "$sandbox/git-three.log")" "$(wc -l < "$sandbox/git-gate.log")" \
+    "three pathspecs take as many ls-files calls as one"
 
 echo "=== an unmerged path is refused, cached or not, and listed ==="
 # The conflict sits outside the gate's inputs, so the hash is the recorded one:
@@ -390,4 +402,4 @@ if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\ngates guards ok (moved inputs, unhashable, tool versions, one gate per body, misuse, unmatched pathspec, unmerged paths, exclude spellings, first-file match, unreadable input, shellcheck)\n'
+printf '\ngates guards ok (moved inputs, unhashable, tool versions, one gate per body, misuse, unmatched pathspec, unmerged paths, exclude spellings, untracked match, one listing, unreadable input, shellcheck)\n'

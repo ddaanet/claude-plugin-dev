@@ -175,6 +175,7 @@ check-sentinel () {
     sentinel="$sentinel_dir/$1"; shift
     # A pathspec that matches nothing is a typo that would cache forever. An
     # exclude has no files of its own to match.
+    positive=()
     for spec in "$@"; do
         case "$spec" in
             :\!*|:^*|:/\!*|:/^*) continue ;;
@@ -183,12 +184,23 @@ check-sentinel () {
                 case ",${magic%%)*}," in *,exclude,*) continue ;; esac
                 ;;
         esac
-        # Stops at the first file rather than listing them all.
-        IFS= read -r -d '' _ < <(git ls-files -z --cached --others --exclude-standard -- "$spec") || {
-            echo "check-sentinel: pathspec '$spec' matches no file" >&2
+        positive+=("$spec")
+    done
+    # One listing for them all, not one per pathspec: `--error-unmatch` has git
+    # name every pathspec that matched nothing, by its own pathspec rules and
+    # magic, and counts an untracked, non-ignored file as a match. Its lines
+    # are rewrapped under this function's name; any other failure is shown as
+    # git printed it. `LC_ALL=C` keeps the line the rewrap reads untranslated.
+    if [ "${#positive[@]}" -gt 0 ]; then
+        unmatched=$(LC_ALL=C git ls-files -z --cached --others --exclude-standard \
+            --error-unmatch -- "${positive[@]}" 2>&1 >/dev/null) || {
+            printf '%s\n' "$unmatched" | sed \
+                -e "s/^error: pathspec '\(.*\)' did not match any file(s) known to git\$/check-sentinel: pathspec '\1' matches no file/" \
+                -e '/^Did you forget/d' \
+                -e '/^check-sentinel: /!s/^/check-sentinel: /' >&2
             exit 1
         }
-    done
+    fi
     gate_cwd=$PWD
     gate_inputs=("$@")
     # Taken before the checks run, and on every path -- a forced run and a
