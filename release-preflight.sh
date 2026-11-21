@@ -113,6 +113,19 @@ report_dirty() {
 
 common_preflight() {
     [ -f "$manifest" ] || die "$manifest not found — run from the plugin root"
+    # The clean-tree check exempts the handoff files, and bump_commit_tag stages
+    # them as they are on disk, which marks an unmerged one resolved and commits
+    # its conflict markers. So an unmerged one refuses, before anything else.
+    local unmerged=() p
+    while IFS= read -r -d '' p; do
+        unmerged+=("$p")
+    done < <(git diff -z --name-only --diff-filter=U -- ':(literal)TASK.md' ':(literal)TODO.md')
+    if [ "${#unmerged[@]}" -gt 0 ]; then
+        printf 'hint: these handoff files are unmerged, which the release commit would take as resolved:\n' >&2
+        printf '        %s\n' "${unmerged[@]}" >&2
+        printf '      resolve and stage them, then run the same command again.\n' >&2
+        die "unmerged handoff file"
+    fi
     tree_is_clean "." plugin || {
         report_dirty "." "the plugin repo" plugin
         printf '      commit or stash them, then run the same command again. the release\n' >&2
