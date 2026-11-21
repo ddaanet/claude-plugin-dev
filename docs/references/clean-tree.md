@@ -121,14 +121,18 @@ one written after it found the release commit already pushed, so it could not be
 amended and stayed dirty until an unrelated commit came along.
 
 So the plugin repo's check excludes both as literal pathspecs, the refusal's
-exemption list names them, and `bump_commit_tag` stages whichever differ from
-HEAD into the release commit beside the manifest, a deletion as a deletion. The
-list comes from `git diff -z --name-only HEAD` over the two paths, since a bare
-`git add` of a path neither on disk nor tracked fails. A commit the consumer's
-gate refuses leaves them staged, which is harmless: they stay exempt, and the
-re-run takes them. A first release makes no commit and `--resume` makes none
-either, so neither carries them; a dirty frame then waits for the next commit,
-as it would without the exemption.
+exemption list names them, and `bump_commit_tag` stages into the release commit
+beside the manifest whichever differ from HEAD, a deletion as a deletion, and
+whichever is untracked and not ignored: a frame written after the release that
+deleted it is new again. The list is the union of `git diff -z --name-only HEAD`
+and `git ls-files -z -o --exclude-standard` over the two paths, since a bare
+`git add` of a path neither on disk nor tracked fails; an ignored frame is the
+consumer's choice and stays out. A commit the consumer's gate refuses unstages
+them with the manifest's rollback, so a file left unstaged before the run is
+unstaged after it and does not ride the commit that fixes the gate; the re-run
+takes them. A first release makes no commit and `--resume` makes none either, so
+neither carries them; a dirty frame then waits for the next commit, as it would
+without the exemption.
 
 The marketplace repo keeps refusing them. No commit there would take them, so an
 exemption would only let them stay dirty past a release.
@@ -200,7 +204,7 @@ outside `plugin-dev/` for a state the human may have left on purpose.
 
 A plugin repo that mounted its gitlore store before vendoring the toolkit has
 the same resting state at install time: a memory commit moves the pointer ahead
-of HEAD, and a guard with no exemption refused the first install on it.
+of HEAD, and a guard with no exemption would refuse the first install on it.
 `install.sh` therefore carries the same exemption as `update.sh`, as a copy
 rather than a call, since the bootstrap script runs before any sibling file is
 vendored: the path `.gitmodules` gives the submodule named `gitlore-memory`,

@@ -354,6 +354,31 @@ assert_eq "$(git -C "$plugin" diff-tree --no-commit-id --name-status -r HEAD | s
     "the release commit carries the manifest and both handoff files"
 assert_eq "$(git -C "$plugin" status --porcelain)" "" "handoff-files release leaves the tree clean"
 
+echo "=== release: an untracked TASK.md rides the release commit; an ignored TODO.md does not ==="
+new_sandbox "1.2.3"
+printf 'task\n' > "$plugin/TASK.md"
+printf 'TODO.md\n' >> "$plugin/.git/info/exclude"
+printf 'todo\n' > "$plugin/TODO.md"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "0" "untracked-frame release exit code ($out)"
+assert_eq "$(git -C "$plugin" diff-tree --no-commit-id --name-status -r HEAD | sort)" \
+    "$(printf 'A\tTASK.md\nM\t.claude-plugin/plugin.json')" \
+    "the release commit adds the untracked TASK.md and leaves the ignored TODO.md"
+
+echo "=== release: a refused release commit leaves an unstaged TODO.md unstaged ==="
+new_sandbox "1.2.3"
+printf 'todo\n' > "$plugin/TODO.md"
+git -C "$plugin" add TODO.md
+git -C "$plugin" commit -qm "todo"
+git -C "$plugin" push -q origin main
+printf 'todo, edited\n' > "$plugin/TODO.md"
+printf '#!/bin/sh\nexit 1\n' > "$plugin/.git/hooks/pre-commit"
+chmod +x "$plugin/.git/hooks/pre-commit"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "refused handoff release exit code"
+assert_eq "$(git -C "$plugin" status --porcelain)" " M TODO.md" \
+    "a refused release commit leaves TODO.md as the run found it"
+
 echo "=== release: a dirty TODO.md in the marketplace repo still refuses ==="
 new_sandbox "1.2.3"
 printf 'todo\n' > "$marketplace/TODO.md"

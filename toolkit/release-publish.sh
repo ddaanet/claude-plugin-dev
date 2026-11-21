@@ -71,13 +71,15 @@ bump_commit_tag() {
     mv "$tmp" "$manifest"
     git add "$manifest"
     # The handoff files clean_pathspecs exempts in the plugin repo ride this
-    # commit, a deletion staged as one. Listed from the diff, because `git add`
+    # commit: a tracked one that differs from HEAD, a deletion staged as one,
+    # and an untracked one git does not ignore. Listed first, because `git add`
     # of a path neither on disk nor tracked fails. A commit the gate refuses
-    # leaves them staged, which is harmless: they stay exempt.
+    # unstages them again below.
     local handoff=() p
     while IFS= read -r -d '' p; do
         handoff+=("$p")
-    done < <(git diff -z --name-only HEAD -- ':(literal)TASK.md' ':(literal)TODO.md')
+    done < <(git diff -z --name-only HEAD -- ':(literal)TASK.md' ':(literal)TODO.md'
+             git ls-files -z -o --exclude-standard -- ':(literal)TASK.md' ':(literal)TODO.md')
     [ "${#handoff[@]}" -eq 0 ] || git add -A -- "${handoff[@]}"
     # A consumer's pre-commit hook can refuse this commit. Dying here with the
     # bump written and staged strands it: nothing committed, nothing tagged, and
@@ -87,6 +89,7 @@ bump_commit_tag() {
     # satisfying the gate and re-running is the whole recovery.
     git commit -m "release: $V" || {
         git checkout HEAD -- "$manifest"
+        [ "${#handoff[@]}" -eq 0 ] || git reset -q HEAD -- "${handoff[@]}"
         printf 'hint: the manifest was rolled back to %s and nothing was tagged.\n' "$prev" >&2
         printf '      fix what the gate reported above, then run the same command again.\n' >&2
         die "commit gate refused the release commit"

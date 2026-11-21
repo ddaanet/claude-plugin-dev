@@ -272,9 +272,9 @@ assert_contains "$out" "bump that produces the version you want" \
 # are load-bearing:
 #
 # `git checkout HEAD -- <manifest>` is always a no-op here. common_preflight
-# refuses a dirty tree — its own `tree_is_clean "."` guard — before
-# release_preflight runs, and
-# clean_pathspecs exempts only the gitlore submodule — never
+# refuses a dirty tree — its own `tree_is_clean "." plugin` guard — before
+# release_preflight runs, and clean_pathspecs exempts only the gitlore
+# submodule and the handoff files — never
 # `.claude-plugin/` — so the hand-written bump has always been committed
 # already by the time this fires. This scenario's own fixture commits it.
 #
