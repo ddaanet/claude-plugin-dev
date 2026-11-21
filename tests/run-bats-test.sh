@@ -126,6 +126,16 @@ assert_eq "$rc" "2" "no TAP: exit status"
 assert_contains "$out" "bats: error: could not parse the plan" "no TAP: raw output shown"
 assert_contains "$out" "bats: 0 passed, 0 failed — full log: " "no TAP: summary line"
 
+echo "=== a log with no trailing newline still leaves the count its own line ==="
+run_runner "1..0
+ERROR: Found no tests." 1 tests/a.bats
+assert_eq "$rc" "1" "unterminated log: exit status"
+if ! grep -qE '^bats: [0-9]* passed, [0-9]* failed' <<<"$out"; then
+    fail "unterminated log: no line starts with the count"
+    printf '  --- output ---\n%s\n  --------------\n' "$out" >&2
+fi
+assert_contains "$out" "ERROR: Found no tests." "unterminated log: the log's last line is shown"
+
 echo "=== a run that ran no test is a failure, not a pass ==="
 run_runner "1..0
 " 0 tests/a.bats --filter "no such test"
@@ -187,7 +197,7 @@ fi
 echo "=== no bats on PATH is a reported failure, not a silent pass ==="
 tools="$sandbox/tools"
 mkdir -p "$tools"
-for t in mktemp grep awk cat dirname rm; do
+for t in mktemp grep awk cat tail dirname rm; do
     ln -s "$(command -v "$t")" "$tools/$t"
 done
 rc=0
@@ -202,4 +212,4 @@ if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
     exit 1
 fi
-printf '\nrun-bats ok (green, red, ok-only failure, no-TAP, zero tests, partial skip, all skipped, args, log collision, no bats)\n'
+printf '\nrun-bats ok (green, red, ok-only failure, no-TAP, unterminated log, zero tests, partial skip, all skipped, args, log collision, no bats)\n'
