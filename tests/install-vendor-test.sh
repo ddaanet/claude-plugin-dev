@@ -323,6 +323,7 @@ allow_file git -C "$consumer" submodule add -q "$sandbox/consumer-memory-origin.
 git -C "$consumer" add .claude-plugin/plugin.json
 git -C "$consumer" commit -qm "consumer: manifest and code submodule"
 git -C "$consumer" config submodule.vendor\ dir.ignore all
+git_id "$consumer/vendor dir"
 git -C "$consumer/vendor dir" commit --allow-empty -qm advance
 run_in "$consumer" allow_file env TOOLKIT_URL="$toolkit" bash "$repo_root/toolkit/install.sh" dist-v1
 if [ "$rc" -eq 0 ]; then fail "install.sh vendored beside a moved ignore=all submodule"; fi
