@@ -216,9 +216,10 @@ just release [patch|minor|major]
 ```
 
 `release` bumps `toolkit/VERSION`, commits `release: X.Y.Z`, cuts both tags,
-pushes, and creates the GitHub release. It refuses to run on a dirty tree or
-when `VERSION` disagrees with the latest tag — the same invariant the consumer
-recipe protects on `plugin.json`.
+pushes, and creates the GitHub release. It refuses to run on a dirty tree —
+except `TASK.md` and `TODO.md`, which ride the release commit — or when
+`VERSION` disagrees with the latest tag — the same invariant the consumer recipe
+protects on `plugin.json`.
 
 Don't run `release.just`'s recipes from this repo: they expect a consumer-shaped
 layout and will fail or produce nonsense here.
