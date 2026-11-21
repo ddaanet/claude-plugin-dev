@@ -4,7 +4,9 @@
 #
 # Scope: what counts as a clean tree -- a resting memory submodule is exempt; a
 # staged handoff frame under .claude, like any other dirty path, refuses -- in
-# the plugin root and the marketplace repo.
+# the plugin root and the marketplace repo; and the root TASK.md and TODO.md,
+# exempt in the plugin root, where the release commit takes them, and not in
+# the marketplace repo.
 # Siblings: the other tests/release-*-test.sh suites, one per scenario group
 # (release-core, -resume-push, -resume-hint, -tree, -tree-submodule, -first,
 # -lost-tag, -push-route, -tags, -rollback, -pipefail, -hint-size).
@@ -246,9 +248,10 @@ run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "1" "spaced-path exit code"
 # The leading indent is the assertion: the whole path sits on one reported line.
 assert_contains "$out" "        a tracked file.txt$" "spaced path reported whole"
-# No memory store is mounted here, so no exemption exists to list: the header
-# that introduces the list is not printed over an empty one.
-assert_not_contains "$out" "exempt from this check" "spaced path: no exemption header without an exemption"
+# No memory store is mounted here, so the handoff files are the only exemption
+# the list names.
+assert_contains "$out" "        TASK.md — " "spaced path: the handoff exemption is listed"
+assert_not_contains "$out" "gitlore memory submodule" "spaced path: no memory exemption without a store"
 
 echo "=== release: proceeds with a resting memory submodule in the marketplace repo ==="
 new_sandbox "1.2.3"
@@ -298,9 +301,9 @@ run_in "$plugin" bash plugin-dev/release.sh patch
 assert_eq "$rc" "1" "staged-frame release exit code"
 assert_contains "$out" "uncommitted changes" "staged-frame release message"
 assert_contains "$out" ".claude/handoff-task.md" "staged-frame release names the offending path"
-# No memory store is mounted, so the list of exemptions applied is empty and its
-# header is not printed; the message claims no exemption it did not apply.
-assert_not_contains "$out" "exempt from this check" "staged-frame prints no exemption header"
+# No memory store is mounted, so the list of exemptions applied names the
+# handoff files alone; the message claims no exemption it did not apply.
+assert_contains "$out" "        TODO.md — " "staged-frame lists the handoff exemption"
 assert_not_contains "$out" "gitlore memory submodule" "staged-frame claims no memory exemption"
 assert_not_contains "$out" ".claude/ — agent working state" "staged-frame names no .claude exemption"
 assert_eq "$(git -C "$plugin" rev-parse HEAD)" "$frame_head" "staged-frame refusal commits nothing"
@@ -333,6 +336,36 @@ assert_eq "$rc" "1" "staged-reverted file exit code"
 assert_contains "$out" "uncommitted changes" "staged-reverted file message"
 assert_contains "$out" "        notes file.md$" "staged-reverted file names the spaced path whole"
 assert_eq "$(cat "$GH_LOG")" "" "staged-reverted file release must not call gh"
+
+echo "=== release: the release commit takes a modified TODO.md and a deleted TASK.md ==="
+new_sandbox "1.2.3"
+printf 'task\n' > "$plugin/TASK.md"
+printf 'todo\n' > "$plugin/TODO.md"
+git -C "$plugin" add TASK.md TODO.md
+git -C "$plugin" commit -qm "handoff files"
+git -C "$plugin" push -q origin main
+printf 'todo, release done\n' > "$plugin/TODO.md"
+rm "$plugin/TASK.md"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "0" "handoff-files release exit code ($out)"
+assert_contains "$out" "Release v1.2.4 complete" "handoff-files release summary"
+assert_eq "$(git -C "$plugin" diff-tree --no-commit-id --name-status -r HEAD | sort)" \
+    "$(printf 'D\tTASK.md\nM\t.claude-plugin/plugin.json\nM\tTODO.md')" \
+    "the release commit carries the manifest and both handoff files"
+assert_eq "$(git -C "$plugin" status --porcelain)" "" "handoff-files release leaves the tree clean"
+
+echo "=== release: a dirty TODO.md in the marketplace repo still refuses ==="
+new_sandbox "1.2.3"
+printf 'todo\n' > "$marketplace/TODO.md"
+git -C "$marketplace" add TODO.md
+git -C "$marketplace" commit -qm "todo"
+printf 'todo, edited\n' > "$marketplace/TODO.md"
+run_in "$plugin" bash plugin-dev/release.sh patch
+assert_eq "$rc" "1" "dirty marketplace TODO.md exit code"
+assert_contains "$out" "$MARKETPLACE_DIR has uncommitted changes" "dirty marketplace TODO.md message"
+assert_contains "$out" "        TODO.md$" "dirty marketplace TODO.md names the path"
+assert_not_contains "$out" "exempt from this check" "the marketplace repo has no handoff exemption"
+assert_eq "$(cat "$GH_LOG")" "" "dirty marketplace TODO.md release must not call gh"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2

@@ -56,7 +56,9 @@ bump_commit_tag() {
     if [ "$first_release" = 1 ]; then
         # The manifest already holds $V — a first release publishes it as-is, so
         # there is nothing to rewrite and nothing to commit. Tag HEAD, which
-        # common_preflight has already established is clean and on main or dev.
+        # common_preflight has already established is on main or dev and clean
+        # but for its exemptions; with no commit to take them, a dirty TASK.md
+        # or TODO.md stays dirty for the next one.
         git tag -a "$tag" -m "Release $V"
         acted=1
         note "tag: $tag created locally (manifest already at $V)"
@@ -68,6 +70,15 @@ bump_commit_tag() {
     jq --arg v "$V" '.version = $v' "$manifest" > "$tmp"
     mv "$tmp" "$manifest"
     git add "$manifest"
+    # The handoff files clean_pathspecs exempts in the plugin repo ride this
+    # commit, a deletion staged as one. Listed from the diff, because `git add`
+    # of a path neither on disk nor tracked fails. A commit the gate refuses
+    # leaves them staged, which is harmless: they stay exempt.
+    local handoff=() p
+    while IFS= read -r -d '' p; do
+        handoff+=("$p")
+    done < <(git diff -z --name-only HEAD -- ':(literal)TASK.md' ':(literal)TODO.md')
+    [ "${#handoff[@]}" -eq 0 ] || git add -A -- "${handoff[@]}"
     # A consumer's pre-commit hook can refuse this commit. Dying here with the
     # bump written and staged strands it: nothing committed, nothing tagged, and
     # a dirty manifest that then blocks BOTH a re-run and --resume on

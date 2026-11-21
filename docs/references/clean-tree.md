@@ -1,20 +1,22 @@
 # The clean-tree check
 
-Why `common_preflight` exempts only the memory gitlink from its dirty-tree
-refusal, and why `update.sh` and `install.sh` leave that gitlink pending, split
-out of
+Why `common_preflight` exempts the memory gitlink, and in the plugin repo the
+handoff files, from its dirty-tree refusal and nothing else, and why `update.sh`
+and `install.sh` leave that gitlink pending, split out of
 [recovery.md](recovery.md), which holds the other pre-flight state checks. The
 conclusions these arguments support are listed in
 [../design.md](../design.md).
 
-## The clean-tree check exempts only the memory gitlink
+## The clean-tree check exempts the memory gitlink and the handoff files
 
 `common_preflight` refuses to release from a dirty tree, in the plugin repo and
-in `MARKETPLACE_DIR` alike. One path is exempt: the gitlore memory submodule. An
-agent session moves it between commits by design, so its being ahead of HEAD is
-the resting state rather than unfinished work. It applies to this repo's own
-release too, where it is a literal pathspec rather than a `.gitmodules` lookup —
-see [self-release.md](self-release.md).
+in `MARKETPLACE_DIR` alike. One path is exempt in both: the gitlore memory
+submodule. An agent session moves it between commits by design, so its being
+ahead of HEAD is the resting state rather than unfinished work. It applies to
+this repo's own release too, where it is a literal pathspec rather than a
+`.gitmodules` lookup — see [self-release.md](self-release.md). The plugin repo
+also exempts its root `TASK.md` and `TODO.md`, which the release commit takes
+(see "The release commit takes the handoff files" below).
 
 ### `.claude/` is not exempt
 
@@ -39,16 +41,16 @@ removal brings back.
 What it costs, accepted. An uncommitted edit to a tracked
 `.claude/settings.json` (the version-guard wiring) or to
 `.claude/gitlore-hook-setup` (gitlore's tracked install state) stops a release
-until it is committed. A dirty `TASK.md` or `TODO.md` refuses too, with no
-replacement exemption: the routine flow is handoff, commit, release. Untracked
-and gitignored files under `.claude/` (`settings.local.json`,
-`gitlore-memory-message`) never appeared in `git diff HEAD` and are unaffected.
+until it is committed. Untracked and gitignored files under `.claude/`
+(`settings.local.json`, `gitlore-memory-message`) never appeared in
+`git diff HEAD` and are unaffected.
 
 The refusal prints its "exempt from this check" list only when an exemption
-applies, so a repo with no memory submodule is told nothing about exemptions it
-does not have. No note says `.claude-plugin/` is not exempt: that note
-disambiguated it from the `.claude` pathspec, and with no such pathspec a dirty
-manifest refuses as any other tracked file does.
+applies, so the marketplace repo with no memory submodule is told nothing about
+exemptions it does not have; the plugin repo's list always names the handoff
+files. No note says `.claude-plugin/` is not exempt: that note disambiguated it
+from the `.claude` pathspec, and with no such pathspec a dirty manifest refuses
+as any other tracked file does.
 
 ### The gitlore memory submodule
 
@@ -107,6 +109,34 @@ This is the toolkit's most specific coupling to gitlore, but not a new one — t
 release tail is already written around gitlore's `pre-push` hook (see "Recovery"
 in [recovery.md](recovery.md)). Naming the submodule gitlore installs is weaker
 than assuming where it installed it.
+
+### The release commit takes the handoff files
+
+`TASK.md` and `TODO.md` at the plugin root are the task frame a `/clear` or
+`/compact` resumes from. They are bookkeeping, which never takes a commit of its
+own: it is amended into the previous commit while that is unpushed, or rides the
+next commit it belongs to. A release blocks both routes. A frame written before
+it, recording the post-release state, refused the release as uncommitted work;
+one written after it found the release commit already pushed, so it could not be
+amended and stayed dirty until an unrelated commit came along.
+
+So the plugin repo's check excludes both as literal pathspecs, the refusal's
+exemption list names them, and `bump_commit_tag` stages whichever differ from
+HEAD into the release commit beside the manifest, a deletion as a deletion. The
+list comes from `git diff -z --name-only HEAD` over the two paths, since a bare
+`git add` of a path neither on disk nor tracked fails. A commit the consumer's
+gate refuses leaves them staged, which is harmless: they stay exempt, and the
+re-run takes them. A first release makes no commit and `--resume` makes none
+either, so neither carries them; a dirty frame then waits for the next commit,
+as it would without the exemption.
+
+The marketplace repo keeps refusing them. No commit there would take them, so an
+exemption would only let them stay dirty past a release.
+
+The paths are hardcoded, as the memory submodule's name is: they are the files
+the handoff skills write, and a configurable list would be a knob for a set of
+two. A file that is not a handoff frame but happens to be named `TASK.md` or
+`TODO.md` at the root rides the release commit unnamed; that is the cost.
 
 ## `update-plugin-dev` leaves the memory pointer pending
 

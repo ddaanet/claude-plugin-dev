@@ -305,8 +305,9 @@ comment states that bound rather than implying full coverage.
 A release that origin's default branch has moved past, and a resume whose tag is
 off `HEAD`'s history, are in [failed-release.md](failed-release.md).
 
-## The clean-tree check exempts only the memory gitlink
+## The clean-tree check exempts the memory gitlink and the handoff files
 
-`common_preflight` exempts only the gitlore memory submodule from its dirty-tree
-refusal; `.claude/` is not exempt. The argument is in
+`common_preflight` exempts the gitlore memory submodule from its dirty-tree
+refusal, and in the plugin repo the root `TASK.md` and `TODO.md`, which the
+release commit takes; `.claude/` is not exempt. The argument is in
 [clean-tree.md](clean-tree.md).

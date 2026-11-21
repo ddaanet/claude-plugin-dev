@@ -138,10 +138,11 @@ present tense.
   acting.
 - A refusal carries the diagnosis and the next command.
 - A commit a consumer's gate refuses is rolled back.
-- The clean-tree check exempts only the gitlore memory gitlink, compares both
-  the worktree and the index to HEAD, and reads the tree whatever submodule
-  ignore setting the consumer has: a moved gitlink refuses, untracked files
-  inside a submodule pass.
+- The clean-tree check exempts only the gitlore memory gitlink, and in the
+  plugin repo the root `TASK.md` and `TODO.md`, which the release commit takes;
+  it compares both the worktree and the index to HEAD, and reads the tree
+  whatever submodule ignore setting the consumer has: a moved gitlink refuses,
+  untracked files inside a submodule pass.
 - **`update-plugin-dev` leaves a moved memory pointer pending**: the pull runs
   with the memory submodule's changes ignored, so it commits nothing and moves
   nothing outside `plugin-dev/`, whatever state the memory checkout is in, and a
