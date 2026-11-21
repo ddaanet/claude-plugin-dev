@@ -16,10 +16,13 @@
 # hook in the fixture fires when the release's tag is created, which is after
 # the ancestry fetch and before the push, and pushes from a second clone.
 # Siblings: the other tests/release-*-test.sh suites, one per scenario group
-# (release-core, -resume-push, -resume-hint, -tree, -first, -lost-tag,
-# -push-route, -tags, -rollback, -pipefail, -hint-size), and
-# release-branch-test.sh, release-branch-resume-test.sh and
-# release-branch-moved-test.sh for the other halves of the same contract.
+# (release-core, -resume-push, -resume-hint, -tree, -tree-submodule, -first,
+# -lost-tag, -push-route, -tags, -rollback, -pipefail, -hint-size, -handoff),
+# and release-branch-test.sh, release-branch-resume-test.sh,
+# release-branch-moved-test.sh, release-worktree-test.sh,
+# release-dist-optin-test.sh, release-dist-publish-test.sh,
+# release-dist-refusal-test.sh, release-dist-resume-test.sh,
+# release-core-root-skip-test.sh.
 #
 # Usage: bash tests/release-branch-moved-dev-test.sh   (run from repo root)
 set -euo pipefail
@@ -374,7 +377,7 @@ check_refused "moved, later commits" v1.2.4 patch
 if run_undo "moved, later commits"; then
     assert_contains "$undo_cmds" "git tag -d v1.2.4" "moved, later commits: undo drops the tag"
     assert_contains "$undo_cmds" "jq " "moved, later commits: HEAD is past the release commit, so jq"
-    assert_not_contains "$undo_cmds" "reset --hard" "moved, later commits: history is not rewritten"
+    assert_not_contains "$undo_cmds" "git reset" "moved, later commits: history is not rewritten"
     assert_contains "$undo_cmds" "git branch -f main origin/main" "moved, later commits: main rewound"
     assert_eq "$(git -C "$plugin" ls-tree HEAD memory)" "$(printf '160000 commit %s\tmemory' "$g2")" "moved, later commits: gitlink still the later commit's"
     git -C "$plugin" merge-base --is-ancestor "$later" HEAD \
@@ -399,7 +402,7 @@ check_refused "moved, first release" v0.1.0 ""
 if run_undo "moved, first release"; then
     assert_contains "$undo_cmds" "git tag -d v0.1.0" "moved, first release: undo drops the tag"
     assert_not_contains "$undo_cmds" "jq " "moved, first release: no bump to drop"
-    assert_not_contains "$undo_cmds" "reset --hard" "moved, first release: no release commit to reset"
+    assert_not_contains "$undo_cmds" "git reset" "moved, first release: no release commit to reset"
     assert_contains "$undo_cmds" "git branch -f main origin/main" "moved, first release: main rewound"
     run_in "$plugin" bash plugin-dev/release.sh
     check_rerun "moved, first release" v0.1.0 dev

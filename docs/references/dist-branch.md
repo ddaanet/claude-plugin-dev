@@ -85,8 +85,10 @@ published rule. They are computed on the result tree only.
 
 `claude plugin validate --strict` runs on the tree extracted with `git archive`,
 in the release pre-flight, before the bump commit. A failure leaves no commit
-and no tag. The bump commit changes only `.version` in `plugin.json`, so the
-validated tree and the shipped one differ in that string alone.
+and no tag. The bump commit changes `.version` in `plugin.json` and takes the
+root `TASK.md` and `TODO.md` as they are on disk, so the validated tree and the
+shipped one differ in that string, and in those two files only where
+`dist.include` lists them.
 
 The dist pre-flight is its own step after `release_preflight`, because
 `release_preflight` returns early on a first release, and the first release is

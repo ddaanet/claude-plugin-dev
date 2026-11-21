@@ -54,33 +54,47 @@ ls_remote_sha() {
 bump_commit_tag() {
     printf '%s\n' "$V" > toolkit/VERSION
     git add toolkit/VERSION
-    # The handoff files common_preflight exempts ride this commit, as
-    # toolkit/release-publish.sh's bump_commit_tag takes them: a tracked one
-    # that differs from HEAD, a deletion staged as one, and an untracked one
-    # git does not ignore. Listed first, because `git add` of a path neither on
-    # disk nor tracked fails.
+    # The handoff files common_preflight exempts ride this commit as they are
+    # on disk, as toolkit/release-publish.sh's bump_commit_tag takes them:
+    # present, their content; absent, deleted. The list is every one that
+    # differs from HEAD on disk or in the index, and an untracked one git does
+    # not ignore. `update-index --add --remove` stages what the disk holds
+    # whatever the index held before, where `git add` of a path neither on
+    # disk nor in the index fails.
     local handoff=() p
     while IFS= read -r -d '' p; do
         handoff+=("$p")
     done < <(git diff -z --name-only HEAD -- ':(literal)TASK.md' ':(literal)TODO.md'
+             git diff -z --name-only --cached HEAD -- ':(literal)TASK.md' ':(literal)TODO.md'
              git ls-files -z -o --exclude-standard -- ':(literal)TASK.md' ':(literal)TODO.md')
-    [ "${#handoff[@]}" -eq 0 ] || git add -A -- "${handoff[@]}"
+    if [ "${#handoff[@]}" -gt 0 ]; then
+        git update-index --add --remove -- "${handoff[@]}" \
+            || rollback_bump "could not stage the handoff files" "${handoff[@]}"
+    fi
     # This repo's own pre-commit hook runs `just precommit`, and it can refuse.
     # Dying with the bump written and staged strands it, where common_preflight's
     # "uncommitted changes" then blocks both a re-run and --resume while naming
-    # neither the gate nor the leftover. Restoring from HEAD leaves the tree as
-    # this run found it, so satisfying the gate and re-running is the whole
-    # recovery.
-    git commit -qm "release: $V" || {
-        git checkout HEAD -- toolkit/VERSION
-        [ "${#handoff[@]}" -eq 0 ] || git reset -q HEAD -- "${handoff[@]}"
-        printf 'hint: toolkit/VERSION was rolled back and nothing was tagged.\n' >&2
-        printf '      fix what the gate reported above, then run the same command again.\n' >&2
-        die "commit gate refused the release commit"
-    }
+    # neither the gate nor the leftover. rollback_bump puts toolkit/VERSION
+    # back, so satisfying the gate and re-running is the whole recovery.
+    git commit -qm "release: $V" \
+        || rollback_bump "commit gate refused the release commit" "${handoff[@]+"${handoff[@]}"}"
     git tag -a "$tag" -m "Release $V"
     acted=1
     note "VERSION + tag: $tag created locally"
+}
+
+rollback_bump() {
+    # $1=the error to die with, rest=the handoff paths bump_commit_tag staged.
+    # Restores toolkit/VERSION from HEAD and unstages those paths back to HEAD
+    # in the index, whatever was staged in them before the run; their content
+    # on disk is untouched.
+    local why="$1"
+    shift
+    git checkout HEAD -- toolkit/VERSION
+    [ "$#" -eq 0 ] || git reset -q HEAD -- "$@"
+    printf 'hint: toolkit/VERSION was rolled back and nothing was tagged.\n' >&2
+    printf '      fix what was reported above, then run the same command again.\n' >&2
+    die "$why"
 }
 
 ensure_dist_tag() {

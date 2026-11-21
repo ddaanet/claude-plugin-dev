@@ -18,6 +18,18 @@ common_preflight() {
     # script has to discover. TASK.md and TODO.md are excluded as the consumer
     # release excludes them: bump_commit_tag stages them into the release
     # commit.
+    # An unmerged handoff file refuses first: bump_commit_tag stages it as it
+    # is on disk, which marks it resolved and commits its conflict markers.
+    local unmerged=() p
+    while IFS= read -r -d '' p; do
+        unmerged+=("$p")
+    done < <(git diff -z --name-only --diff-filter=U -- ':(literal)TASK.md' ':(literal)TODO.md')
+    if [ "${#unmerged[@]}" -gt 0 ]; then
+        printf 'hint: these handoff files are unmerged, which the release commit would take as resolved:\n' >&2
+        printf '        %s\n' "${unmerged[@]}" >&2
+        printf '      resolve and stage them, then run the same command again.\n' >&2
+        die "unmerged handoff file"
+    fi
     git diff --quiet HEAD -- . ':(exclude)memory' \
         ':(exclude,literal)TASK.md' ':(exclude,literal)TODO.md' \
         || die "uncommitted changes"

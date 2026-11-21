@@ -6,20 +6,23 @@
 # Scope: the release is refused with nothing public and prints the undo; the
 # test then runs the printed commands VERBATIM, parsed out of the output, never
 # a hand-written equivalent, and releases again with the same bump. The new
-# tag's commit must carry the other writer's commit and be origin's main. Three
-# states: from main; from dev with HEAD at the release commit; a first release
-# from main after a hand commit changed the manifest's version, which is not a
-# bump to drop. The later-commits and first-release-from-dev states are in
+# tag's commit must carry the other writer's commit and be origin's main. Four
+# states: from main; from dev with HEAD at the release commit; the undo keeps
+# the handoff files the release commit took; a first release from main after a
+# hand commit changed the manifest's version, which is not a bump to drop. The later-commits and first-release-from-dev states are in
 # release-branch-moved-dev-test.sh.
 #
 # The other writer moves origin from inside the run: a reference-transaction
 # hook in the fixture fires when the release's tag is created, which is after
 # the ancestry fetch and before the push, and pushes from a second clone.
 # Siblings: the other tests/release-*-test.sh suites, one per scenario group
-# (release-core, -resume-push, -resume-hint, -tree, -first, -lost-tag,
-# -push-route, -tags, -rollback, -pipefail, -hint-size), and
-# release-branch-test.sh, release-branch-resume-test.sh and
-# release-branch-moved-dev-test.sh for the other halves of the same contract.
+# (release-core, -resume-push, -resume-hint, -tree, -tree-submodule, -first,
+# -lost-tag, -push-route, -tags, -rollback, -pipefail, -hint-size, -handoff),
+# and release-branch-test.sh, release-branch-resume-test.sh,
+# release-branch-moved-dev-test.sh, release-worktree-test.sh,
+# release-dist-optin-test.sh, release-dist-publish-test.sh,
+# release-dist-refusal-test.sh, release-dist-resume-test.sh,
+# release-core-root-skip-test.sh.
 #
 # Usage: bash tests/release-branch-moved-test.sh   (run from repo root)
 set -euo pipefail
@@ -337,7 +340,9 @@ moved_sha
 check_refused "moved, from main" v1.2.4 patch
 assert_contains "$out" "git tag -d v1.2.4" "moved, from main: printed undo drops the tag"
 if run_undo "moved, from main"; then
-    assert_contains "$undo_cmds" "git reset --hard HEAD~1" "moved, from main: HEAD is the release commit, so reset"
+    assert_contains "$undo_cmds" "git reset -q HEAD~1" "moved, from main: HEAD is the release commit, so reset"
+    assert_contains "$undo_cmds" "git checkout HEAD -- .claude-plugin/plugin.json" "moved, from main: the manifest goes back with the reset"
+    assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "1.2.3" "moved, from main: undo restores the manifest"
     assert_not_contains "$undo_cmds" "git branch -f" "moved, from main: main is checked out, nothing to rewind"
     assert_eq "$(rev HEAD)" "$other_sha" "moved, from main: undo leaves HEAD at the other writer's commit"
     run_in "$plugin" bash plugin-dev/release.sh patch
@@ -355,12 +360,36 @@ moved_sha
 check_refused "moved, from dev" v1.2.4 patch
 assert_contains "$out" "git tag -d v1.2.4" "moved, from dev: printed undo drops the tag"
 if run_undo "moved, from dev"; then
-    assert_contains "$undo_cmds" "git reset --hard HEAD~1" "moved, from dev: HEAD is the release commit, so reset"
+    assert_contains "$undo_cmds" "git reset -q HEAD~1" "moved, from dev: HEAD is the release commit, so reset"
     assert_contains "$undo_cmds" "git branch -f main origin/main" "moved, from dev: the run moved main, so rewind it"
     assert_eq "$(rev refs/heads/main)" "$other_sha" "moved, from dev: undo rewinds local main to origin's"
     assert_eq "$(branch_now)" "dev" "moved, from dev: undo leaves dev checked out"
     run_in "$plugin" bash plugin-dev/release.sh patch
     check_rerun "moved, from dev" v1.2.4 dev
+fi
+
+echo "=== origin moved before the push, the undo keeps the handoff files the release commit took ==="
+new_sandbox "1.2.3"
+printf 'todo\n' > "$plugin/TODO.md"
+git -C "$plugin" add TODO.md
+git -C "$plugin" commit -qm "todo"
+git -C "$plugin" push -q origin main
+writer_clone
+printf 'todo, release done\n' > "$plugin/TODO.md"
+printf 'task frame\n' > "$plugin/TASK.md"
+install_prepush
+install_mover v1.2.4
+run_in "$plugin" bash plugin-dev/release.sh patch
+moved_sha
+check_refused "moved, handoff files" v1.2.4 patch
+if run_undo "moved, handoff files"; then
+    assert_eq "$(cat "$plugin/TODO.md")" "todo, release done" "moved, handoff files: undo keeps the edited TODO.md on disk"
+    assert_eq "$(cat "$plugin/TASK.md" 2>&1)" "task frame" "moved, handoff files: undo keeps the untracked TASK.md on disk"
+    assert_eq "$(git -C "$plugin" status --porcelain | sort)" "$(printf ' M TODO.md\n?? TASK.md')" \
+        "moved, handoff files: undo leaves them uncommitted and the manifest clean"
+    run_in "$plugin" bash plugin-dev/release.sh patch
+    check_rerun "moved, handoff files" v1.2.4 main
+    assert_eq "$(git -C "$plugin" show v1.2.4:TODO.md)" "todo, release done" "moved, handoff files: the second release takes TODO.md"
 fi
 
 echo "=== origin moved before the push, a first release from main after a hand version commit ==="
@@ -382,7 +411,7 @@ assert_not_contains "$out" "just release minor" "moved, first release after hand
 assert_not_contains "$out" "just release major" "moved, first release after hand bump: rerun names no bump (major)"
 if run_undo "moved, first release after hand bump"; then
     assert_contains "$undo_cmds" "git tag -d v0.1.0" "moved, first release after hand bump: undo drops the tag"
-    assert_not_contains "$undo_cmds" "reset --hard" "moved, first release after hand bump: the hand commit is not a release commit to reset"
+    assert_not_contains "$undo_cmds" "git reset" "moved, first release after hand bump: the hand commit is not a release commit to reset"
     assert_not_contains "$undo_cmds" "jq " "moved, first release after hand bump: no bump to drop"
     git -C "$plugin" merge-base --is-ancestor "$hand_version" HEAD \
         || fail "moved, first release after hand bump: the hand version commit is no longer an ancestor of HEAD"

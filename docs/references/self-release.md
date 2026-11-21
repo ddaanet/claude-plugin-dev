@@ -37,10 +37,11 @@ is not consumer-shaped code and does not have to generalise.
 The root `TASK.md` and `TODO.md` are excluded too, and its `bump_commit_tag`
 takes them into the release commit as the consumer's does, for the reason "The
 release commit takes the handoff files" in [clean-tree.md](clean-tree.md) gives:
-a tracked one that differs from HEAD, a deletion as a deletion, and an untracked
-one git does not ignore. A commit the gate refuses unstages them with the
-`toolkit/VERSION` rollback, so the tree is as the run found it. The logic is a
-copy, not a call into `toolkit/`, as the rest of the script is.
+each as it is on disk, whatever the index held, and an unmerged one refused in
+the pre-flight. A staging failure or a commit the gate refuses restores
+`toolkit/VERSION` and unstages them back to HEAD, their content on disk
+untouched. The logic is a copy, not a call into `toolkit/`, as the rest of the
+script is.
 
 ## The shape it shares, and the one guard it adds
 

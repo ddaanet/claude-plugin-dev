@@ -4,17 +4,21 @@ The suites `just precommit` runs under `tests/` (every `*-test.sh`, by glob;
 this file only describes them), and what each covers.
 
 `version-guard-{decision,wording,git}-test.sh`, `check-version-test.sh`, the
-seventeen `release-*-test.sh` suites that split `release.sh`'s consumer flow by
+eighteen `release-*-test.sh` suites that split `release.sh`'s consumer flow by
 scenario group (`release-core`, `-resume-push`, `-resume-hint`, `-tree`,
-`-tree-submodule`, `-first`, `-lost-tag`, `-push-route`, `-tags`, `-rollback`,
-`-pipefail`, `-hint-size`, and the five that release from `dev`: `-branch`,
-`-branch-resume`, `-branch-moved`, `-branch-moved-dev`, `-worktree` (main held
-by another worktree refuses before any commit or tag)),
+`-tree-submodule`, `-handoff` (the root `TASK.md` and `TODO.md` the release
+commit takes, staged-only, `git rm`'d, ignored or unmerged, and a staging
+failure rolled back), `-first`, `-lost-tag`, `-push-route`, `-tags`,
+`-rollback`, `-pipefail`, `-hint-size`, and the five that release from `dev`:
+`-branch`, `-branch-resume`, `-branch-moved`, `-branch-moved-dev`, `-worktree`
+(main held by another worktree refuses before any commit or tag)),
 `release-core-root-skip-test.sh` (which runs the `release-core` suite under a
 stub `id` printing 0, to pin its root guard),
 `release-dist-{publish,resume,refusal,optin}-test.sh` (`release.sh` publishing
-the `dist` branch), `self-release-{publish,refusal,branch,amend}-test.sh`
-(`-branch`: releasing from `dev`; `-amend`: an amended release commit),
+the `dist` branch),
+`self-release-{publish,refusal,branch,amend,handoff}-test.sh` (`-branch`:
+releasing from `dev`; `-amend`: an amended release commit; `-handoff`: the
+handoff files the release commit takes, as `release-handoff`),
 `update-plugin-dev-test.sh`, `update-plugin-dev-memory-test.sh` (a moved gitlore
 memory pointer, unstaged, staged, behind, diverged or beside dirt in the store,
 left as it was and out of the merge; a failed pull leaving it staged; any other

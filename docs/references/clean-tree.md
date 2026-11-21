@@ -116,24 +116,36 @@ than assuming where it installed it.
 `TASK.md` and `TODO.md` at the plugin root are the task frame a `/clear` or
 `/compact` resumes from. They are bookkeeping, which never takes a commit of its
 own: it is amended into the previous commit while that is unpushed, or rides the
-next commit it belongs to. A release blocks both routes. A frame written before
-it, recording the post-release state, refused the release as uncommitted work;
-one written after it found the release commit already pushed, so it could not be
-amended and stayed dirty until an unrelated commit came along.
+next commit it belongs to. A release blocks both routes. Without the exemption,
+a frame written before it, recording the post-release state, refuses the release
+as uncommitted work; one written after it finds the release commit already
+pushed, so it cannot be amended and stays dirty until an unrelated commit comes
+along.
 
 So the plugin repo's check excludes both as literal pathspecs, the refusal's
-exemption list names them, and `bump_commit_tag` stages into the release commit
-beside the manifest whichever differ from HEAD, a deletion as a deletion, and
-whichever is untracked and not ignored: a frame written after the release that
-deleted it is new again. The list is the union of `git diff -z --name-only HEAD`
-and `git ls-files -z -o --exclude-standard` over the two paths, since a bare
-`git add` of a path neither on disk nor tracked fails; an ignored frame is the
-consumer's choice and stays out. A commit the consumer's gate refuses unstages
-them with the manifest's rollback, so a file left unstaged before the run is
-unstaged after it and does not ride the commit that fixes the gate; the re-run
-takes them. A first release makes no commit and `--resume` makes none either, so
-neither carries them; a dirty frame then waits for the next commit, as it would
-without the exemption.
+exemption list names them, and `bump_commit_tag` stages them into the release
+commit beside the manifest as they are on disk: a file present is committed with
+its content, one absent as deleted, whatever the index held. A staged blob the
+worktree has since put back, a `git rm`, a `git rm --cached` of a tracked file
+that is now ignored: each is committed as the disk has it, since a commit of the
+index would publish a blob that is on no disk. The list is the union of
+`git diff -z --name-only HEAD`, the same with `--cached`, and
+`git ls-files -z -o --exclude-standard` over the two paths, and
+`git update-index --add --remove` stages it, which takes a path absent from both
+disk and index where `git add` fails. An untracked, ignored frame is the
+consumer's choice and stays out; a frame written after the release that deleted
+it is new again, and rides it. An unmerged one is refused in the pre-flight with
+its name, because staging it from disk marks it resolved and would commit its
+conflict markers.
+
+A failure while staging them, or a commit the consumer's gate refuses, goes
+through one rollback: the manifest is restored from HEAD and the handoff paths
+are unstaged back to HEAD, whatever was staged in them before the run, their
+content on disk untouched. A file left unstaged before the run is unstaged after
+it and does not ride the commit that fixes the gate; the re-run takes them. A
+first release makes no commit and `--resume` makes none either, so neither
+carries them; a dirty frame then waits for the next commit, as it would without
+the exemption.
 
 The marketplace repo keeps refusing them. No commit there would take them, so an
 exemption would only let them stay dirty past a release.

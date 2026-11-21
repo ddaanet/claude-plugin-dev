@@ -18,15 +18,20 @@ runs none of it, because it rewrites local history:
 1. `git fetch --no-tags origin`.
 2. `git tag -d <tag>`.
 3. Drop the bump, when the release commit changed the manifest's version and an
-   earlier release tag exists. If it is `HEAD`, `git reset --hard HEAD~1`.
-   Otherwise a `jq '.version = "<previous>"'` write over the manifest and a
-   commit of it. A `rebase --onto` that drops the commit conflicts on the
-   `memory` gitlink whenever a later commit moved it too, and restoring the
-   manifest with `git checkout <rel>^ --` discards a later manifest edit, so
-   neither is used; the jq commit rewrites no history and leaves the gitlink. A
-   first release has no bump, decided by the absence of an earlier release tag,
-   since the commit it tags may have set the version by hand: a reset there
-   would drop work. A failed tag listing reads as none, for the same reason.
+   earlier release tag exists. If it is `HEAD`, `git reset -q HEAD~1` and
+   `git checkout HEAD -- <manifest>`. The release commit also took the root
+   `TASK.md` and `TODO.md`, and a hard reset would revert an edited one and
+   delete an untracked one from disk; the mixed reset leaves them on disk as the
+   release commit had them, uncommitted, for the next release to take, and the
+   checkout puts the manifest back to its previous version. Otherwise a
+   `jq '.version = "<previous>"'` write over the manifest and a commit of it. A
+   `rebase --onto` that drops the commit conflicts on the `memory` gitlink
+   whenever a later commit moved it too, and restoring the manifest with
+   `git checkout <rel>^ --` discards a later manifest edit, so neither is used;
+   the jq commit rewrites no history and leaves the gitlink. A first release has
+   no bump, decided by the absence of an earlier release tag, since the commit
+   it tags may have set the version by hand: a reset there would drop work. A
+   failed tag listing reads as none, for the same reason.
 4. From `dev` only, `git branch -f <main> origin/<main>`, since the run moved
    local main; from main it is absent.
 5. `git merge --no-edit origin/<main>`.

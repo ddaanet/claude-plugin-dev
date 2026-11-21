@@ -15,8 +15,10 @@ dist_preflight() {
     # Release mode, after release_preflight and before bump_commit_tag, so a
     # refusal here leaves no commit and no tag. It runs as its own step because
     # release_preflight returns early on a first release. The tree is checked as
-    # it stands at HEAD: the bump changes only .version, so the tree push_dist
-    # ships differs from this one in that string alone.
+    # it stands at HEAD: the release commit changes .version and takes the root
+    # TASK.md and TODO.md as they are on disk, so the tree push_dist ships
+    # differs from this one in that string, and in those two files only where
+    # dist.include lists them.
     dist_opted_in HEAD
     [ "$dist_on" = 1 ] || return 0
     command -v claude >/dev/null 2>&1 \
@@ -71,32 +73,49 @@ bump_commit_tag() {
     mv "$tmp" "$manifest"
     git add "$manifest"
     # The handoff files clean_pathspecs exempts in the plugin repo ride this
-    # commit: a tracked one that differs from HEAD, a deletion staged as one,
-    # and an untracked one git does not ignore. Listed first, because `git add`
-    # of a path neither on disk nor tracked fails. A commit the gate refuses
-    # unstages them again below.
+    # commit as they are on disk: present, their content; absent, deleted. The
+    # list is every one that differs from HEAD on disk or in the index, and an
+    # untracked one git does not ignore. `update-index --add --remove` stages
+    # what the disk holds whatever the index held before — a staged blob the
+    # worktree since put back, a `git rm`, a `git rm --cached` of an ignored
+    # file — where `git add` of a path neither on disk nor in the index fails.
     local handoff=() p
     while IFS= read -r -d '' p; do
         handoff+=("$p")
     done < <(git diff -z --name-only HEAD -- ':(literal)TASK.md' ':(literal)TODO.md'
+             git diff -z --name-only --cached HEAD -- ':(literal)TASK.md' ':(literal)TODO.md'
              git ls-files -z -o --exclude-standard -- ':(literal)TASK.md' ':(literal)TODO.md')
-    [ "${#handoff[@]}" -eq 0 ] || git add -A -- "${handoff[@]}"
+    if [ "${#handoff[@]}" -gt 0 ]; then
+        git update-index --add --remove -- "${handoff[@]}" \
+            || rollback_bump "$prev" "could not stage the handoff files" "${handoff[@]}"
+    fi
     # A consumer's pre-commit hook can refuse this commit. Dying here with the
     # bump written and staged strands it: nothing committed, nothing tagged, and
     # a dirty manifest that then blocks BOTH a re-run and --resume on
     # common_preflight's "uncommitted changes" — which names neither the gate nor
-    # the leftover. Restoring from HEAD leaves the tree as this run found it, so
-    # satisfying the gate and re-running is the whole recovery.
-    git commit -m "release: $V" || {
-        git checkout HEAD -- "$manifest"
-        [ "${#handoff[@]}" -eq 0 ] || git reset -q HEAD -- "${handoff[@]}"
-        printf 'hint: the manifest was rolled back to %s and nothing was tagged.\n' "$prev" >&2
-        printf '      fix what the gate reported above, then run the same command again.\n' >&2
-        die "commit gate refused the release commit"
-    }
+    # the leftover. rollback_bump puts the manifest back, so satisfying the gate
+    # and re-running is the whole recovery.
+    git commit -m "release: $V" \
+        || rollback_bump "$prev" "commit gate refused the release commit" "${handoff[@]+"${handoff[@]}"}"
     git tag -a "$tag" -m "Release $V"
     acted=1
     note "manifest + tag: $tag created locally"
+}
+
+rollback_bump() {
+    # $1=the version the manifest held, $2=the error to die with, rest=the
+    # handoff paths bump_commit_tag staged. Restores the manifest from HEAD and
+    # unstages those paths back to HEAD in the index, whatever was staged in
+    # them before the run; their content on disk is untouched. Nothing is
+    # committed or tagged yet, so the tree is clean but for its exemptions and
+    # the same command runs again.
+    local prev="$1" why="$2"
+    shift 2
+    git checkout HEAD -- "$manifest"
+    [ "$#" -eq 0 ] || git reset -q HEAD -- "$@"
+    printf 'hint: the manifest was rolled back to %s and nothing was tagged.\n' "$prev" >&2
+    printf '      fix what was reported above, then run the same command again.\n' >&2
+    die "$why"
 }
 
 ls_remote_sha() {
@@ -205,8 +224,12 @@ print_undo() {
     # per command, every value substituted from the state read here, and the script
     # runs none of it. The bump is dropped only when the release commit changed the
     # manifest's version, which a first release does not. With HEAD at the release
-    # commit that is a reset; with later commits on top, a new commit restores the
-    # previous version, so history is not rewritten and the gitlink is untouched.
+    # commit that is a mixed reset and a checkout of the manifest: the release
+    # commit also took the root TASK.md and TODO.md, and a hard reset would put
+    # them back to the commit before it, or delete them from disk, where this
+    # leaves them as they are on disk, uncommitted, for the next release to take.
+    # With later commits on top, a new commit restores the previous version, so
+    # history is not rewritten and the gitlink is untouched.
     local prev="" new="" bump="" rerun="just release" step=1 cmd manifest_tmp="$manifest.tmp" earlier=""
     prev=$(git show "$release_commit^:$manifest" 2>/dev/null | jq -r .version 2>/dev/null) || prev=""
     new=$(git show "$release_commit:$manifest" 2>/dev/null | jq -r .version 2>/dev/null) || new=""
@@ -228,7 +251,8 @@ print_undo() {
     step=$((step + 1))
     if [ -n "$bump" ]; then
         if [ "$(git rev-parse HEAD)" = "$release_commit" ]; then
-            printf '      %d. git reset --hard HEAD~1\n' "$step" >&2
+            printf '      %d. git reset -q HEAD~1\n' "$step" >&2
+            printf '         git checkout HEAD -- %s\n' "$manifest" >&2
         else
             cmd="jq '.version = \"$prev\"' $manifest > $manifest_tmp && mv $manifest_tmp $manifest"
             printf '      %d. %s\n' "$step" "$cmd" >&2
