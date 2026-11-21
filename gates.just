@@ -189,8 +189,11 @@ check-sentinel () {
     # One listing for them all, not one per pathspec: `--error-unmatch` has git
     # name every pathspec that matched nothing, by its own pathspec rules and
     # magic, and counts an untracked, non-ignored file as a match. Its lines
-    # are rewrapped under this function's name; any other failure is shown as
-    # git printed it. `LC_ALL=C` keeps the line the rewrap reads untranslated.
+    # are rewrapped under this function's name; any other failure is printed
+    # as git wrote it, behind a `check-sentinel: ` prefix. `LC_ALL=C` keeps the
+    # line the rewrap reads untranslated. The rewrap is per line: a pathspec
+    # containing a newline is still refused, but its message comes out split
+    # across lines, each prefixed, and not rewrapped.
     if [ "${#positive[@]}" -gt 0 ]; then
         unmatched=$(LC_ALL=C git ls-files -z --cached --others --exclude-standard \
             --error-unmatch -- "${positive[@]}" 2>&1 >/dev/null) || {
