@@ -11,10 +11,13 @@
 # built by hand with git and jq, so no script under test sets up another's
 # scenario.
 # Siblings: the other tests/release-*-test.sh suites, one per scenario group
-# (release-core, -resume-push, -resume-hint, -tree, -first, -lost-tag,
-# -push-route, -tags, -rollback, -pipefail, -hint-size), and
-# release-branch-test.sh and release-branch-moved-test.sh for the release-mode
-# and moved-origin halves of the same contract.
+# (release-core, -resume-push, -resume-hint, -tree, -tree-submodule, -first,
+# -lost-tag, -push-route, -tags, -rollback, -pipefail, -hint-size, -handoff),
+# and release-branch-test.sh, release-branch-moved-test.sh,
+# release-branch-moved-dev-test.sh, release-worktree-test.sh,
+# release-dist-optin-test.sh, release-dist-publish-test.sh,
+# release-dist-refusal-test.sh, release-dist-resume-test.sh,
+# release-core-root-skip-test.sh.
 #
 # Usage: bash tests/release-branch-resume-test.sh   (run from repo root)
 set -euo pipefail

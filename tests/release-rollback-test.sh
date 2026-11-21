@@ -5,8 +5,13 @@
 # Scope: a refused commit rolling the bump back, a detached-HEAD marketplace,
 # and a malformed marketplace.json refusing before anything is public.
 # Siblings: the other tests/release-*-test.sh suites, one per scenario group
-# (release-core, -resume-push, -resume-hint, -tree, -first, -lost-tag,
-# -push-route, -tags, -rollback, -pipefail, -hint-size).
+# (release-core, -resume-push, -resume-hint, -tree, -tree-submodule, -first,
+# -lost-tag, -push-route, -tags, -pipefail, -hint-size, -handoff), and
+# release-branch-test.sh, release-branch-resume-test.sh,
+# release-branch-moved-test.sh, release-branch-moved-dev-test.sh,
+# release-worktree-test.sh, release-dist-optin-test.sh,
+# release-dist-publish-test.sh, release-dist-refusal-test.sh,
+# release-dist-resume-test.sh, release-core-root-skip-test.sh.
 #
 # Usage: bash tests/release-rollback-test.sh   (run from repo root)
 set -euo pipefail

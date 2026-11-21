@@ -6,8 +6,13 @@
 # marketplace push was rejected, or whose first publication was, and refusing to
 # move a tag origin already has elsewhere.
 # Siblings: the other tests/release-*-test.sh suites, one per scenario group
-# (release-core, -resume-push, -resume-hint, -tree, -first, -lost-tag,
-# -push-route, -tags, -rollback, -pipefail, -hint-size).
+# (release-core, -resume-hint, -tree, -tree-submodule, -first, -lost-tag,
+# -push-route, -tags, -rollback, -pipefail, -hint-size, -handoff), and
+# release-branch-test.sh, release-branch-resume-test.sh,
+# release-branch-moved-test.sh, release-branch-moved-dev-test.sh,
+# release-worktree-test.sh, release-dist-optin-test.sh,
+# release-dist-publish-test.sh, release-dist-refusal-test.sh,
+# release-dist-resume-test.sh, release-core-root-skip-test.sh.
 #
 # Usage: bash tests/release-resume-push-test.sh   (run from repo root)
 set -euo pipefail
