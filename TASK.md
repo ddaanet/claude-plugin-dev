@@ -1,3 +1,0 @@
-## Current task
-
-Release `dev` as toolkit 0.17.1. Every commit on `dev` since 0.17.0 has had its per-commit review loop closed: the consumer release and the toolkit's own release now exempt TASK.md and TODO.md from the clean-tree check, stage them into the release commit (tracked diffs plus untracked non-ignored), and unstage them on a refused commit. The first action is to invoke `edify:release` from claude-plugin-dev on `dev`.
