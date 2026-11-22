@@ -107,8 +107,8 @@ line and then `just resume-release`. It compares against the tag's tree, never
 `HEAD`'s: a resume's `HEAD` is often past the release with `toolkit/` changed
 since, and a dist tag that matches its tag is right. A dist tag already on
 origin in this state needs no hint, because it is unreachable: main is pushed
-first, then `vX.Y.Z`, then the dist tag, and `common_preflight` refuses once
-origin's `main` holds commits `HEAD` lacks.
+first, then `vX.Y.Z`, then the dist tag, and `origin_main_preflight` refuses
+once origin's `main` holds commits `HEAD` lacks.
 
 ## It releases from `main` or `dev` and publishes the tag's commit
 
@@ -122,8 +122,10 @@ pathspec, because this is the one repo the script runs against. The default
 branch is still read from `origin/HEAD`.
 
 **Refused before anything is written.** `common_preflight` fetches origin and
-dies if the fetch fails, then refuses unless local `main` and `origin/main` are
-both ancestors of `HEAD`. With either holding a commit `HEAD` lacks, the
+dies if the fetch fails, then refuses unless local `main` is an ancestor of
+`HEAD`; `origin_main_preflight` refuses unless `origin/main` is one too, on a
+release right after `common_preflight` and on a resume after
+`published_tags_check`. With either holding a commit `HEAD` lacks, the
 fast-forward of `main` or the push would refuse only after the commit and tags
 were cut, which is the stranded state `resume-release` exists to absorb;
 refusing first costs nothing to undo. This applies on `main` too: a `main` that
@@ -133,7 +135,7 @@ the tag finds it and finishes.
 
 **Origin's `main` moving past a cut release is merged, then resumed.** A push
 that origin moved past between the fetch and the push fails, and the resume's
-`common_preflight` then refuses with a two-command hint:
+`origin_main_preflight` then refuses with a two-command hint:
 `git merge origin/main`, then `just resume-release`. The tag already fixed the
 release, so the merge lands on top of it; `main_target` then makes the merged
 `HEAD` what `main` is moved to and pushed whenever `origin/main` and the tag's
