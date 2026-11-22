@@ -3,13 +3,14 @@
 # origin whose main another writer moved after the release was cut and before
 # its push. No network: origins are local bare repos and `gh` is a stub on PATH.
 #
-# Scope: the release is refused with nothing public and prints the undo; the
-# test then runs the printed commands VERBATIM, parsed out of the output, never
-# a hand-written equivalent, and releases again with the same bump. The new
-# tag's commit must carry the other writer's commit and be origin's main. Four
-# states: from main; from dev with HEAD at the release commit; the undo keeps
-# the handoff files the release commit took; a first release from main after a
-# hand commit changed the manifest's version, which is not a bump to drop. The later-commits and first-release-from-dev states are in
+# Scope: the release is refused with nothing public, and its hint is two
+# commands: merge origin's main, then resume. The test runs the merge verbatim
+# and the resume as its recipe body, then checks that the tag still names the
+# commit it was cut on and that origin's main is the merge, its first parent
+# the release side and its second the other writer's commit. Three states: from
+# main; from dev with HEAD at the release commit; the other writer edited the
+# TODO.md the release commit took, so the merge conflicts and is resolved by
+# hand. The later-commits and first-release-from-dev states are in
 # release-branch-moved-dev-test.sh.
 #
 # The other writer moves origin from inside the run: a reference-transaction
@@ -187,22 +188,6 @@ to_dev() {
     git -C "$plugin" commit -qm "work: dev-work.md"
 }
 
-make_virgin() {
-    # $1=manifest version. Strips the fixture's release history so the plugin
-    # has never been released: no v* tags locally or on origin, and the manifest
-    # seeded at $1. Paired with new_sandbox "" (no marketplace entry).
-    git -C "$plugin" tag -d v1.2.3 >/dev/null
-    git -C "$plugin" push -q origin :refs/tags/v1.2.3
-    jq --arg v "$1" '.version = $v' "$plugin/.claude-plugin/plugin.json" \
-        > "$plugin/.claude-plugin/plugin.json.tmp"
-    mv "$plugin/.claude-plugin/plugin.json.tmp" "$plugin/.claude-plugin/plugin.json"
-    git -C "$plugin" add -A
-    if ! git -C "$plugin" diff --cached --quiet; then
-        git -C "$plugin" commit -qm "scaffold at $1"
-    fi
-    git -C "$plugin" push -q origin main
-}
-
 writer_clone() {
     # A second clone of origin acting as another writer. Sets $other.
     other="$sandbox/other"
@@ -213,15 +198,18 @@ writer_clone() {
 }
 
 install_mover() {
-    # $1=tag. Makes the other writer push to origin's main at the moment the
-    # run creates tag $1. Fires once; the ref-transaction stdin is drained.
+    # $1=tag, $2=the file the other writer writes (default origin-only.md),
+    # $3=its content. Makes the other writer push to origin's main at the
+    # moment the run creates tag $1. Fires once; the ref-transaction stdin is
+    # drained.
+    local file="${2:-origin-only.md}" content="${3:-only on origin}"
     cat > "$sandbox/move-origin.sh" <<SH
 #!/bin/sh
 unset \$(git rev-parse --local-env-vars)
 cd "$other" || exit 1
-printf 'only on origin\n' > origin-only.md
-git add origin-only.md
-git commit -qm "work: origin-only.md"
+printf '%s\\n' '$content' > '$file'
+git add '$file'
+git commit -qm "work: $file"
 git push -q origin main
 git rev-parse HEAD > "$sandbox/other-sha"
 SH
@@ -254,34 +242,29 @@ moved_sha() {
     other_sha="$(cat "$sandbox/other-sha" 2>/dev/null || true)"
 }
 
-extract_undo() {
-    # Sets $undo_cmds to the printed undo, one command per line: from the line
-    # `git fetch --no-tags origin` to the line `git merge --no-edit origin/...`,
-    # keeping those starting with `git ` or `jq ` once indentation and the
-    # `N. ` numbering are stripped. Empty when none was printed.
+extract_hint() {
+    # Sets $hint_cmds to the commands the refusal prints, one per line: from the
+    # hint line naming origin's main to the `error:` line, those starting with
+    # `git ` or `just ` once indentation is stripped. Empty when none printed.
     local line s started=0
-    undo_cmds=""
+    hint_cmds=""
     while IFS= read -r line; do
         s="${line#"${line%%[![:space:]]*}"}"
-        if [[ "$s" =~ ^[0-9]+\.[[:space:]]+(.*)$ ]]; then
-            s="${BASH_REMATCH[1]}"
-        fi
-        if [ "$started" = 0 ]; then
-            case "$s" in "git fetch --no-tags origin"*) started=1 ;; esac
-        fi
+        case "$s" in "hint: origin's main has commits"*) started=1 ;; "error:"*) started=0 ;; esac
         [ "$started" = 1 ] || continue
         case "$s" in
-            "git "*|"jq "*) undo_cmds+="$s"$'\n' ;;
+            "git "*|"just "*) hint_cmds+="$s"$'\n' ;;
         esac
-        case "$s" in "git merge --no-edit origin/"*) break ;; esac
     done <<<"$out"
 }
 
 check_refused() {
-    # $1=label $2=tag $3=bump ("" for none). The release failed with nothing public: origin's main is
-    # still the other writer's head, no tag on origin, no GitHub release.
+    # $1=label $2=tag. The release failed with nothing public: origin's main is
+    # still the other writer's head, no tag on origin, no GitHub release. The
+    # hint is the merge and the resume, and origin/main is fresh enough for the
+    # merge to take the other writer's commit. Sets $rel_sha to the tag's commit.
     assert_eq "$rc" "1" "$1: exit status"
-    [ -e "$sandbox/moved" ] || fail "$1: the other writer never moved origin"
+    [ ! -e "$plugin/.git/hooks/reference-transaction" ] || [ -e "$sandbox/moved" ] || fail "$1: the other writer never moved origin"
     assert_eq "$(origin_rev refs/heads/main)" "$other_sha" "$1: origin main still the other writer's"
     assert_eq "$(origin_rev "refs/tags/$2")" "" "$1: no tag on origin"
     assert_not_contains "$(cat "$GH_LOG")" "release create" "$1: no GitHub release"
@@ -291,40 +274,47 @@ check_refused() {
         fail "$1: the refusal does not say nothing is public"
         printf '  --- output ---\n%s\n  --------------\n' "$out" >&2
     fi
-    assert_contains "$out" "just release${3:+ $3}" "$1: names just release with the same bump"
+    extract_hint
+    assert_eq "$hint_cmds" $'git merge origin/main\njust resume-release\n' "$1: the hint is the merge, then the resume"
+    assert_eq "$(rev refs/remotes/origin/main)" "$other_sha" "$1: origin/main refetched for the merge"
+    rel_sha="$(rev "refs/tags/$2^{commit}")"
+    [ -n "$rel_sha" ] || fail "$1: the refusal left no local tag $2"
 }
 
-run_undo() {
-    # $1=label. Extracts the printed undo and runs it verbatim in the plugin
-    # repo under errexit. Returns 1, after recording why, when it cannot.
-    extract_undo
-    if [ -z "$undo_cmds" ]; then
-        fail "$1: the refusal printed no undo commands"
-        printf '  --- output ---\n%s\n  --------------\n' "$out" >&2
-        return 1
-    fi
-    local printed="$out"
-    run_in "$plugin" bash -ec "$undo_cmds"
-    if [ "$rc" != 0 ]; then
-        fail "$1: the printed undo failed (status $rc): $undo_cmds"
-        printf '  --- output ---\n%s\n  ---- printed ----\n%s\n  --------------\n' "$out" "$printed" >&2
-        return 1
-    fi
+run_hint() {
+    # $1=label, rest=the hint lines to run. Runs each in the plugin repo: a
+    # `git` line verbatim, `just resume-release` as its recipe body
+    # (release.just runs release.sh --resume). Reads $rc/$out of the last.
+    local label="$1" cmd
+    shift
+    for cmd in "$@"; do
+        case "$cmd" in
+            "just resume-release") run_in "$plugin" bash plugin-dev/release.sh --resume ;;
+            "git "*) run_in "$plugin" bash -ec "$cmd" ;;
+            *) fail "$label: unexpected hint line: $cmd"; return 1 ;;
+        esac
+        if [ "$rc" != 0 ]; then
+            fail "$label: hint line failed (status $rc): $cmd"
+            printf '  --- output ---\n%s\n  --------------\n' "$out" >&2
+            return 1
+        fi
+    done
 }
 
-check_rerun() {
-    # $1=label $2=tag $3=branch the checkout started on. After the undo, the
-    # same release again lands a tag on a commit that carries the other
-    # writer's commit and is origin's main. Reads $rc/$out of that rerun.
-    local tag_commit
-    assert_eq "$rc" "0" "$1: second release exit status"
-    tag_commit="$(rev "refs/tags/$2^{commit}")"
-    [ -n "$tag_commit" ] || fail "$1: tag $2 does not resolve to a commit"
-    assert_eq "$(origin_rev refs/heads/main)" "$tag_commit" "$1: origin main is the new tag's commit"
-    assert_eq "$(origin_rev "refs/tags/$2^{commit}")" "$tag_commit" "$1: tag on origin at that commit"
-    if ! git -C "$plugin" merge-base --is-ancestor "$other_sha" "$tag_commit"; then
-        fail "$1: the new tag's commit lacks the other writer's commit"
-    fi
+check_resumed() {
+    # $1=label $2=tag $3=branch the checkout started on $4=the merge's expected
+    # first parent (default the tag's commit). The tag still names $rel_sha, the
+    # commit it was cut on; origin's main is the merge made on the checked-out
+    # branch, its first parent the release side and its second the other
+    # writer's commit, and local main sits there too.
+    local merged
+    merged="$(origin_rev refs/heads/main)"
+    assert_eq "$(rev "refs/tags/$2^{commit}")" "$rel_sha" "$1: the tag still names the commit it was cut on"
+    assert_eq "$(origin_rev "refs/tags/$2^{commit}")" "$rel_sha" "$1: tag on origin at that commit"
+    assert_eq "$merged" "$(rev HEAD)" "$1: origin main is the merged HEAD"
+    assert_eq "$(rev refs/heads/main)" "$merged" "$1: local main at origin's main"
+    assert_eq "$(rev "$merged^1")" "${4:-$rel_sha}" "$1: the merge's first parent is the release side"
+    assert_eq "$(rev "$merged^2")" "$other_sha" "$1: the merge's second parent is the other writer's commit"
     assert_contains "$(cat "$GH_LOG")" "release create $2" "$1: GitHub release created"
     assert_eq "$(branch_now)" "$3" "$1: checkout branch unchanged"
     assert_eq "$(origin_rev refs/heads/dev)" "" "$1: dev not on origin"
@@ -337,16 +327,9 @@ install_prepush
 install_mover v1.2.4
 run_in "$plugin" bash plugin-dev/release.sh patch
 moved_sha
-check_refused "moved, from main" v1.2.4 patch
-assert_contains "$out" "git tag -d v1.2.4" "moved, from main: printed undo drops the tag"
-if run_undo "moved, from main"; then
-    assert_contains "$undo_cmds" "git reset -q HEAD~1" "moved, from main: HEAD is the release commit, so reset"
-    assert_contains "$undo_cmds" "git checkout HEAD -- .claude-plugin/plugin.json" "moved, from main: the manifest goes back with the reset"
-    assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "1.2.3" "moved, from main: undo restores the manifest"
-    assert_not_contains "$undo_cmds" "git branch -f" "moved, from main: main is checked out, nothing to rewind"
-    assert_eq "$(rev HEAD)" "$other_sha" "moved, from main: undo leaves HEAD at the other writer's commit"
-    run_in "$plugin" bash plugin-dev/release.sh patch
-    check_rerun "moved, from main" v1.2.4 main
+check_refused "moved, from main" v1.2.4
+if run_hint "moved, from main" "git merge origin/main" "just resume-release"; then
+    check_resumed "moved, from main" v1.2.4 main
 fi
 
 echo "=== origin moved before the push, release from dev with HEAD at the release commit ==="
@@ -357,18 +340,15 @@ install_prepush
 install_mover v1.2.4
 run_in "$plugin" bash plugin-dev/release.sh patch
 moved_sha
-check_refused "moved, from dev" v1.2.4 patch
-assert_contains "$out" "git tag -d v1.2.4" "moved, from dev: printed undo drops the tag"
-if run_undo "moved, from dev"; then
-    assert_contains "$undo_cmds" "git reset -q HEAD~1" "moved, from dev: HEAD is the release commit, so reset"
-    assert_contains "$undo_cmds" "git branch -f main origin/main" "moved, from dev: the run moved main, so rewind it"
-    assert_eq "$(rev refs/heads/main)" "$other_sha" "moved, from dev: undo rewinds local main to origin's"
-    assert_eq "$(branch_now)" "dev" "moved, from dev: undo leaves dev checked out"
-    run_in "$plugin" bash plugin-dev/release.sh patch
-    check_rerun "moved, from dev" v1.2.4 dev
+check_refused "moved, from dev" v1.2.4
+if run_hint "moved, from dev" "git merge origin/main" "just resume-release"; then
+    check_resumed "moved, from dev" v1.2.4 dev
 fi
 
-echo "=== origin moved before the push, the undo keeps the handoff files the release commit took ==="
+echo "=== origin moved before the push, the other writer edited TODO.md too ==="
+# The release commit takes the handoff files as they are on disk, and the other
+# writer's commit edits TODO.md as well, so the merge the hint names conflicts
+# on it and is resolved as any merge conflict is.
 new_sandbox "1.2.3"
 printf 'todo\n' > "$plugin/TODO.md"
 git -C "$plugin" add TODO.md
@@ -378,46 +358,22 @@ writer_clone
 printf 'todo, release done\n' > "$plugin/TODO.md"
 printf 'task frame\n' > "$plugin/TASK.md"
 install_prepush
-install_mover v1.2.4
+install_mover v1.2.4 TODO.md "todo, theirs"
 run_in "$plugin" bash plugin-dev/release.sh patch
 moved_sha
-check_refused "moved, handoff files" v1.2.4 patch
-if run_undo "moved, handoff files"; then
-    assert_eq "$(cat "$plugin/TODO.md")" "todo, release done" "moved, handoff files: undo keeps the edited TODO.md on disk"
-    assert_eq "$(cat "$plugin/TASK.md" 2>&1)" "task frame" "moved, handoff files: undo keeps the untracked TASK.md on disk"
-    assert_eq "$(git -C "$plugin" status --porcelain | sort)" "$(printf ' M TODO.md\n?? TASK.md')" \
-        "moved, handoff files: undo leaves them uncommitted and the manifest clean"
-    run_in "$plugin" bash plugin-dev/release.sh patch
-    check_rerun "moved, handoff files" v1.2.4 main
-    assert_eq "$(git -C "$plugin" show v1.2.4:TODO.md)" "todo, release done" "moved, handoff files: the second release takes TODO.md"
-fi
-
-echo "=== origin moved before the push, a first release from main after a hand version commit ==="
-new_sandbox ""
-make_virgin "0.0.9"
-writer_clone
-jq '.version = "0.1.0"' "$plugin/.claude-plugin/plugin.json" > "$plugin/m.tmp"
-mv "$plugin/m.tmp" "$plugin/.claude-plugin/plugin.json"
-git -C "$plugin" add .claude-plugin/plugin.json
-git -C "$plugin" commit -qm "version 0.1.0"
-hand_version="$(rev HEAD)"
-install_prepush
-install_mover v0.1.0
-run_in "$plugin" bash plugin-dev/release.sh
-moved_sha
-check_refused "moved, first release after hand bump" v0.1.0 ""
-assert_not_contains "$out" "just release patch" "moved, first release after hand bump: rerun names no bump (patch)"
-assert_not_contains "$out" "just release minor" "moved, first release after hand bump: rerun names no bump (minor)"
-assert_not_contains "$out" "just release major" "moved, first release after hand bump: rerun names no bump (major)"
-if run_undo "moved, first release after hand bump"; then
-    assert_contains "$undo_cmds" "git tag -d v0.1.0" "moved, first release after hand bump: undo drops the tag"
-    assert_not_contains "$undo_cmds" "git reset" "moved, first release after hand bump: the hand commit is not a release commit to reset"
-    assert_not_contains "$undo_cmds" "jq " "moved, first release after hand bump: no bump to drop"
-    git -C "$plugin" merge-base --is-ancestor "$hand_version" HEAD \
-        || fail "moved, first release after hand bump: the hand version commit is no longer an ancestor of HEAD"
-    assert_eq "$(jq -r .version "$plugin/.claude-plugin/plugin.json")" "0.1.0" "moved, first release after hand bump: manifest still 0.1.0"
-    run_in "$plugin" bash plugin-dev/release.sh
-    check_rerun "moved, first release after hand bump" v0.1.0 main
+check_refused "moved, TODO.md conflict" v1.2.4
+run_in "$plugin" bash -ec "git merge origin/main"
+assert_eq "$rc" "1" "moved, TODO.md conflict: the merge stops on the conflict"
+assert_eq "$(git -C "$plugin" diff --name-only --diff-filter=U)" "TODO.md" "moved, TODO.md conflict: TODO.md is the conflict"
+printf 'todo, release done\ntodo, theirs\n' > "$plugin/TODO.md"
+git -C "$plugin" add TODO.md
+git -C "$plugin" commit -q --no-edit
+if run_hint "moved, TODO.md conflict" "just resume-release"; then
+    check_resumed "moved, TODO.md conflict" v1.2.4 main
+    assert_eq "$(git -C "$plugin" show v1.2.4:TODO.md)" "todo, release done" "moved, TODO.md conflict: the tag keeps the TODO.md it took"
+    assert_eq "$(git -C "$plugin" show v1.2.4:TASK.md)" "task frame" "moved, TODO.md conflict: the tag keeps the TASK.md it took"
+    assert_eq "$(git -C "$plugin-origin.git" show main:TODO.md)" "$(printf 'todo, release done\ntodo, theirs')" \
+        "moved, TODO.md conflict: origin main carries the resolution"
 fi
 
 if (( failures > 0 )); then

@@ -6,7 +6,8 @@
 # Scope: releasing from `dev` as well as `main`. The release moves main to the
 # release commit and leaves dev checked out and unpublished; branch and ancestry
 # refusals; a resume after later dev commits publishes the tag's commit, not
-# HEAD. Its siblings self-release-publish-test.sh and
+# HEAD, unless origin's main moved past the release, where the refusal's hint
+# merges it and the resume publishes the merged HEAD. Its siblings self-release-publish-test.sh and
 # self-release-refusal-test.sh cover the publishing and refusal paths from main.
 #
 # The fixture's origin `main` can move on its own (a second clone pushes to the
@@ -282,7 +283,7 @@ assert_contains "$out" "origin/main is not an ancestor of HEAD" "origin main ahe
 refute_tag v0.2.0 "origin main ahead, on main"
 assert_eq "$(tr -d '[:space:]' < "$repo/toolkit/VERSION")" 0.1.0 "origin main ahead, on main: VERSION"
 
-echo "=== a resume refuses when origin main has commits HEAD lacks ==="
+echo "=== a resume refuses when origin main has commits HEAD lacks, and its hint finishes it ==="
 new_sandbox
 hand_release
 main_before=$(rev refs/heads/main)
@@ -291,6 +292,21 @@ run --resume
 assert_eq "$rc" 1 "resume, origin main ahead: exit status"
 assert_contains "$out" "origin/main is not an ancestor of HEAD" "resume, origin main ahead"
 assert_eq "$(rev refs/heads/main)" "$main_before" "resume, origin main ahead: local main"
+hint_cmds=$(grep -E '^[[:space:]]+(git|just) ' <<<"$out" | sed 's/^[[:space:]]*//' || true)
+assert_eq "$hint_cmds" $'git merge origin/main\njust resume-release' "resume, origin main ahead: the hint is the merge, then the resume"
+other_sha=$(origin_sha refs/heads/main)
+# The hint run as printed: the merge verbatim, the resume as its recipe body.
+git -C "$repo" merge origin/main >/dev/null
+run --resume
+assert_eq "$rc" 0 "resume after the merge: exit status"
+merged=$(origin_sha refs/heads/main)
+assert_eq "$merged" "$(rev HEAD)" "resume after the merge: origin main is the merged HEAD"
+assert_eq "$(rev "$merged^1")" "$release_sha" "resume after the merge: the merge's first parent is the release commit"
+assert_eq "$(rev "$merged^2")" "$other_sha" "resume after the merge: the merge's second parent is origin's"
+assert_eq "$(rev refs/heads/main)" "$merged" "resume after the merge: local main at origin's main"
+assert_eq "$(rev 'v0.2.0^{commit}')" "$release_sha" "resume after the merge: the tag still names the release commit"
+assert_eq "$(origin_sha refs/tags/v0.2.0)" "$(rev refs/tags/v0.2.0)" "resume after the merge: tag on origin is the local tag"
+assert_on_dev "resume after the merge"
 
 echo "=== a resume refuses a tag whose commit is off HEAD's history ==="
 new_sandbox

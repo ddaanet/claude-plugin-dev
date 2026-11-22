@@ -131,6 +131,17 @@ trails `origin/main` is refused up front. The fetch is a plain one, which also
 brings back a release tag on origin's history, so a resume from a clone missing
 the tag finds it and finishes.
 
+**Origin's `main` moving past a cut release is merged, then resumed.** A push
+that origin moved past between the fetch and the push fails, and the resume's
+`common_preflight` then refuses with a two-command hint:
+`git merge origin/main`, then `just resume-release`. The tag already fixed the
+release, so the merge lands on top of it; `main_target` then makes the merged
+`HEAD` what `main` is moved to and pushed whenever `origin/main` and the tag's
+commit have diverged, and the tags and the GitHub release stay on the tag's
+commit. Whatever else `HEAD` carries lands on `main` with the merge, as in the
+consumer flow
+([failed-release.md](failed-release.md)).
+
 A resume publishes only a tag whose commit is on `HEAD`'s history, however the
 tag arrived, and refuses any other before writing anything. A tag off that
 history names a commit the branch does not carry: fast-forwarding `main` to it
@@ -163,7 +174,8 @@ by it. On a resume, `HEAD` is often past the release commit, so the tag names
 the commit and the push-probe asks whether that commit is an ancestor of
 origin's `main`. Comparing origin's `main` to `HEAD` instead would republish, or
 refuse, over commits the release never covered; the ancestor test makes a resume
-after later commits publish none of them. The cost is that those commits reach
-origin by an ordinary push, outside the script. gitlore's pre-push hook ignores
-the refspec and pushes each memory store's `live`, so memory publishes as it
-does from `main`.
+after later commits publish none of them, unless origin's `main` moved past the
+release and `HEAD` merged it, when `main_target` pushes `HEAD` as above. The
+cost is that those commits reach origin by an ordinary push, outside the script.
+gitlore's pre-push hook ignores the refspec and pushes each memory store's
+`live`, so memory publishes as it does from `main`.

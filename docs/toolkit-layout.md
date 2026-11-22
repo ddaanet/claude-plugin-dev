@@ -20,8 +20,7 @@ when a bullet and the tree disagree.
   - `toolkit/release-tags.sh` — release-history reads, and the release preflight
     that decides what version this run publishes.
   - `toolkit/release-resume.sh` — the resume preflight: what a `--resume` run
-    probes and decides before finishing a partial release, and the undo it
-    prints when origin moved past one.
+    probes and decides before finishing a partial release.
   - `toolkit/release-publish.sh` — the dist opt-in and pre-flight, the version
     commit and tag, each push, and the GitHub release.
   - `toolkit/release-marketplace.sh` — bumping or creating the plugin's

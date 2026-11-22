@@ -146,51 +146,75 @@ ls_remote_sha() {
     printf '%s' "${line%%$'\t'*}"
 }
 
+push_target() {
+    # Both modes, after the release commit exists and before move_main. Reads
+    # origin's main and sets push_commit, the commit main is moved to and
+    # pushed: the release commit while origin's main is inside it; HEAD once
+    # origin's main has moved past it and HEAD holds both, which is the merge
+    # the refusal below names. The tag fixes the release's content, so all
+    # publishing needs is the release commit inside the main that is pushed;
+    # what HEAD carries beyond it lands on main with the merge. remote_head is
+    # left for push_branch.
+    push_commit="$release_commit"
+    remote_head=$(ls_remote_sha . "refs/heads/$main_branch")
+    [ -n "$remote_head" ] || return 0
+    git cat-file -e "$remote_head" 2>/dev/null \
+        || git fetch -q --no-tags origin "$main_branch" \
+        || die "could not fetch origin's $main_branch to check it — nothing was pushed"
+    if git merge-base --is-ancestor "$release_commit" "$remote_head" \
+        || git merge-base --is-ancestor "$remote_head" "$release_commit"; then
+        return
+    fi
+    if git merge-base --is-ancestor "$remote_head" HEAD; then
+        push_commit=$(git rev-parse HEAD)
+        return
+    fi
+    # Refused before move_main and before any push, so no pre-push hook runs on
+    # a push that cannot land. The merge the hint names reads origin/<main>,
+    # which the probe above leaves stale whenever the object was already here.
+    git fetch -q --no-tags origin "+refs/heads/$main_branch:refs/remotes/origin/$main_branch" \
+        || die "could not fetch origin's $main_branch — nothing was pushed"
+    printf "hint: origin's %s has commits %s lacks, and nothing is public yet. Merge them\n" "$main_branch" "$tag" >&2
+    printf '      into %s, then finish the release:\n' "$branch" >&2
+    printf '      git merge origin/%s\n' "$main_branch" >&2
+    printf '      just resume-release\n' >&2
+    die "release $tag not pushed: origin's $main_branch has commits $branch lacks"
+}
+
 move_main() {
-    # Both modes, after the release commit exists and before push_branch. Brings
-    # local main to the release commit when it lacks it, as a fast-forward: a
-    # non-fast-forward fetch is refused, so main is never rewound. Nothing is
-    # pushed here. A clone with no local main gets it created by the same fetch;
-    # probing an absent ref with merge-base would print a git `fatal:`.
-    local verb="moved to" fetch_out
+    # Both modes, after push_target and before push_branch. Brings local main
+    # to push_commit when it lacks it, as a fast-forward: a non-fast-forward
+    # fetch is refused, so main is never rewound. Nothing is pushed here. A
+    # clone with no local main gets it created by the same fetch; probing an
+    # absent ref with merge-base would print a git `fatal:`.
+    local verb="moved to" fetch_out what="$tag"
+    [ "$push_commit" = "$release_commit" ] || what="$branch"
     if ! git rev-parse -q --verify "refs/heads/$main_branch" >/dev/null; then
         verb="created at"
-    elif git merge-base --is-ancestor "$release_commit" "refs/heads/$main_branch"; then
+    elif git merge-base --is-ancestor "$push_commit" "refs/heads/$main_branch"; then
         return
     fi
     # Not `-q`: it silences git's `[rejected] … (non-fast-forward)` line, which
     # the hint below sends the reader to. Captured so a success prints nothing.
     # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
-    fetch_out=$(git fetch . "$release_commit:refs/heads/$main_branch" 2>&1) || {
+    fetch_out=$(git fetch . "$push_commit:refs/heads/$main_branch" 2>&1) || {
         printf '%s\n' "$fetch_out" >&2
-        printf 'hint: local %s cannot fast-forward to %s; nothing was pushed.\n' "$main_branch" "$tag" >&2
+        printf 'hint: local %s cannot fast-forward to %s; nothing was pushed.\n' "$main_branch" "$what" >&2
         printf '      clear what git reported above, then run `just resume-release`.\n' >&2
-        die "could not move $main_branch to $tag — nothing was pushed"
+        die "could not move $main_branch to $what — nothing was pushed"
     }
     acted=1
-    note "branch $main_branch: $verb $tag"
+    note "branch $main_branch: $verb $what"
 }
 
 push_branch() {
-    # Probed before anything is pushed. origin's main already containing the
-    # release commit is "already pushed". A head the release lacks is refused
-    # here, with the undo printed, so no pre-push hook runs on a push that cannot
-    # land. The push names the release commit, so later dev commits are never
+    # Pushes push_commit to main unless origin's main, as push_target read it,
+    # already contains the release commit. The push names a commit, never the
+    # branch: from dev at the release commit, later dev commits are not
     # published.
-    local remote_head
-    remote_head=$(ls_remote_sha . "refs/heads/$main_branch")
-    if [ -n "$remote_head" ]; then
-        git cat-file -e "$remote_head" 2>/dev/null \
-            || git fetch -q --no-tags origin "$main_branch" \
-            || die "could not fetch origin's $main_branch to check it — nothing was pushed"
-        if git merge-base --is-ancestor "$release_commit" "$remote_head"; then
-            note "branch $main_branch: already pushed"
-            return
-        fi
-        if ! git merge-base --is-ancestor "$remote_head" "$release_commit"; then
-            print_undo
-            die "release $tag refused: origin's $main_branch has commits $tag lacks — nothing was pushed"
-        fi
+    if [ -n "$remote_head" ] && git merge-base --is-ancestor "$release_commit" "$remote_head"; then
+        note "branch $main_branch: already pushed"
+        return
     fi
     # A consumer's pre-push hook can refuse this. gitlore's publishes every
     # memory store before the parent push and refuses when one diverged, and the
@@ -202,7 +226,7 @@ push_branch() {
     # parent), and a push of `live` publishes every ancestor — so nothing needs
     # the tagged commit to name the merge, and the tag is never rewritten.
     # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
-    git push origin "$release_commit:refs/heads/$main_branch" || {
+    git push origin "$push_commit:refs/heads/$main_branch" || {
         printf 'hint: the release commit and tag %s are local; nothing was pushed.\n' "$tag" >&2
         printf '      clear what the push reported above, then run `just resume-release`.\n' >&2
         printf '      gitlore refuses the push while a memory store is diverged: `/gitlore:resolve`\n' >&2
@@ -210,27 +234,12 @@ push_branch() {
         die "push of $main_branch failed"
     }
     acted=1
-    # Name the revision uploaded, not just the branch: the push carries the
-    # release commit only, so a commit made after it stays local, and a bare
-    # "pushed" reads as if it went too.
+    # Name the revision uploaded, not just the branch: a commit made after it
+    # stays local, and a bare "pushed" reads as if it went too.
     local subject
-    subject=$(git log -1 --format=%s "$release_commit")
+    subject=$(git log -1 --format=%s "$push_commit")
     [ "${#subject}" -le 60 ] || subject="${subject:0:59}…"
-    note "branch $main_branch: pushed $(git rev-parse --short "$release_commit") $subject ($(git log -1 --format=%cr "$release_commit"))"
-}
-
-bump_between() {
-    # $1=previous version, $2=new version. Prints the bump that takes one to the other.
-    local pmaj pmin nmaj nmin
-    IFS=. read -r pmaj pmin _ <<<"$1"
-    IFS=. read -r nmaj nmin _ <<<"$2"
-    if [ "$nmaj" != "$pmaj" ]; then
-        printf 'major\n'
-    elif [ "$nmin" != "$pmin" ]; then
-        printf 'minor\n'
-    else
-        printf 'patch\n'
-    fi
+    note "branch $main_branch: pushed $(git rev-parse --short "$push_commit") $subject ($(git log -1 --format=%cr "$push_commit"))"
 }
 
 push_tag() {

@@ -64,8 +64,16 @@ common_preflight() {
     # lacks, the move or the push would refuse only after the tag was cut.
     git merge-base --is-ancestor "refs/heads/$main_branch" HEAD \
         || die "local $main_branch is not an ancestor of HEAD"
-    git merge-base --is-ancestor "refs/remotes/origin/$main_branch" HEAD \
-        || die "origin/$main_branch is not an ancestor of HEAD"
+    git merge-base --is-ancestor "refs/remotes/origin/$main_branch" HEAD || {
+        # On a resume the tag already fixed the release, so the merge lands on
+        # top of it and the resume pushes the merged HEAD (main_target).
+        if [ "$mode" = resume ]; then
+            printf "hint: merge origin's %s, then finish the release:\n" "$main_branch" >&2
+            printf '      git merge origin/%s\n' "$main_branch" >&2
+            printf '      just resume-release\n' >&2
+        fi
+        die "origin/$main_branch is not an ancestor of HEAD"
+    }
 }
 
 require_prior_release_published() {

@@ -144,22 +144,38 @@ ensure_dist_tag() {
     note "dist tag $dist_tag: created locally"
 }
 
+main_target() {
+    # Sets push_commit, the commit main is moved to and pushed: the tag's commit,
+    # or HEAD once origin's main has moved past it. common_preflight has just
+    # fetched origin's main and required HEAD to hold it, so HEAD is then the
+    # merge of it the refusal's hint names; the tag fixed the release, and what
+    # HEAD carries beyond it lands on main with the merge.
+    push_commit="$release_commit"
+    local origin_main="refs/remotes/origin/$main_branch"
+    if ! git merge-base --is-ancestor "$release_commit" "$origin_main" \
+        && ! git merge-base --is-ancestor "$origin_main" "$release_commit"; then
+        push_commit=$(git rev-parse HEAD)
+    fi
+}
+
 move_main() {
     # Runs before any push: a refusal here (another worktree holds main) leaves
     # nothing published. Never rewinds main -- a main already past the tag's
     # commit stays where it is, and the skip below covers it.
-    if git merge-base --is-ancestor "$release_commit" "refs/heads/$main_branch"; then
-        note "branch $main_branch: already contains $tag"
+    local what="$tag"
+    [ "$push_commit" = "$release_commit" ] || what="$branch"
+    if git merge-base --is-ancestor "$push_commit" "refs/heads/$main_branch"; then
+        note "branch $main_branch: already contains $what"
         return
     fi
-    git fetch -q . "$release_commit:refs/heads/$main_branch" || {
-        printf 'hint: %s was not moved to %s; nothing was pushed.\n' "$main_branch" "$tag" >&2
+    git fetch -q . "$push_commit:refs/heads/$main_branch" || {
+        printf 'hint: %s was not moved to %s; nothing was pushed.\n' "$main_branch" "$what" >&2
         # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
         printf '      clear what git reported above (another worktree may hold %s), then run `just resume-release`.\n' "$main_branch" >&2
-        die "could not move $main_branch to $tag"
+        die "could not move $main_branch to $what"
     }
     acted=1
-    note "branch $main_branch: moved to $tag"
+    note "branch $main_branch: moved to $what"
 }
 
 push_branch() {
@@ -174,10 +190,11 @@ push_branch() {
     # push and refuses when one diverged. The commit and the tags are already
     # local by now, so the recovery is resume -- never an amend, which would
     # re-pin the gitlink and rewrite a commit the tag names.
-    # Pushes the tag's commit, not HEAD: from dev, HEAD carries work that is not
-    # being released. The refspec does not name the branch checked out, so the
-    # push is the same from main and from dev.
-    git push origin "$release_commit:refs/heads/$main_branch" || {
+    # Pushes push_commit, the tag's commit unless origin's main moved past it:
+    # from dev, HEAD carries work that is not being released. The refspec does
+    # not name the branch checked out, so the push is the same from main and
+    # from dev.
+    git push origin "$push_commit:refs/heads/$main_branch" || {
         printf 'hint: the release commit and tag %s are local; nothing was pushed.\n' "$tag" >&2
         # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
         printf '      clear what the push reported above, then run `just resume-release`.\n' >&2
@@ -244,6 +261,7 @@ fi
 # The tag's commit: HEAD on a release, but on a resume HEAD may be past it. Resolved
 # to a sha because `git fetch .` refuses the unresolved ^{commit} form.
 release_commit=$(git rev-parse "$tag^{commit}")
+main_target
 ensure_dist_tag
 move_main
 push_branch

@@ -20,9 +20,11 @@ detached `HEAD`, and never changes branch. This repo's own flow,
 branch from either, and never push `dev`: later `dev` commits are not part of
 the release, so the push names the release commit, not the branch. A resume from
 `main` pushes only the release commit too, so commits made on `main` after it
-stay local. The consumer flow's push note therefore names the revision it
-uploaded (short sha, subject, age) rather than only the branch, and prints
-nothing of the kind when the branch was already there.
+stay local, unless origin's `main` moved past the release and was merged, when
+the merged `HEAD` is pushed ([failed-release.md](failed-release.md)). The
+consumer flow's push note therefore names the revision it uploaded (short sha,
+subject, age) rather than only the branch, and prints nothing of the kind when
+the branch was already there.
 
 Local `main` is moved to the release commit by a fast-forward fetch into the
 ref, never a checkout, and never a rewind; a refusal dies with nothing pushed
@@ -57,11 +59,11 @@ the self-release's. A resume runs no ancestry check on `main` or `origin/main`:
 those guards refuse before a commit and tag are cut, and a release already on
 origin's `main` has nothing left they protect. A resume refuses only a tag whose
 commit `HEAD` does not contain, because it publishes that commit. Origin's
-`main` moving past a release before the push is a refusal that prints the undo,
-not a merge to resume through: merging the other writer's work after the tag was
-cut would publish a combination the gate never saw, so the release is redone on
-top of it
-([recovery.md](recovery.md)).
+`main` moving past a release before the push is a refusal whose hint merges
+origin's `main` into the branch checked out and resumes: the tag fixed the
+release's content, so the merge lands on top of it and the resume pushes the
+merged `HEAD`, with `main` fast-forwarded to it from `dev`
+([failed-release.md](failed-release.md)).
 
 `symbolic-ref` rather than `rev-parse --abbrev-ref` because the latter exits
 non-zero *and* prints `"origin/HEAD"` to stdout when the ref is unset. Combined

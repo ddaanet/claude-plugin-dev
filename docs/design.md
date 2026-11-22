@@ -130,9 +130,10 @@ present tense.
 - **A push redirected away from origin is refused** when `remote.origin.pushurl`
   is set at all rather than when it "diverges"; `pushInsteadOf` is a stated
   bound, not refused.
-- **A release origin has moved past is refused with nothing public** and an undo
-  the script prints and does not run; the release is redone, not resumed. A
-  resume refuses a tag off `HEAD`'s history.
+- **A release origin has moved past is refused with nothing public**, and its
+  hint merges origin's `main` and resumes: the tag fixed the release, and the
+  release commit inside the pushed `main` is all publishing needs, so the resume
+  pushes the merged `HEAD`. A resume refuses a tag off `HEAD`'s history.
 - **`resume-release` completes one** — the last steps, `push_dist` included for
   an opted-in plugin, are an idempotent block that probes remote state before
   acting.

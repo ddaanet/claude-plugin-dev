@@ -302,8 +302,9 @@ words names two files that do not exist. A path containing a newline still
 prints across two lines, which no git quoting mode survives `-z` to fix, and the
 comment states that bound rather than implying full coverage.
 
-A release that origin's default branch has moved past, and a resume whose tag is
-off `HEAD`'s history, are in [failed-release.md](failed-release.md).
+A release that origin's default branch has moved past, finished by merging it
+and resuming, and a resume whose tag is off `HEAD`'s history, are in
+[failed-release.md](failed-release.md).
 
 ## The clean-tree check exempts the memory gitlink and the handoff files
 
