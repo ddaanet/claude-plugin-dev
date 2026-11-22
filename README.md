@@ -347,6 +347,9 @@ the launcher shipped takes the steps in `plugin-dev/migrations/v0.9.0.md`.
 - Default branch is auto-detected from `origin/HEAD`; recipes don't hardcode
   `main`. A release runs from that branch or from `dev`, never changes branch,
   publishes the release commit to the default branch, and never pushes `dev`.
+  When origin's default branch moved past the release before its push, the
+  refusal says to merge it into the branch checked out and run
+  `just resume-release`, which pushes that merge; the tag stays where it was.
 - The version-guard hook fires on Write/Edit events targeting
   `.claude-plugin/plugin.json` and is a no-op outside plugin repositories (no
   manifest, no fire).

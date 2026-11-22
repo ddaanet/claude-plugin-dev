@@ -19,7 +19,8 @@ set -euo pipefail
 # It runs from the default branch (main) or from dev, and never changes branch.
 # The tag's commit is pushed to main by refspec, so dev is never pushed and its
 # later commits stay local; local main is moved to the release commit by a
-# fast-forward, never a checkout.
+# fast-forward, never a checkout. When origin's main moved past the release, the
+# refusal says to merge it and resume, and the resume pushes the merged HEAD.
 #
 # A plugin that carries dist.include (see dist.sh) also publishes its shipped
 # paths as the `dist` branch and a `dist-vX.Y.Z` tag, and its marketplace entry
@@ -32,8 +33,7 @@ set -euo pipefail
 # The flow's functions live in sibling files sourced below, from this script's
 # own directory: release-preflight.sh (checks before any side effect),
 # release-tags.sh (release history, and the version this run publishes),
-# release-resume.sh (whether there is a release to finish, and the undo
-# printed when origin moved past one),
+# release-resume.sh (whether there is a release to finish),
 # release-publish.sh (commit, tag, pushes, dist, GitHub release) and
 # release-marketplace.sh (the marketplace entry). They share this shell, so the
 # `set` line at the top and the globals set here hold in all of them.
@@ -64,8 +64,12 @@ first_release=0
 # 1 when the commit being released carries dist.include (dist_opted_in).
 dist_on=0
 # The commit the tag names, in both modes: set once the tag exists, before
-# move_main and push_branch read it.
+# push_target, move_main and push_branch read it.
 release_commit=""
+# The commit main is moved to and pushed, and origin's main as read before it:
+# set by push_target.
+push_commit=""
+remote_head=""
 
 # shellcheck source=release-preflight.sh
 source "$here/release-preflight.sh"
@@ -90,6 +94,7 @@ else
     release_commit=$(git rev-parse "$tag^{commit}")
     dist_opted_in "$release_commit"
 fi
+push_target
 move_main
 push_branch
 push_tag
