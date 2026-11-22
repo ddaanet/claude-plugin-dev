@@ -147,14 +147,14 @@ ls_remote_sha() {
 }
 
 push_target() {
-    # Both modes, after the release commit exists and before
-    # published_tags_check. Reads origin's main and sets push_commit, the
-    # commit main is moved to and pushed: the release commit while origin's
-    # main is inside it; HEAD once origin's main has moved past it and HEAD
-    # holds both, which is the merge the refusal below names. The tag fixes the
-    # release's content, so all publishing needs is the release commit inside
-    # the main that is pushed; what HEAD carries beyond it lands on main with
-    # the merge. remote_head is left for push_branch.
+    # Both modes, after published_tags_check and before move_main. Reads
+    # origin's main and sets push_commit, the commit main is moved to and
+    # pushed: the release commit while origin's main is inside it; HEAD once
+    # origin's main has moved past it and HEAD holds both, which is the merge
+    # the refusal below names. The tag fixes the release's content, so all
+    # publishing needs is the release commit inside the main that is pushed;
+    # what HEAD carries beyond it lands on main with the merge. remote_head is
+    # left for push_branch.
     push_commit="$release_commit"
     remote_head=$(ls_remote_sha . "refs/heads/$main_branch")
     [ -n "$remote_head" ] || return 0
@@ -182,12 +182,14 @@ push_target() {
 }
 
 published_tags_check() {
-    # Both modes, after push_target and before move_main. push_tag and push_dist
-    # refuse a release tag origin holds at another sha, but only once main is
-    # pushed, and main would then carry a release that is not the one origin's
-    # tag names. The same refusal here leaves nothing pushed. A tag origin holds
-    # at the local sha is a resume's, and passes; one absent locally is left to
-    # push_dist, which builds it.
+    # Both modes, after the release commit exists and before push_target.
+    # push_tag and push_dist refuse a release tag origin holds at another sha,
+    # but only once main is pushed, and main would then carry a release that is
+    # not the one origin's tag names. The same refusal here leaves nothing
+    # pushed, and comes before push_target's merge hint: another clone's release
+    # is not this one to merge. A tag origin holds at the local sha is a
+    # resume's, and passes; one absent locally is left to push_dist, which
+    # builds it.
     local tags=("$tag") t local_sha remote_sha
     if [ "$dist_on" = 1 ]; then
         tags+=("dist-v$V")
@@ -202,11 +204,11 @@ published_tags_check() {
 }
 
 move_main() {
-    # Both modes, after published_tags_check and before push_branch. Brings
-    # local main to push_commit when it lacks it, as a fast-forward: a
-    # non-fast-forward fetch is refused, so main is never rewound. Nothing is
-    # pushed here. A clone with no local main gets it created by the same
-    # fetch; probing an absent ref with merge-base would print a git `fatal:`.
+    # Both modes, after push_target and before push_branch. Brings local main to
+    # push_commit when it lacks it, as a fast-forward: a non-fast-forward fetch
+    # is refused, so main is never rewound. Nothing is pushed here. A clone with
+    # no local main gets it created by the same fetch; probing an absent ref
+    # with merge-base would print a git `fatal:`.
     local verb="moved to" fetch_out what="$tag"
     [ "$push_commit" = "$release_commit" ] || what="$branch"
     if ! git rev-parse -q --verify "refs/heads/$main_branch" >/dev/null; then

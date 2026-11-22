@@ -159,11 +159,13 @@ main_target() {
 }
 
 published_tags_check() {
-    # After ensure_dist_tag and before move_main. push_tag refuses a tag origin
-    # holds at another sha, but only once main is pushed, and main would then
-    # carry a release that is not the one origin's tag names. The same refusal
-    # here leaves nothing pushed. A tag origin holds at the local sha is a
-    # resume's, and passes; one absent locally is push_tag's to report.
+    # After the tag exists and before ensure_dist_tag, so a clash leaves no
+    # local dist tag split; on a resume before origin_main_preflight, whose
+    # merge hint would name another clone's release. push_tag refuses a tag
+    # origin holds at another sha, but only once main is pushed, and main would
+    # then carry a release that is not the one origin's tag names. The same
+    # refusal here leaves nothing pushed. A tag origin holds at the local sha is
+    # a resume's, and passes; one absent locally is push_tag's to report.
     local t local_sha remote_sha
     for t in "$tag" "$dist_tag"; do
         local_sha=$(git rev-parse -q --verify "refs/tags/$t") || continue
@@ -270,17 +272,20 @@ create_github_release() {
 acted=0
 common_preflight
 if [ "$mode" = "release" ]; then
+    origin_main_preflight
     release_preflight
     bump_commit_tag
+    published_tags_check
 else
     resume_preflight
+    published_tags_check
+    origin_main_preflight
 fi
 # The tag's commit: HEAD on a release, but on a resume HEAD may be past it. Resolved
 # to a sha because `git fetch .` refuses the unresolved ^{commit} form.
 release_commit=$(git rev-parse "$tag^{commit}")
 main_target
 ensure_dist_tag
-published_tags_check
 move_main
 push_branch
 push_tag "$tag"

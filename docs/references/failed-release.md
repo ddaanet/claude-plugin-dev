@@ -43,12 +43,14 @@ between the merge and the push lands on the same refusal, and the same two
 commands clear it.
 
 A release tag origin already holds at another sha, as when another clone
-released the same version first, is refused before `move_main` and before any
-push, in both flows and in both modes; the dist tag too, where this clone has
-one. The merge above is clean when the other writer's commit is the same bump,
-and `push_tag` refuses to move a published tag only after `main` is pushed, so
-without this check `main` would carry a release that is not the one origin's tag
-names. A tag origin holds at the local sha is a partial push's, and passes.
+released the same version first, is refused before the merge hint above and
+before any push, in both flows and in both modes; the dist tag too, where this
+clone has one. That release is not this one to merge: the merge would be clean
+when the other writer's commit is the same bump, and `push_tag` refuses to move
+a published tag only after `main` is pushed, so `main` would carry a release
+that is not the one origin's tag names. In self-release the check also comes
+before the dist tag is split, so a clash leaves none behind. A tag origin holds
+at the local sha is a partial push's, and passes.
 
 ## A resume refuses a tag off `HEAD`'s history
 

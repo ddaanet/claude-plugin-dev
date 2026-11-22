@@ -7,8 +7,8 @@
 # release commit and leaves dev checked out and unpublished; branch and ancestry
 # refusals; a resume after later dev commits publishes the tag's commit, not
 # HEAD, unless origin's main moved past the release, where the refusal's hint
-# merges it and the resume publishes the merged HEAD, or refuses with nothing
-# pushed when origin already holds the tag at another commit. Its siblings self-release-publish-test.sh and
+# merges it and the resume publishes the merged HEAD; with origin already
+# holding the tag at another commit, the resume refuses with no merge hint. Its siblings self-release-publish-test.sh and
 # self-release-refusal-test.sh cover the publishing and refusal paths from main.
 #
 # The fixture's origin `main` can move on its own (a second clone pushes to the
@@ -309,8 +309,9 @@ assert_eq "$(rev 'v0.2.0^{commit}')" "$release_sha" "resume after the merge: the
 assert_eq "$(origin_sha refs/tags/v0.2.0)" "$(rev refs/tags/v0.2.0)" "resume after the merge: tag on origin is the local tag"
 assert_on_dev "resume after the merge"
 
-echo "=== a resume after the merge refuses when origin holds the tag at another commit ==="
-# Another clone released 0.2.0 first: origin's main and v0.2.0 are its own.
+echo "=== a resume refuses with no merge hint when origin holds the tag at another commit ==="
+# Another clone released 0.2.0 first: origin's main and v0.2.0 are its own, and
+# its release is not this one to merge.
 new_sandbox
 hand_release
 move_origin_main
@@ -319,12 +320,11 @@ git -C "$sandbox/other" push -q origin v0.2.0
 other_sha=$(origin_sha refs/heads/main)
 elsewhere_tag=$(origin_sha refs/tags/v0.2.0)
 run --resume
-assert_eq "$rc" 1 "tag elsewhere: the first resume is refused"
-git -C "$repo" merge origin/main >/dev/null
-run --resume
-assert_eq "$rc" 1 "tag elsewhere: the resume after the merge is refused"
+assert_eq "$rc" 1 "tag elsewhere: exit status"
 assert_contains "$out" "v0.2.0 on origin points at $elsewhere_tag, not $(rev refs/tags/v0.2.0)" "tag elsewhere: names the tag and both shas"
 assert_contains "$out" "nothing was pushed" "tag elsewhere: says nothing was pushed"
+! grep -q "git merge" <<<"$out" || fail "tag elsewhere: a merge hint was printed"
+assert_eq "$(rev refs/tags/dist-v0.2.0)" "" "tag elsewhere: no local dist tag"
 assert_eq "$(origin_sha refs/heads/main)" "$other_sha" "tag elsewhere: origin main unchanged"
 assert_eq "$(origin_sha refs/tags/v0.2.0)" "$elsewhere_tag" "tag elsewhere: origin's tag unchanged"
 

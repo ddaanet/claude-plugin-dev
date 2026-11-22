@@ -64,6 +64,12 @@ common_preflight() {
     # lacks, the move or the push would refuse only after the tag was cut.
     git merge-base --is-ancestor "refs/heads/$main_branch" HEAD \
         || die "local $main_branch is not an ancestor of HEAD"
+}
+
+origin_main_preflight() {
+    # After common_preflight's fetch; on a resume after published_tags_check
+    # too, so a version origin holds at another sha is refused before the hint
+    # below says to merge another clone's release.
     git merge-base --is-ancestor "refs/remotes/origin/$main_branch" HEAD || {
         # On a resume the tag already fixed the release, so the merge lands on
         # top of it and the resume pushes the merged HEAD (main_target).

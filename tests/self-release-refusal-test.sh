@@ -7,8 +7,9 @@
 # than like a consumer plugin, which is what the tests/release-*-test.sh suites
 # cover.
 #
-# Scope: what the script refuses -- resume refusals, a moved published tag,
-# preflight refusals, an unreadable origin. Its sibling
+# Scope: what the script refuses -- resume refusals, a moved published tag, a
+# release tag or local dist tag origin holds at another sha (refused before
+# main is pushed), preflight refusals, an unreadable origin. Its sibling
 # self-release-publish-test.sh covers the publishing and resume path.
 #
 # Usage: bash tests/self-release-refusal-test.sh   (run from repo root)
@@ -167,15 +168,16 @@ block_push() {
 unblock_push() { rm -f "$repo/.git/hooks/pre-push"; }
 
 block_ls_remote() {
-    # A git on PATH that fails `ls-remote` and execs the real git for the rest,
-    # so the script's fetch succeeds and its probes are what fail. Must be undone
-    # before the next new_sandbox: PATH keeps every earlier sandbox's bin.
+    # $1 = a ref, optional. A git on PATH that fails `ls-remote` (of that ref
+    # alone, when given) and execs the real git for the rest, so the script's
+    # fetch succeeds and its probes are what fail. Must be undone before the
+    # next new_sandbox: PATH keeps every earlier sandbox's bin.
     local real_git
     real_git=$(command -v git)
     {
         printf '#!/usr/bin/env bash\n'
         # shellcheck disable=SC2016  # expanded by the stub when it runs, not here
-        printf 'if [ "${1-}" = ls-remote ]; then\n'
+        printf 'if [ "${1-}" = ls-remote ] && { [ -z %q ] || [ "${3-}" = %q ]; }; then\n' "${1-}" "${1-}"
         printf '    echo "git stub: ls-remote refused by fixture" >&2\n'
         printf '    exit 1\n'
         printf 'fi\n'
@@ -259,6 +261,39 @@ run --resume
 assert_eq "$rc" 1 "moved tag: exit status"
 assert_contains "$out" "on origin points at" "moved tag: refusal"
 assert_contains "$out" "nothing was pushed" "moved tag: nothing pushed"
+
+# Origin gains v0.2.0 at another commit while the release runs: the probe
+# refuses before main moves, and before a local dist tag is split.
+new_sandbox
+main_before=$(git -C "$repo-origin.git" rev-parse main)
+git clone -q "$repo-origin.git" "$sandbox/other"
+git -C "$sandbox/other" -c user.email=t@example.com -c user.name=T tag -a v0.2.0 -m elsewhere
+cat > "$repo/.git/hooks/reference-transaction" <<HOOK
+#!/bin/sh
+[ "\$1" = committed ] || exit 0
+grep -q ' refs/tags/v0.2.0\$' || exit 0
+[ -e "$sandbox/moved" ] && exit 0
+: > "$sandbox/moved"
+unset \$(git rev-parse --local-env-vars)
+git -C "$sandbox/other" push -q origin v0.2.0 >/dev/null 2>&1 || :
+HOOK
+chmod +x "$repo/.git/hooks/reference-transaction"
+run minor
+assert_eq "$rc" 1 "tag elsewhere mid-run: exit status"
+assert_contains "$out" "v0.2.0 on origin points at" "tag elsewhere mid-run: refusal"
+assert_eq "$(git -C "$repo-origin.git" rev-parse main)" "$main_before" "tag elsewhere mid-run: main not pushed"
+assert_eq "$(git -C "$repo" tag -l dist-v0.2.0)" "" "tag elsewhere mid-run: no local dist tag"
+# A resume after a local split, with origin holding dist-v0.2.0 elsewhere.
+new_sandbox
+main_before=$(git -C "$repo-origin.git" rev-parse main)
+block_push
+run minor
+unblock_push
+git -C "$repo" push -q origin "$(git -C "$repo" rev-parse "v0.1.0^{commit}"):refs/tags/dist-v0.2.0"
+run --resume
+assert_eq "$rc" 1 "dist tag elsewhere: exit status"
+assert_contains "$out" "dist-v0.2.0 on origin points at $(git -C "$repo" rev-parse "v0.1.0^{commit}"), not $(git -C "$repo" rev-parse dist-v0.2.0)" "dist tag elsewhere: names the tag and both shas"
+assert_eq "$(git -C "$repo-origin.git" rev-parse main)" "$main_before" "dist tag elsewhere: main not pushed"
 
 echo "=== preflight refusals ==="
 new_sandbox
@@ -388,7 +423,7 @@ block_push
 run minor
 unblock_push
 git -C "$repo" tag -d dist-v0.2.0 >/dev/null
-block_ls_remote
+block_ls_remote refs/tags/dist-v0.2.0
 run --resume
 unblock_ls_remote
 assert_eq "$rc" 1 "dead origin on resume: exit status"

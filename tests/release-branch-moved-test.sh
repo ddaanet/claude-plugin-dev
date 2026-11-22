@@ -11,7 +11,7 @@
 # main; from dev with HEAD at the release commit; the other writer edited the
 # TODO.md the release commit took, so the merge conflicts and is resolved by
 # hand; the other writer also pushed the release's tag at its own commit, so
-# the resume after the merge is refused with origin's main and tag untouched.
+# the release is refused with no merge hint and origin's main and tag untouched.
 # The later-commits and first-release-from-dev states are in
 # release-branch-moved-dev-test.sh.
 #
@@ -385,22 +385,19 @@ fi
 
 echo "=== origin moved before the push, and already holds the tag at another commit ==="
 # Another clone released the same version first: its main and its v1.2.4 are on
-# origin. The merge the hint names is clean, and the resume must refuse before
-# pushing main, since push_tag would then refuse to move the published tag.
+# origin. Its release is not this one to merge, so the refusal names the tag
+# and prints no merge hint.
 new_sandbox "1.2.3"
 writer_clone
 install_mover v1.2.4 origin-only.md "only on origin" yes
 run_in "$plugin" bash plugin-dev/release.sh patch
 moved_sha
-assert_eq "$rc" "1" "tag elsewhere: the release is refused"
 elsewhere_tag="$(origin_rev refs/tags/v1.2.4)"
 [ -n "$elsewhere_tag" ] || fail "tag elsewhere: the other writer never pushed v1.2.4"
-run_in "$plugin" bash -ec "git merge origin/main"
-assert_eq "$rc" "0" "tag elsewhere: the merge is clean"
-run_in "$plugin" bash plugin-dev/release.sh --resume
-assert_eq "$rc" "1" "tag elsewhere: the resume is refused"
+assert_eq "$rc" "1" "tag elsewhere: the release is refused"
 assert_contains "$out" "v1.2.4 on origin points at $elsewhere_tag, not $(rev refs/tags/v1.2.4)" "tag elsewhere: the refusal names the tag and both shas"
 assert_contains "$out" "nothing was pushed" "tag elsewhere: the refusal says nothing was pushed"
+assert_not_contains "$out" "git merge origin/main" "tag elsewhere: no merge hint"
 assert_eq "$(origin_rev refs/heads/main)" "$other_sha" "tag elsewhere: origin main still the other writer's"
 assert_eq "$(origin_rev refs/tags/v1.2.4)" "$elsewhere_tag" "tag elsewhere: origin's tag unchanged"
 assert_not_contains "$(cat "$GH_LOG")" "release create" "tag elsewhere: no GitHub release"

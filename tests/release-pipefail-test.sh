@@ -201,7 +201,7 @@ grep -qx 'set -eu' "$nopipefail" || fail "pipefail-stripped copy: the set line w
 git -C "$plugin" remote set-url origin "$sandbox/unreachable.git"
 run_in "$plugin" bash plugin-dev/release-nopipefail.sh --resume
 assert_eq "$rc" "1" "no-pipefail probe exit code"
-assert_contains "$out" "git ls-remote origin refs/heads/main failed" \
+assert_contains "$out" "git ls-remote origin refs/tags/v1.2.3 failed" \
     "no-pipefail probe reports the probe's own failure"
 assert_contains "$out" "just resume-release" \
     "no-pipefail probe names the command that finishes the release"

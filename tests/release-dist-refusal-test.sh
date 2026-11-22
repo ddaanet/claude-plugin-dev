@@ -8,8 +8,9 @@
 # dist.include and carries a dev file (plans/x.md) outside the list.
 #
 # Scope: what a dist release refuses and leaves alone -- a foreign or a local dist
-# tag, a rejected dist push (never forced), a tree refusal from dist.sh before
-# any commit. Its siblings release-dist-publish-test.sh,
+# tag, a resume whose local dist tag origin holds at another sha (refused
+# before main is pushed), a rejected dist push (never forced), a tree refusal
+# from dist.sh before any commit. Its siblings release-dist-publish-test.sh,
 # release-dist-resume-test.sh and release-dist-optin-test.sh cover the publish,
 # resume and opt-in handling.
 #
@@ -338,6 +339,30 @@ assert_eq "$(git -C "$plugin" rev-parse refs/tags/dist-v1.2.4)" "$foreign" "loca
 assert_eq "$(origin_sha refs/tags/dist-v1.2.4)" "" "local foreign dist tag: nothing for it on origin"
 assert_eq "$(origin_sha refs/heads/dist)" "" "local foreign dist tag: no dist branch on origin"
 assert_eq "$([ -f "$GH_RELEASES/v1.2.4" ] && echo yes || echo no)" "no" "local foreign dist tag: no github release"
+
+echo "=== a resume whose local dist tag origin holds at another sha: refused before main ==="
+new_sandbox "1.2.3"
+main_before="$(origin_sha refs/heads/main)"
+cat > "$origin/hooks/pre-receive" <<'HOOK'
+#!/bin/sh
+while read -r old new ref; do
+    [ "$ref" != refs/heads/main ] || exit 1
+done
+HOOK
+chmod +x "$origin/hooks/pre-receive"
+run_in "$plugin" bash plugin-dev/release.sh patch
+rm -f "$origin/hooks/pre-receive"
+assert_eq "$rc" "1" "local dist tag elsewhere: the main push was refused"
+empty_tree="$(git -C "$plugin" mktree </dev/null)"
+foreign="$(git -C "$plugin" commit-tree -m foreign "$empty_tree")"
+local_dist="$(git -C "$plugin" commit-tree -m local "$empty_tree")"
+git -C "$plugin" push -q origin "$foreign:refs/tags/dist-v1.2.4"
+git -C "$plugin" tag dist-v1.2.4 "$local_dist"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "1" "local dist tag elsewhere: resume refused"
+assert_contains "$out" "dist-v1.2.4 on origin points at $foreign, not $local_dist" "local dist tag elsewhere: names the tag and both shas"
+assert_eq "$(origin_sha refs/heads/main)" "$main_before" "local dist tag elsewhere: main not pushed"
+assert_eq "$(origin_sha refs/tags/v1.2.4)" "" "local dist tag elsewhere: v1.2.4 not pushed"
 
 echo "=== a rejected dist push: hint names resume-release, never forced ==="
 new_sandbox "1.2.3"
