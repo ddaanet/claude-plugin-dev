@@ -276,7 +276,8 @@ rm -f "$plugin/.git/hooks/pre-push"
 git -C "$plugin-origin.git" tag v1.2.4 "$init_sha"
 run_in "$plugin" bash plugin-dev/release.sh --resume
 assert_eq "$rc" "1" "moved-tag resume exit code"
-assert_contains "$out" "refusing to move a published tag" "moved-tag resume message"
+assert_contains "$out" "on origin points at" "moved-tag resume message"
+assert_contains "$out" "nothing was pushed" "moved-tag resume pushes nothing"
 assert_eq "$(cat "$GH_LOG")" "" "moved-tag resume must not call gh"
 assert_eq "$(market_version)" "1.2.3" "moved-tag resume must not touch the marketplace"
 

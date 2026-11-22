@@ -113,14 +113,15 @@ hook lands it as `🔖 X.Y.Z`; nothing probes the subject), tags, cuts the
 GitHub release. It runs from `main` or `dev` and never changes branch: after a
 fetch it requires local and origin `main` to be ancestors of `HEAD`,
 fast-forwards local `main` to the release commit without a checkout, and pushes
-that commit to `main`, never `dev`. See docs/references/self-release.md. Refuses
-to run on a dirty tree (`TASK.md` and `TODO.md` are exempt and ride the release
-commit, as `memory` is exempt) or when `toolkit/VERSION` disagrees with the
-latest tag (same invariant as the consumer release recipe protects on
-`plugin.json`), and refuses to bump while the *current* `toolkit/VERSION` is
-tagged but not fully published — tags on origin, GitHub release — because that
-state passes every other guard and a re-run would publish the next version while
-stranding the one whose push failed.
+that commit to `main`, never `dev` — after the merge a refused push's hint
+names, the resume pushes the merged `HEAD`, later `dev` commits included. See
+docs/references/self-release.md. Refuses to run on a dirty tree (`TASK.md` and
+`TODO.md` are exempt and ride the release commit, as `memory` is exempt) or when
+`toolkit/VERSION` disagrees with the latest tag (same invariant as the consumer
+release recipe protects on `plugin.json`), and refuses to bump while the
+*current* `toolkit/VERSION` is tagged but not fully published — tags on origin,
+GitHub release — because that state passes every other guard and a re-run would
+publish the next version while stranding the one whose push failed.
 
 ```sh
 just resume-release

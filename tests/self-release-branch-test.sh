@@ -7,7 +7,8 @@
 # release commit and leaves dev checked out and unpublished; branch and ancestry
 # refusals; a resume after later dev commits publishes the tag's commit, not
 # HEAD, unless origin's main moved past the release, where the refusal's hint
-# merges it and the resume publishes the merged HEAD. Its siblings self-release-publish-test.sh and
+# merges it and the resume publishes the merged HEAD, or refuses with nothing
+# pushed when origin already holds the tag at another commit. Its siblings self-release-publish-test.sh and
 # self-release-refusal-test.sh cover the publishing and refusal paths from main.
 #
 # The fixture's origin `main` can move on its own (a second clone pushes to the
@@ -307,6 +308,25 @@ assert_eq "$(rev refs/heads/main)" "$merged" "resume after the merge: local main
 assert_eq "$(rev 'v0.2.0^{commit}')" "$release_sha" "resume after the merge: the tag still names the release commit"
 assert_eq "$(origin_sha refs/tags/v0.2.0)" "$(rev refs/tags/v0.2.0)" "resume after the merge: tag on origin is the local tag"
 assert_on_dev "resume after the merge"
+
+echo "=== a resume after the merge refuses when origin holds the tag at another commit ==="
+# Another clone released 0.2.0 first: origin's main and v0.2.0 are its own.
+new_sandbox
+hand_release
+move_origin_main
+git -C "$sandbox/other" tag -a v0.2.0 -m "Release elsewhere"
+git -C "$sandbox/other" push -q origin v0.2.0
+other_sha=$(origin_sha refs/heads/main)
+elsewhere_tag=$(origin_sha refs/tags/v0.2.0)
+run --resume
+assert_eq "$rc" 1 "tag elsewhere: the first resume is refused"
+git -C "$repo" merge origin/main >/dev/null
+run --resume
+assert_eq "$rc" 1 "tag elsewhere: the resume after the merge is refused"
+assert_contains "$out" "v0.2.0 on origin points at $elsewhere_tag, not $(rev refs/tags/v0.2.0)" "tag elsewhere: names the tag and both shas"
+assert_contains "$out" "nothing was pushed" "tag elsewhere: says nothing was pushed"
+assert_eq "$(origin_sha refs/heads/main)" "$other_sha" "tag elsewhere: origin main unchanged"
+assert_eq "$(origin_sha refs/tags/v0.2.0)" "$elsewhere_tag" "tag elsewhere: origin's tag unchanged"
 
 echo "=== a resume refuses a tag whose commit is off HEAD's history ==="
 new_sandbox

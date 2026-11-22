@@ -158,6 +158,22 @@ main_target() {
     fi
 }
 
+published_tags_check() {
+    # After ensure_dist_tag and before move_main. push_tag refuses a tag origin
+    # holds at another sha, but only once main is pushed, and main would then
+    # carry a release that is not the one origin's tag names. The same refusal
+    # here leaves nothing pushed. A tag origin holds at the local sha is a
+    # resume's, and passes; one absent locally is push_tag's to report.
+    local t local_sha remote_sha
+    for t in "$tag" "$dist_tag"; do
+        local_sha=$(git rev-parse -q --verify "refs/tags/$t") || continue
+        remote_sha=$(ls_remote_sha "refs/tags/$t")
+        if [ -n "$remote_sha" ] && [ "$remote_sha" != "$local_sha" ]; then
+            die "$t on origin points at $remote_sha, not $local_sha -- refusing to publish it; nothing was pushed"
+        fi
+    done
+}
+
 move_main() {
     # Runs before any push: a refusal here (another worktree holds main) leaves
     # nothing published. Never rewinds main -- a main already past the tag's
@@ -191,9 +207,10 @@ push_branch() {
     # local by now, so the recovery is resume -- never an amend, which would
     # re-pin the gitlink and rewrite a commit the tag names.
     # Pushes push_commit, the tag's commit unless origin's main moved past it:
-    # from dev, HEAD carries work that is not being released. The refspec does
-    # not name the branch checked out, so the push is the same from main and
-    # from dev.
+    # from dev, HEAD carries work that is not being released. Once HEAD is the
+    # merge of a moved origin main, every commit HEAD holds past the release
+    # commit reaches main with it. The refspec does not name the branch checked
+    # out, so the push is the same from main and from dev.
     git push origin "$push_commit:refs/heads/$main_branch" || {
         printf 'hint: the release commit and tag %s are local; nothing was pushed.\n' "$tag" >&2
         # shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
@@ -263,6 +280,7 @@ fi
 release_commit=$(git rev-parse "$tag^{commit}")
 main_target
 ensure_dist_tag
+published_tags_check
 move_main
 push_branch
 push_tag "$tag"

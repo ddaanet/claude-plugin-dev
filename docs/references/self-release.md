@@ -139,8 +139,10 @@ release, so the merge lands on top of it; `main_target` then makes the merged
 `HEAD` what `main` is moved to and pushed whenever `origin/main` and the tag's
 commit have diverged, and the tags and the GitHub release stay on the tag's
 commit. Whatever else `HEAD` carries lands on `main` with the merge, as in the
-consumer flow
-([failed-release.md](failed-release.md)).
+consumer flow ([failed-release.md](failed-release.md)). A `vX.Y.Z` or
+`dist-vX.Y.Z` that origin already holds at another sha, as when another clone
+released the same version first, is refused by `published_tags_check` before
+`main` is moved or pushed.
 
 A resume publishes only a tag whose commit is on `HEAD`'s history, however the
 tag arrived, and refuses any other before writing anything. A tag off that

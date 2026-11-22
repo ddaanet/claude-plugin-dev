@@ -257,7 +257,8 @@ commit_in_repo other.md "a different commit"
 git -C "$repo" tag -a v0.2.0 -m "Release 0.2.0"
 run --resume
 assert_eq "$rc" 1 "moved tag: exit status"
-assert_contains "$out" "refusing to move a published tag" "moved tag: refusal"
+assert_contains "$out" "on origin points at" "moved tag: refusal"
+assert_contains "$out" "nothing was pushed" "moved tag: nothing pushed"
 
 echo "=== preflight refusals ==="
 new_sandbox

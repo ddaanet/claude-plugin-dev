@@ -95,6 +95,7 @@ else
     dist_opted_in "$release_commit"
 fi
 push_target
+published_tags_check
 move_main
 push_branch
 push_tag

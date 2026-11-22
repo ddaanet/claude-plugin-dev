@@ -42,6 +42,14 @@ missing, and the merge the hint names reads that ref. Origin moving again
 between the merge and the push lands on the same refusal, and the same two
 commands clear it.
 
+A release tag origin already holds at another sha, as when another clone
+released the same version first, is refused before `move_main` and before any
+push, in both flows and in both modes; the dist tag too, where this clone has
+one. The merge above is clean when the other writer's commit is the same bump,
+and `push_tag` refuses to move a published tag only after `main` is pushed, so
+without this check `main` would carry a release that is not the one origin's tag
+names. A tag origin holds at the local sha is a partial push's, and passes.
+
 ## A resume refuses a tag off `HEAD`'s history
 
 A resume publishes the tag's commit, alone or inside the merge above, so it

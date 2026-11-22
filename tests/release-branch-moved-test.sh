@@ -10,7 +10,9 @@
 # the release side and its second the other writer's commit. Three states: from
 # main; from dev with HEAD at the release commit; the other writer edited the
 # TODO.md the release commit took, so the merge conflicts and is resolved by
-# hand. The later-commits and first-release-from-dev states are in
+# hand; the other writer also pushed the release's tag at its own commit, so
+# the resume after the merge is refused with origin's main and tag untouched.
+# The later-commits and first-release-from-dev states are in
 # release-branch-moved-dev-test.sh.
 #
 # The other writer moves origin from inside the run: a reference-transaction
@@ -199,10 +201,11 @@ writer_clone() {
 
 install_mover() {
     # $1=tag, $2=the file the other writer writes (default origin-only.md),
-    # $3=its content. Makes the other writer push to origin's main at the
+    # $3=its content, $4=non-empty to have the other writer also tag its commit
+    # $1 and push that tag. Makes the other writer push to origin's main at the
     # moment the run creates tag $1. Fires once; the ref-transaction stdin is
     # drained.
-    local file="${2:-origin-only.md}" content="${3:-only on origin}"
+    local file="${2:-origin-only.md}" content="${3:-only on origin}" push_tag="${4:-}"
     cat > "$sandbox/move-origin.sh" <<SH
 #!/bin/sh
 unset \$(git rev-parse --local-env-vars)
@@ -212,6 +215,10 @@ git add '$file'
 git commit -qm "work: $file"
 git push -q origin main
 git rev-parse HEAD > "$sandbox/other-sha"
+if [ -n '$push_tag' ]; then
+    git tag -a '$1' -m 'Release elsewhere'
+    git push -q origin '$1'
+fi
 SH
     cat > "$plugin/.git/hooks/reference-transaction" <<HOOK
 #!/bin/sh
@@ -375,6 +382,28 @@ if run_hint "moved, TODO.md conflict" "just resume-release"; then
     assert_eq "$(git -C "$plugin-origin.git" show main:TODO.md)" "$(printf 'todo, release done\ntodo, theirs')" \
         "moved, TODO.md conflict: origin main carries the resolution"
 fi
+
+echo "=== origin moved before the push, and already holds the tag at another commit ==="
+# Another clone released the same version first: its main and its v1.2.4 are on
+# origin. The merge the hint names is clean, and the resume must refuse before
+# pushing main, since push_tag would then refuse to move the published tag.
+new_sandbox "1.2.3"
+writer_clone
+install_mover v1.2.4 origin-only.md "only on origin" yes
+run_in "$plugin" bash plugin-dev/release.sh patch
+moved_sha
+assert_eq "$rc" "1" "tag elsewhere: the release is refused"
+elsewhere_tag="$(origin_rev refs/tags/v1.2.4)"
+[ -n "$elsewhere_tag" ] || fail "tag elsewhere: the other writer never pushed v1.2.4"
+run_in "$plugin" bash -ec "git merge origin/main"
+assert_eq "$rc" "0" "tag elsewhere: the merge is clean"
+run_in "$plugin" bash plugin-dev/release.sh --resume
+assert_eq "$rc" "1" "tag elsewhere: the resume is refused"
+assert_contains "$out" "v1.2.4 on origin points at $elsewhere_tag, not $(rev refs/tags/v1.2.4)" "tag elsewhere: the refusal names the tag and both shas"
+assert_contains "$out" "nothing was pushed" "tag elsewhere: the refusal says nothing was pushed"
+assert_eq "$(origin_rev refs/heads/main)" "$other_sha" "tag elsewhere: origin main still the other writer's"
+assert_eq "$(origin_rev refs/tags/v1.2.4)" "$elsewhere_tag" "tag elsewhere: origin's tag unchanged"
+assert_not_contains "$(cat "$GH_LOG")" "release create" "tag elsewhere: no GitHub release"
 
 if (( failures > 0 )); then
     printf '\n%d failure(s)\n' "$failures" >&2
