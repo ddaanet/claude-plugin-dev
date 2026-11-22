@@ -94,8 +94,8 @@ else
     release_commit=$(git rev-parse "$tag^{commit}")
     dist_opted_in "$release_commit"
 fi
-push_target
 published_tags_check
+push_target
 move_main
 push_branch
 push_tag
